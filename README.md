@@ -1,5 +1,6 @@
 Revo IRC
 =
+COMING SOON - 0.9.7 Stable 
 The stable version 0.9.7 will also be available in APK + ZIP Source Code<br>
 Current version 0.9.7 Test 7 | 6 September 2026<br>
 Available now in "Releases"<br>
