@@ -1,7 +1,6 @@
 Revo IRC
 =
-Bug detected, will be fixed shortly<br>
-Current version 0.9.7 Stable | 12 September 2026<br>
+Current version 0.9.7.1 Stable | 15 September 2026<br>
 Available now in "Releases"<br>
 You can also download the source code in ZIP format from the Releases section (it will be labelled by date)<br>
 <br>
