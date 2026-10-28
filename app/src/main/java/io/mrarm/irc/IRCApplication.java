@@ -97,6 +97,8 @@ public class IRCApplication extends Application implements Application.ActivityL
         for (Activity activity : activities)
             activity.finish();
         ServerConnectionManager.destroyInstance();
+        ChatLogStorageManager storageManager = ChatLogStorageManager.getInstance(this);
+        storageManager.destroy();
         IRCService.stop(this);
         return true;
     }

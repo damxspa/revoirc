@@ -105,41 +105,41 @@ public class PoolSerialExecutor implements ExecutorService {
 
     @Override
     public <T> Future<T> submit(Callable<T> task) {
-        throw new UnsupportedOperationException("submit not supported");
+        return mParentExecutor.submit(task);
     }
 
     @Override
     public <T> Future<T> submit(Runnable task, T result) {
-        throw new UnsupportedOperationException("submit not supported");
+        return mParentExecutor.submit(task, result);
     }
 
     @Override
     public Future<?> submit(Runnable task) {
-        throw new UnsupportedOperationException("submit not supported");
+        return mParentExecutor.submit(task);
     }
 
     @Override
     public <T> List<Future<T>> invokeAll(
             java.util.Collection<? extends Callable<T>> tasks) throws InterruptedException {
-        throw new UnsupportedOperationException("invokeAll not supported");
+        return mParentExecutor.invokeAll(tasks);
     }
 
     @Override
     public <T> List<Future<T>> invokeAll(
             java.util.Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
             throws InterruptedException {
-        throw new UnsupportedOperationException("invokeAll not supported");
+        return mParentExecutor.invokeAll(tasks, timeout, unit);
     }
 
     @Override
     public <T> T invokeAny(java.util.Collection<? extends Callable<T>> tasks)
             throws InterruptedException, java.util.concurrent.ExecutionException {
-        throw new UnsupportedOperationException("invokeAny not supported");
+        return mParentExecutor.invokeAny(tasks);
     }
 
     @Override
     public <T> T invokeAny(java.util.Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
-            throws InterruptedException, java.util.concurrent.ExecutionException {
-        throw new UnsupportedOperationException("invokeAny not supported");
+            throws InterruptedException, java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
+        return mParentExecutor.invokeAny(tasks, timeout, unit);
     }
 }

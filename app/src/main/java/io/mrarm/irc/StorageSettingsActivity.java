@@ -7,6 +7,8 @@ import android.view.MenuItem;
 
 public class StorageSettingsActivity extends ThemedActivity {
 
+    private StorageSettingsAdapter mAdapter;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -16,9 +18,18 @@ public class StorageSettingsActivity extends ThemedActivity {
         RecyclerView recyclerView = findViewById(R.id.items);
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         recyclerView.setLayoutManager(layoutManager);
-        StorageSettingsAdapter adapter = new StorageSettingsAdapter(this);
+        mAdapter = new StorageSettingsAdapter(this);
         recyclerView.setItemAnimator(null);
-        recyclerView.setAdapter(adapter);
+        recyclerView.setAdapter(mAdapter);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mAdapter != null) {
+            mAdapter.destroy();
+            mAdapter = null;
+        }
     }
 
     @Override

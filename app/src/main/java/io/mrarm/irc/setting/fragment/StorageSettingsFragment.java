@@ -14,6 +14,8 @@ import io.mrarm.irc.StorageSettingsAdapter;
 
 public class StorageSettingsFragment extends Fragment implements NamedSettingsFragment {
 
+    private StorageSettingsAdapter mAdapter;
+
     @Override
     public String getName() {
         return getString(R.string.pref_header_storage);
@@ -26,11 +28,20 @@ public class StorageSettingsFragment extends Fragment implements NamedSettingsFr
         RecyclerView recyclerView = view.findViewById(R.id.items);
         LinearLayoutManager layoutManager = new LinearLayoutManager(requireContext());
         recyclerView.setLayoutManager(layoutManager);
-        StorageSettingsAdapter adapter = new StorageSettingsAdapter(requireContext());
+        mAdapter = new StorageSettingsAdapter(requireContext());
         recyclerView.setItemAnimator(null);
-        recyclerView.setAdapter(adapter);
+        recyclerView.setAdapter(mAdapter);
 
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (mAdapter != null) {
+            mAdapter.destroy();
+            mAdapter = null;
+        }
     }
 
 }

@@ -26,6 +26,8 @@ import io.mrarm.irc.config.SettingChangeCallback;
 import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.util.PoolSerialExecutor;
 
+import java.util.concurrent.TimeUnit;
+
 public class ChatLogStorageManager implements ServerConfigManager.ConnectionsListener {
 
     private static final int MIN_GLOBAL_MESSAGES_UPDATE = 1024;
@@ -77,6 +79,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     private long mGlobalLimit;
     private long mDefaultServerLimit;
     private final Executor mExecutor;
+    private volatile boolean mDestroyed = false;
 
     public ChatLogStorageManager(Context context) {
         mConnectionManager = ServerConnectionManager.getInstance(context);
@@ -96,6 +99,36 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         });
     }
 
+    /**
+     * Destroys this manager, unregistering callbacks and shutting down the executor.
+     * Should be called when the application is terminating.
+     */
+    public void destroy() {
+        mDestroyed = true;
+        SettingsHelper.unregisterCallbacks(this);
+        mServerConfigManager.removeListener(this);
+        if (mExecutor instanceof PoolSerialExecutor) {
+            ((PoolSerialExecutor) mExecutor).shutdown();
+            try {
+                if (!((PoolSerialExecutor) mExecutor).awaitTermination(5, TimeUnit.SECONDS)) {
+                    ((PoolSerialExecutor) mExecutor).shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                ((PoolSerialExecutor) mExecutor).shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
+        mServerManagers.clear();
+        mGlobalDeletionCandidates.clear();
+    }
+
+    /**
+     * @return true if this manager has been destroyed
+     */
+    public boolean isDestroyed() {
+        return mDestroyed;
+    }
+
     @SettingChangeCallback(keys = {
             AppSettings.PREF_STORAGE_LIMIT_GLOBAL,
             AppSettings.PREF_STORAGE_LIMIT_SERVER
@@ -106,10 +139,12 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     }
 
     public void requestUpdate(UUID serverUUID) {
+        if (mDestroyed) return;
         mExecutor.execute(() -> performUpdate(serverUUID));
     }
 
     public void requestUpdate(UUID serverUUID, Runnable callback) {
+        if (mDestroyed) return;
         mExecutor.execute(() -> {
             performUpdate(serverUUID);
             callback.run();
@@ -165,6 +200,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     }
 
     public void onMessage(ServerConnectionInfo connection) {
+        if (mDestroyed) return;
         if (mGlobalMessageCounter.incrementAndGet() >= MIN_GLOBAL_MESSAGES_UPDATE) {
             requestUpdate(null);
             for (ServerConnectionInfo info : mConnectionManager.getConnections())

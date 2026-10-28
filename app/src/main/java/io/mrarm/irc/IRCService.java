@@ -18,6 +18,9 @@ import android.util.Log;
 import java.util.HashMap;
 import java.util.Map;
 
+import io.mrarm.chatlib.ChatApi;
+import io.mrarm.chatlib.irc.ServerConnectionApi;
+import io.mrarm.chatlib.irc.ServerConnectionData;
 import io.mrarm.chatlib.dto.MessageId;
 import io.mrarm.chatlib.dto.MessageInfo;
 import io.mrarm.chatlib.message.MessageListener;
@@ -75,8 +78,18 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     private static IRCService sInstance;
 
     public static void onStorageApiChanged(ServerConnectionInfo connection) {
-        if (sInstance != null) {
-            sInstance.onConnectionAdded(connection);
+        if (sInstance != null && connection != null && connection.isConnected()) {
+            try {
+                ChatApi api = connection.getApiInstance();
+                if (api != null && api instanceof ServerConnectionApi) {
+                    ServerConnectionData connectionData = ((ServerConnectionApi) api).getServerConnectionData();
+                    if (connectionData.getMessageStorageApi() != null) {
+                        sInstance.onConnectionAdded(connection);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e("IRCService", "Error in onStorageApiChanged", e);
+            }
         }
     }
 
