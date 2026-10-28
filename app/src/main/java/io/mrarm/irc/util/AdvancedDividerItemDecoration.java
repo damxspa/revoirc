@@ -20,13 +20,13 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import androidx.core.view.ViewCompat;
+import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import android.view.View;
 
 public class AdvancedDividerItemDecoration extends RecyclerView.ItemDecoration {
 
-    private Drawable mDivider;
+    private final Drawable mDivider;
 
     private final Rect mBounds = new Rect();
 
@@ -38,7 +38,7 @@ public class AdvancedDividerItemDecoration extends RecyclerView.ItemDecoration {
     }
 
     @Override
-    public void onDraw(Canvas canvas, RecyclerView parent, RecyclerView.State state) {
+    public void onDraw(@NonNull Canvas canvas, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
         canvas.save();
         final int left;
         final int right;
@@ -57,7 +57,7 @@ public class AdvancedDividerItemDecoration extends RecyclerView.ItemDecoration {
             if (!hasDivider(parent, child))
                 continue;
             parent.getDecoratedBoundsWithMargins(child, mBounds);
-            final int bottom = mBounds.bottom + Math.round(ViewCompat.getTranslationY(child));
+            final int bottom = mBounds.bottom + Math.round(child.getTranslationY());
             final int top = bottom - mDivider.getIntrinsicHeight();
             mDivider.setBounds(left, top, right, bottom);
             mDivider.setAlpha((int) (child.getAlpha() * 255));

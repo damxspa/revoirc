@@ -119,8 +119,11 @@ public class DrawerMenuListAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             if (info.isExpandedInDrawer()) {
                 if (shouldShowServerItem(info))
                     currentIndex++;
-                if (info.getChannels() != null)
-                    currentIndex += info.getChannels().size();
+                if (info.getChannels() != null) {
+                    for (String chan : info.getChannels()) {
+                        currentIndex++;
+                    }
+                }
             }
             currentIndex += 2;
         }
@@ -146,8 +149,11 @@ public class DrawerMenuListAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             if (info.isExpandedInDrawer()) {
                 if (shouldShowServerItem(info))
                     currentIndex++;
-                if (info.getChannels() != null)
-                    currentIndex += info.getChannels().size();
+                if (info.getChannels() != null) {
+                    for (String chan : info.getChannels()) {
+                        currentIndex++;
+                    }
+                }
             }
             currentIndex += 2;
         }
@@ -191,8 +197,11 @@ public class DrawerMenuListAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             if (info.isExpandedInDrawer()) {
                 if (shouldShowServerItem(info))
                     currentIndex++;
-                if (info.getChannels() != null)
-                    currentIndex += info.getChannels().size();
+                if (info.getChannels() != null) {
+                    for (String chan : info.getChannels()) {
+                        currentIndex++;
+                    }
+                }
             }
             currentIndex += 2;
         }
@@ -316,8 +325,9 @@ public class DrawerMenuListAdapter extends RecyclerView.Adapter<RecyclerView.Vie
         if (entry.getValue().isExpandedInDrawer()) {
             if (shouldShowServerItem(entry.getValue()))
                 cnt++;
-            if (entry.getValue().getChannels() != null)
+            if (entry.getValue().getChannels() != null) {
                 cnt += entry.getValue().getChannels().size();
+            }
         }
         if (position == entry.getKey() + cnt + 1)
             return TYPE_DIVIDER;
@@ -428,11 +438,13 @@ public class DrawerMenuListAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             if (shouldShowServerItem(info))
                 --channelIndex;
             List<String> channels = info.getChannels();
+            mChannel = null;
             if (channelIndex >= 0 && channelIndex < channels.size()) {
                 mChannel = channels.get(channelIndex);
+            }
+            if (mChannel != null) {
                 mName.setText(mChannel);
             } else {
-                mChannel = null;
                 mName.setText(R.string.tab_server);
             }
 

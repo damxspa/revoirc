@@ -3,6 +3,7 @@ package io.mrarm.irc;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
+import android.util.Log;
 import androidx.recyclerview.widget.RecyclerView;
 import android.text.style.ForegroundColorSpan;
 import android.view.LayoutInflater;
@@ -75,7 +76,7 @@ public class IgnoreListAdapter extends RecyclerView.Adapter<IgnoreListAdapter.It
                     try {
                         ServerConfigManager.getInstance(context).saveServer(mServer);
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        Log.e("IgnoreListAdapter", "Failed to save server config after deleting ignore entry", e);
                         Toast.makeText(context, R.string.error_generic, Toast.LENGTH_SHORT).show();
                     }
                     return true;

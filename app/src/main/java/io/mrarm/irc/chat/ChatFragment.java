@@ -2,12 +2,17 @@ package io.mrarm.irc.chat;
 
 import android.database.DataSetObserver;
 import android.os.Bundle;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.tabs.TabLayout;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager.widget.ViewPager;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.graphics.Insets;
 import androidx.core.widget.ImageViewCompat;
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import android.view.LayoutInflater;
@@ -17,6 +22,7 @@ import android.widget.TextView;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import io.mrarm.chatlib.dto.NickWithPrefix;
@@ -68,13 +74,13 @@ public class ChatFragment extends Fragment implements
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.chat_fragment, container, false);
 
-        UUID connectionUUID = UUID.fromString(getArguments().getString(ARG_SERVER_UUID));
-        mConnectionInfo = ServerConnectionManager.getInstance(getContext()).getConnection(connectionUUID);
-        String requestedChannel = getArguments().getString(ARG_CHANNEL_NAME);
-        String requestedMessageId = getArguments().getString(ARG_MESSAGE_ID);
+        UUID connectionUUID = UUID.fromString(requireArguments().getString(ARG_SERVER_UUID));
+        mConnectionInfo = ServerConnectionManager.getInstance(requireContext()).getConnection(connectionUUID);
+        String requestedChannel = requireArguments().getString(ARG_CHANNEL_NAME);
+        String requestedMessageId = requireArguments().getString(ARG_MESSAGE_ID);
 
         if (mConnectionInfo == null) {
-            ((MainActivity) getActivity()).openManageServers();
+            ((MainActivity) requireActivity()).openManageServers();
             return null;
         }
 
@@ -83,12 +89,17 @@ public class ChatFragment extends Fragment implements
         Toolbar toolbar = rootView.findViewById(R.id.toolbar);
         mNormalToolbarInset = toolbar.getContentInsetStartWithNavigation();
 
-        ((AppCompatActivity) getActivity()).setSupportActionBar(toolbar);
-        ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(mConnectionInfo.getName());
+        ((AppCompatActivity) requireActivity()).setSupportActionBar(toolbar);
+        ActionBar actionBar = ((AppCompatActivity) requireActivity()).getSupportActionBar();
+        if (actionBar != null) {
+            String name = mConnectionInfo.getName();
+            actionBar.setTitle(name != null && !name.isEmpty() ? name : getString(R.string.app_name));
+            actionBar.setDisplayHomeAsUpEnabled(true);
+        }
 
-        ((MainActivity) getActivity()).addActionBarDrawerToggle(toolbar);
+        ((MainActivity) requireActivity()).addActionBarDrawerToggle(toolbar);
 
-        mSectionsPagerAdapter = new ChatPagerAdapter(getContext(), getChildFragmentManager(), mConnectionInfo, savedInstanceState);
+        mSectionsPagerAdapter = new ChatPagerAdapter(requireContext(), getChildFragmentManager(), mConnectionInfo, savedInstanceState);
 
         mViewPager = rootView.findViewById(R.id.container);
         mViewPager.setAdapter(mSectionsPagerAdapter);
@@ -103,8 +114,10 @@ public class ChatFragment extends Fragment implements
 
             @Override
             public void onPageSelected(int i) {
-                ((MainActivity) getActivity()).getDrawerHelper().setSelectedChannel(mConnectionInfo,
-                        mSectionsPagerAdapter.getChannel(i));
+                String channel = mSectionsPagerAdapter.getChannel(i);
+                ((MainActivity) requireActivity()).getDrawerHelper().setSelectedChannel(mConnectionInfo, channel);
+                if (mSendHelper != null)
+                    mSendHelper.setCurrentChannel(channel);
             }
 
             @Override
@@ -148,9 +161,12 @@ public class ChatFragment extends Fragment implements
         });
 
         mSendHelper = new ChatFragmentSendMessageHelper(this, rootView);
-        String sendText = getArguments().getString(ARG_SEND_MESSAGE_TEXT);
-        if (sendText != null)
-            mSendHelper.setMessageText(sendText);
+        mSendHelper.setCurrentChannel(getCurrentChannel());
+        if (getArguments() != null) {
+            String sendText = getArguments().getString(ARG_SEND_MESSAGE_TEXT);
+            if (sendText != null)
+                mSendHelper.setMessageText(sendText);
+        }
 
         SettingsHelper.registerCallbacks(this);
         onSettingChange();
@@ -178,16 +194,21 @@ public class ChatFragment extends Fragment implements
             tab.setText(mSectionsPagerAdapter.getPageTitle(i));
             tab.setTag(mSectionsPagerAdapter.getChannel(i));
             tab.setCustomView(R.layout.chat_tab);
-            TextView textView = tab.getCustomView().findViewById(android.R.id.text1);
-            textView.setTextColor(mTabLayout.getTabTextColors());
-            ImageViewCompat.setImageTintList(tab.getCustomView().findViewById(R.id.notification_icon), mTabLayout.getTabTextColors());
+            if (tab.getCustomView() != null) {
+                TextView textView = tab.getCustomView().findViewById(android.R.id.text1);
+                textView.setTextColor(mTabLayout.getTabTextColors());
+                ImageViewCompat.setImageTintList(tab.getCustomView().findViewById(R.id.notification_icon), mTabLayout.getTabTextColors());
+            }
             updateTabLayoutTab(tab);
             mTabLayout.addTab(tab, false);
         }
 
         final int currentItem = mViewPager.getCurrentItem();
-        if (currentItem != mTabLayout.getSelectedTabPosition() && currentItem < mTabLayout.getTabCount())
-            mTabLayout.getTabAt(currentItem).select();
+        if (currentItem != mTabLayout.getSelectedTabPosition() && currentItem < mTabLayout.getTabCount()) {
+            TabLayout.Tab tab = mTabLayout.getTabAt(currentItem);
+            if (tab != null)
+                tab.select();
+        }
     }
 
     private void updateTabLayoutTab(TabLayout.Tab tab) {
@@ -198,7 +219,10 @@ public class ChatFragment extends Fragment implements
             if (data != null)
                 highlight = data.hasUnreadMessages();
         }
-        tab.getCustomView().findViewById(R.id.notification_icon).setVisibility(highlight ? View.VISIBLE : View.GONE);
+        View customView = tab.getCustomView();
+        if (customView != null) {
+            customView.findViewById(R.id.notification_icon).setVisibility(highlight ? View.VISIBLE : View.GONE);
+        }
     }
 
     @UiSettingChangeCallback(keys = {
@@ -220,14 +244,14 @@ public class ChatFragment extends Fragment implements
 
     public void updateToolbarCompactLayoutStatus(int height) {
         String mode = ChatSettings.getAppbarCompactMode();
-        boolean enabled = mode.equals(SettingsHelper.COMPACT_MODE_ALWAYS) ||
-                (mode.equals(SettingsHelper.COMPACT_MODE_AUTO) &&
+        boolean enabled = Objects.equals(mode, SettingsHelper.COMPACT_MODE_ALWAYS) ||
+                (Objects.equals(mode, SettingsHelper.COMPACT_MODE_AUTO) &&
                         height < getResources().getDimensionPixelSize(R.dimen.compact_toolbar_activate_height));
         setUseToolbarCompactLayout(enabled);
     }
 
     public void setUseToolbarCompactLayout(boolean enable) {
-        Toolbar toolbar = ((MainActivity) getActivity()).getToolbar();
+        Toolbar toolbar = ((MainActivity) requireActivity()).getToolbar();
         if (enable == (mTabLayout.getParent() == toolbar))
             return;
         ((ViewGroup) mTabLayout.getParent()).removeView(mTabLayout);
@@ -253,7 +277,7 @@ public class ChatFragment extends Fragment implements
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
         if (mSectionsPagerAdapter != null)
             mSectionsPagerAdapter.onSaveInstanceState(outState);
@@ -274,12 +298,12 @@ public class ChatFragment extends Fragment implements
             ChannelNotificationManager chanMgr = mConnectionInfo.getNotificationManager()
                     .getChannelManager(channel, false);
             if (chanMgr != null)
-                chanMgr.cancelNotification(getActivity());
+                chanMgr.cancelNotification(requireActivity());
         }
     }
 
     public String getAndClearMessageJump(String channel) {
-        if (channel != null && mMessageJump != null && channel.equals(mMessageJump.mChannel)) {
+        if (channel != null && mMessageJump != null && Objects.equals(channel, mMessageJump.mChannel)) {
             OneTimeMessageJump ret = mMessageJump;
             mMessageJump = null;
             return ret.mMessageId;
@@ -289,7 +313,7 @@ public class ChatFragment extends Fragment implements
 
     public void setCurrentChannelInfo(String topic, String topicSetBy, Date topicSetOn,
                                       List<NickWithPrefix> members) {
-        ((MainActivity) getActivity()).setCurrentChannelInfo(getConnectionInfo(),
+        ((MainActivity) requireActivity()).setCurrentChannelInfo(getConnectionInfo(),
                 topic, topicSetBy, topicSetOn, members);
         if (mSendHelper != null)
             mSendHelper.setCurrentChannelMembers(members);
@@ -297,6 +321,12 @@ public class ChatFragment extends Fragment implements
 
     public String getCurrentChannel() {
         return mSectionsPagerAdapter.getChannel(mViewPager.getCurrentItem());
+    }
+
+    public void clearHistory() {
+        Fragment fragment = getChildFragmentManager().findFragmentByTag("android:switcher:" + R.id.container + ":" + mSectionsPagerAdapter.getItemId(mViewPager.getCurrentItem()));
+        if (fragment instanceof ChatMessagesFragment)
+            ((ChatMessagesFragment) fragment).clearHistory();
     }
 
     public ChatFragmentSendMessageHelper getSendMessageHelper() {
@@ -318,14 +348,12 @@ public class ChatFragment extends Fragment implements
 
     @Override
     public void onConnectionInfoChanged(ServerConnectionInfo connection) {
-        getActivity().runOnUiThread(() -> {
-            mSendHelper.updateVisibility();
-        });
+        requireActivity().runOnUiThread(mSendHelper::updateVisibility);
     }
 
     @Override
     public void onChannelListChanged(ServerConnectionInfo connection, List<String> newChannels) {
-        getActivity().runOnUiThread(() -> {
+        requireActivity().runOnUiThread(() -> {
             mSectionsPagerAdapter.updateChannelList();
             checkForAutoOpenChannel();
         });
@@ -335,7 +363,7 @@ public class ChatFragment extends Fragment implements
     public void onUnreadMessageCountChanged(ServerConnectionInfo info, String channel,
                                             int messageCount, int oldMessageCount) {
         if (messageCount == 0 || (messageCount > 0 && oldMessageCount == 0)) {
-            getActivity().runOnUiThread(() -> {
+            requireActivity().runOnUiThread(() -> {
                 int tabNumber = mSectionsPagerAdapter.findChannel(channel);
                 TabLayout.Tab tab = mTabLayout.getTabAt(tabNumber);
                 if (tab != null)

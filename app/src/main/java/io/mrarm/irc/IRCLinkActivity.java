@@ -14,6 +14,7 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import io.mrarm.chatlib.ChatApi;
@@ -35,7 +36,7 @@ public class IRCLinkActivity extends ThemedActivity {
         super.onCreate(savedInstanceState);
 
         if (getIntent() == null || getIntent().getAction() == null ||
-                !getIntent().getAction().equals(Intent.ACTION_VIEW) ||
+                !Objects.equals(getIntent().getAction(), Intent.ACTION_VIEW) ||
                 getIntent().getData() == null) {
             finish();
             return;
@@ -43,18 +44,25 @@ public class IRCLinkActivity extends ThemedActivity {
 
         RecyclerView recyclerView = new RecyclerView(this);
         setContentView(recyclerView);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         String str = getIntent().getData().toString();
-        int iof = str.indexOf(":/");
+        int iof = str.indexOf("://");
         if (iof == -1) {
-            finish();
-            return;
+            iof = str.indexOf(":/");
+            if (iof == -1) {
+                finish();
+                return;
+            }
+            iof += 2;
+        } else {
+            iof += 3;
         }
-        iof += 2;
-        if (str.length() > iof && str.charAt(iof) == '/')
+        while (str.length() > iof && str.charAt(iof) == '/')
             iof++;
         str = str.substring(iof);
         iof = str.indexOf('/');
@@ -77,7 +85,7 @@ public class IRCLinkActivity extends ThemedActivity {
     }
 
     private static String prefixChannelIfNeeded(String name) {
-        if (name == null || name.length() == 0)
+        if (name == null || name.isEmpty())
             return "";
         char c = name.charAt(0);
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
@@ -88,9 +96,7 @@ public class IRCLinkActivity extends ThemedActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_ADD_SERVER && data != null && data.getAction() != null &&
-                data.getAction().equals(EditServerActivity.RESULT_ACTION)) {
-            ServerConnectionManager mgr = ServerConnectionManager.getInstance(this);
-
+                EditServerActivity.RESULT_ACTION.equals(data.getAction())) {
             String uuid = data.getStringExtra(EditServerActivity.ARG_SERVER_UUID);
             openServer(ServerConfigManager.getInstance(this).findServer(
                     UUID.fromString(uuid)));
@@ -206,7 +212,7 @@ public class IRCLinkActivity extends ThemedActivity {
                     ServerConnectionManager.getInstance(mContext);
             for (ServerConfigData server : ServerConfigManager.getInstance(mContext).getServers()) {
                 if (filter) {
-                    if (!getHostnameDomain(server.address).equals(getHostnameDomain(mHostName)))
+                    if (!Objects.equals(getHostnameDomain(server.address), getHostnameDomain(mHostName)))
                         continue;
                 }
                 if (connectionManager .hasConnection(server.uuid))
@@ -241,7 +247,7 @@ public class IRCLinkActivity extends ThemedActivity {
         }
 
         private boolean hasActiveHeader() {
-            return mActiveServers.size() > 0;
+            return !mActiveServers.isEmpty();
         }
 
         private int getActiveHeaderIndex() {
@@ -253,7 +259,7 @@ public class IRCLinkActivity extends ThemedActivity {
         }
 
         private boolean hasInactiveHeader() {
-            return hasActiveHeader() && mInactiveServers.size() > 0;
+            return hasActiveHeader() && !mInactiveServers.isEmpty();
         }
 
         private int getInactiveHeaderIndex() {

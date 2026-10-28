@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/light_on_duration_ctr"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/notification_light_on_duration">
+
+        <EditText
+            android:id="@+id/light_on_duration"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:autofillHints="number" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/light_off_duration_ctr"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="@string/notification_light_off_duration">
+
+        <EditText
+            android:id="@+id/light_off_duration"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:autofillHints="number" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+</LinearLayout>

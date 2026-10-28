@@ -2,9 +2,9 @@
 <resources>
 
     <integer-array name="notification_vibration_option_values">
-        <item>-1</item>
         <item>200</item>
-        <item>2000</item>
+        <item>500</item>
+        <item>-2</item>
         <item>0</item>
     </integer-array>
 
@@ -36,6 +36,7 @@
     <!-- Encoding list, as available in HexChat -->
     <string-array name="encodings_display">
         <item>UTF-8</item>
+        <item>ISO-8859-1 (Western European)</item>
         <item>Windows-1252 (Latin)</item>
         <item>Windows-1256 (Arabic)</item>
         <item>Windows-1257 (Baltic)</item>
@@ -53,6 +54,7 @@
     </string-array>
     <string-array name="encodings_values">
         <item>UTF-8</item>
+        <item>ISO-8859-1</item>
         <item>windows-1252</item>
         <item>windows-1256</item>
         <item>windows-1257</item>

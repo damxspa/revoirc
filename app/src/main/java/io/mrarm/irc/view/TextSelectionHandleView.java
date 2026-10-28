@@ -14,10 +14,7 @@ public class TextSelectionHandleView extends View {
     public static Drawable getDrawable(Context context, boolean rightHandle) {
         int resId = StyledAttributesHelper.getResourceId(context, rightHandle ?
                 android.R.attr.textSelectHandleRight : android.R.attr.textSelectHandleLeft, -1);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-            return context.getDrawable(resId);
-        else
-            return context.getResources().getDrawable(resId);
+        return context.getDrawable(resId);
     }
 
 

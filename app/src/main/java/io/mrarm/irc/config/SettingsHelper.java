@@ -5,7 +5,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
-import android.preference.PreferenceManager;
+import android.util.Log;
 
 import com.google.gson.Gson;
 
@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.mrarm.irc.setting.ListWithCustomSetting;
 
@@ -33,14 +34,61 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     public static final String SWIPE_UP_TO_DOWN = "up_to_down";
     public static final String SWIPE_DOWN_TO_UP = "down_to_up";
 
-    private static SettingsHelper mInstance;
+    // Thread-safe singleton using AtomicReference
+    private static final AtomicReference<SettingsHelper> INSTANCE = new AtomicReference<>();
 
-    private static Gson mGson = new Gson();
+    private static final Gson mGson = new Gson();
 
+    /**
+     * Gets the singleton instance, initializing if necessary.
+     * Thread-safe: uses AtomicReference for lock-free initialization.
+     * 
+     * @param context Application context (must not be null on first call)
+     * @return The SettingsHelper instance
+     * @throws IllegalStateException if called with null context before initialization
+     */
     public static SettingsHelper getInstance(Context context) {
-        if (mInstance == null)
-            mInstance = new SettingsHelper(context.getApplicationContext());
-        return mInstance;
+        SettingsHelper instance = INSTANCE.get();
+        if (instance != null) {
+            return instance;
+        }
+        
+        if (context == null) {
+            throw new IllegalStateException("SettingsHelper not initialized: getInstance(null) called before initialization");
+        }
+        
+        // Double-checked locking via AtomicReference compareAndSet
+        SettingsHelper newInstance = new SettingsHelper(context.getApplicationContext());
+        if (INSTANCE.compareAndSet(null, newInstance)) {
+            return newInstance;
+        } else {
+            // Another thread initialized it first
+            return INSTANCE.get();
+        }
+    }
+
+    /**
+     * Gets the singleton instance without initializing.
+     * Returns null if not yet initialized.
+     * 
+     * @return The SettingsHelper instance or null if not initialized
+     */
+    public static SettingsHelper getInstanceOrNull() {
+        return INSTANCE.get();
+    }
+
+    /**
+     * Gets the singleton instance, throwing if not initialized.
+     * 
+     * @return The SettingsHelper instance
+     * @throws IllegalStateException if not initialized
+     */
+    public static SettingsHelper getInstanceOrThrow() {
+        SettingsHelper instance = INSTANCE.get();
+        if (instance == null) {
+            throw new IllegalStateException("SettingsHelper not initialized");
+        }
+        return instance;
     }
 
     public static Gson getGson() {
@@ -48,29 +96,43 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     }
 
     public static void deleteSQLiteDatabase(File path) {
-        path.delete();
-        new File(path.getParent(), path.getName() + "-journal").delete();
-        new File(path.getParent(), path.getName() + "-shm").delete();
-        new File(path.getParent(), path.getName() + "-wal").delete();
+        if (path.exists() && !path.delete()) {
+            Log.w("SettingsHelper", "Failed to delete database file: " + path.getAbsolutePath());
+        }
+        File journal = new File(path.getParent(), path.getName() + "-journal");
+        if (journal.exists() && !journal.delete()) {
+             Log.w("SettingsHelper", "Failed to delete journal file: " + journal.getAbsolutePath());
+        }
+        File shm = new File(path.getParent(), path.getName() + "-shm");
+        if (shm.exists() && !shm.delete()) {
+             Log.w("SettingsHelper", "Failed to delete shm file: " + shm.getAbsolutePath());
+        }
+        File wal = new File(path.getParent(), path.getName() + "-wal");
+        if (wal.exists() && !wal.delete()) {
+             Log.w("SettingsHelper", "Failed to delete wal file: " + wal.getAbsolutePath());
+        }
     }
 
-    private Context mContext;
-    private SharedPreferences mPreferences;
+    private final Context mContext;
+    private final SharedPreferences mPreferences;
 
     private static final Map<String, List<SettingChangeCallback>> sListeners = new HashMap<>();
 
     public SettingsHelper(Context context) {
         mContext = context;
-        mPreferences = PreferenceManager.getDefaultSharedPreferences(context);
+        mPreferences = context.getSharedPreferences(
+                context.getPackageName() + "_preferences", Context.MODE_PRIVATE);
         mPreferences.registerOnSharedPreferenceChangeListener(this);
     }
 
     public static SharedPreferences getPreferences() {
-        return SettingsHelper.getInstance(null).mPreferences;
+        SettingsHelper instance = INSTANCE.get();
+        return instance != null ? instance.mPreferences : null;
     }
 
     public static Context getContext() {
-        return SettingsHelper.getInstance(null).mContext;
+        SettingsHelper instance = INSTANCE.get();
+        return instance != null ? instance.mContext : null;
     }
 
     public List<File> getCustomFiles() {
@@ -82,16 +144,21 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     }
 
     public void clear() {
-        for (File file : getCustomFiles())
-            file.delete();
-        mPreferences.edit().clear().commit();
+        for (File file : getCustomFiles()) {
+            if (file.exists())
+                file.delete();
+        }
+        mPreferences.edit().clear().apply();
     }
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        if (sListeners.containsKey(key)) {
-            for (SettingChangeCallback l : sListeners.get(key))
-                l.onSettingChanged(key);
+        synchronized (sListeners) {
+            List<SettingChangeCallback> listeners = sListeners.get(key);
+            if (listeners != null) {
+                for (SettingChangeCallback l : listeners)
+                    l.onSettingChanged(key);
+            }
         }
     }
 
@@ -109,14 +176,54 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     }
 
 
+    /**
+     * Gets a long value from SharedPreferences with robust type coercion.
+     * Handles type mismatches that can occur after backup restoration (JSON doesn't
+     * differentiate between number types, and strings may be stored as numbers).
+     *
+     * @param prefs SharedPreferences instance
+     * @param key Preference key
+     * @param def Default value if key not found or conversion fails
+     * @return The long value or default
+     */
     static long getLong(SharedPreferences prefs, String key, long def) {
-        try {
-            return prefs.getLong(key, def);
-        } catch (Exception e) {
-            // We most likely got a ClassCastException and this situation happened after restoring
-            // from a backup, as in JSON we have no idea of differentiating longs from ints.
-            return prefs.contains(key) ? prefs.getInt(key, 0) : def;
+        if (!prefs.contains(key)) {
+            return def;
         }
+        
+        try {
+            // Fast path - try direct getLong
+            return prefs.getLong(key, def);
+        } catch (ClassCastException e) {
+            // Type mismatch - try other types
+            Log.w("SettingsHelper", "Type coercion for key '" + key + "': " + e.getMessage());
+        }
+        
+        // Try int (common after JSON restore where longs become ints)
+        try {
+            return prefs.getInt(key, (int) def);
+        } catch (ClassCastException ignored) {}
+        
+        // Try float
+        try {
+            return (long) prefs.getFloat(key, def);
+        } catch (ClassCastException ignored) {}
+        
+        // Try boolean (false=0, true=1)
+        try {
+            return prefs.getBoolean(key, false) ? 1L : 0L;
+        } catch (ClassCastException ignored) {}
+        
+        // Try string parsing
+        try {
+            String stringValue = prefs.getString(key, null);
+            if (stringValue != null) {
+                return Long.parseLong(stringValue);
+            }
+        } catch (NumberFormatException | ClassCastException ignored) {}
+        
+        Log.w("SettingsHelper", "Failed to coerce key '" + key + "' to long, using default: " + def);
+        return def;
     }
 
 
@@ -203,8 +310,8 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
             if (a != null)
                 i.methods.add(new ClassCallbackInfo.MethodInfo(m, a.keys(), false));
 
-            io.mrarm.irc.config.UiSettingChangeCallback a2 =
-                    m.getAnnotation(io.mrarm.irc.config.UiSettingChangeCallback.class);
+            UiSettingChangeCallback a2 =
+                    m.getAnnotation(UiSettingChangeCallback.class);
             if (a2 != null)
                 i.methods.add(new ClassCallbackInfo.MethodInfo(m, a2.keys(), true));
         }
@@ -236,9 +343,9 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     private static class ClassCallbackInfo {
 
         private static class MethodInfo {
-            private Method method;
-            private String[] keys;
-            private boolean onUi;
+            private final Method method;
+            private final String[] keys;
+            private final boolean onUi;
 
             private MethodInfo(Method method, String[] keys, boolean onUi) {
                 this.method = method;
@@ -281,8 +388,7 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
             }
         }
 
-        private List<MethodInfo> methods = new ArrayList<>();
+        private final List<MethodInfo> methods = new ArrayList<>();
 
     }
-
 }

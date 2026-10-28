@@ -1,0 +1,63 @@
+<resources>
+    <string name="app_name">RevoIRC</string>
+
+    <!-- Chat -->
+
+    <string name="navigation_drawer_open">Avaa navigointipaneeli</string>
+    <string name="navigation_drawer_close">Sulje navigointipaneeli</string>
+
+    <string name="tab_server">Palvelin</string>
+    <string name="message_hint">Lähetä viesti</string>
+    <string name="message_disconnected">Yhteys katkaistu</string>
+    <string name="message_join" formatted="false">%s on liittynyt</string>
+    <string name="message_kick" formatted="false">%s potki käyttäjän %s (%s)</string>
+    <string name="message_part" formatted="false">%s poistui (%s)</string>
+    <string name="message_part_no_message" formatted="false">%s poistui</string>
+    <string name="message_quit" formatted="false">%s katkaisi yhteyden (%s)</string>
+    <string name="message_nick_change" formatted="false">%s on nyt %s</string>
+    <string name="message_topic" formatted="false">Aihe: %s</string>
+    <string name="message_topic_whotime" formatted="false">%s asetti aiheen %s</string>
+    <string name="message_topic_by" formatted="false">Aihe: %s, asettaja %s</string>
+    <string name="message_topic_none">Aihetta ei ole asetettu</string>
+
+    <string name="message_host_info" formatted="false">Palvelimen nimi on %s, versio %s. Tuetut käyttäjätilat: %s, tuetut kanavatilat: %s</string>
+    <string name="message_motd">Päivän viesti (MOTD)</string>
+    <string name="message_whois" formatted="false">Käyttäjän %s tiedot</string>
+
+    <string name="message_mode" formatted="false">%s %s</string>
+    <string name="message_mode_set" formatted="false">asetti %s</string>
+    <string name="message_mode_unset" formatted="false">poisti %s</string>
+    <string name="message_mode_gave" formatted="false">antoi %s</string>
+    <string name="message_mode_removed" formatted="false">otti pois %s</string>
+
+    <string name="message_mode_gave_to" formatted="false">%s käyttäjälle %s</string>
+    <string name="message_mode_removed_from" formatted="false">%s käyttäjältä %s</string>
+
+    <plurals name="message_mode_channel">
+        <item quantity="one">kanavatila \'%s\'</item>
+        <item quantity="other">kanavatilat \'%s\'</item>
+    </plurals>
+    <string name="message_mode_channel_value" formatted="false">kanavatila \'%s\' käyttäjälle %s</string>
+    <string name="message_mode_channel_ban" formatted="false">porttikielto käyttäjälle %s</string>
+    <string name="message_mode_nick_owner">kanavan omistaja</string>
+    <string name="message_mode_nick_admin">kanavan ylläpitäjä</string>
+    <string name="message_mode_nick_op">kanavan operaattori</string>
+    <string name="message_mode_nick_half_op">kanavan puolioperaattori</string>
+    <string name="message_mode_nick_voice">puheoikeus (voice)</string>
+
+    <string name="message_ctcp_ping">Vastaanotettiin CTCP-ping</string>
+    <string name="message_ctcp_version">Vastaanotettiin CTCP-versio</string>
+
+    <string name="pref_title_close_private_quit">Sulje yksityisviestit automaattisesti kun käyttäjä poistuu</string>
+
+    <string name="pref_title_night_mode">Tumma tila</string>
+    <string-array name="pref_entries_night_mode">
+        <item>Järjestelmän oletus</item>
+        <item>Aina pois</item>
+        <item>Aina päällä</item>
+    </string-array>
+
+    <string name="action_mark_as_read">Merkitse luetuksi</string>
+    <string name="action_join_channel">Liity kanavalle</string>
+
+</resources>

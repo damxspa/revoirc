@@ -75,6 +75,12 @@ public class ThemeResourceFileBuilder {
             appTheme.addValue(android.R.attr.windowLightStatusBar, boolTrue);
             appThemeNoActionBar.addValue(android.R.attr.windowLightStatusBar, boolTrue);
         }
+        if (theme.getBool(ThemeInfo.PROP_LIGHT_NAVIGATION_BAR) == Boolean.TRUE &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ResValue boolTrue = new ResValue.Integer(ResValue.TYPE_INT_BOOLEAN, 1);
+            appTheme.addValue(android.R.attr.windowLightNavigationBar, boolTrue);
+            appThemeNoActionBar.addValue(android.R.attr.windowLightNavigationBar, boolTrue);
+        }
 
         Collections.sort(appTheme.value, (a, b) -> a.name - b.name);
         Collections.sort(appThemeNoActionBar.value, (a, b) -> a.name - b.name);
@@ -87,9 +93,9 @@ public class ThemeResourceFileBuilder {
     }
 
     private static void buildThemeZipFile(File zipPath, ResTable resTable) {
-        try {
-            FileOutputStream fos = new FileOutputStream(zipPath);
-            ZipOutputStream outStream = new ZipOutputStream(new BufferedOutputStream(fos));
+        try (FileOutputStream fos = new FileOutputStream(zipPath);
+             BufferedOutputStream bos = new BufferedOutputStream(fos);
+             ZipOutputStream outStream = new ZipOutputStream(bos)) {
             outStream.setMethod(ZipOutputStream.STORED);
 
             ByteArrayOutputStream byteArrOS = new ByteArrayOutputStream();
@@ -109,9 +115,6 @@ public class ThemeResourceFileBuilder {
             entry.setCrc(crc.getValue());
             outStream.putNextEntry(entry);
             outStream.write(bytes);
-
-            outStream.close();
-            fos.close();
         } catch (IOException e) {
             e.printStackTrace();
         }

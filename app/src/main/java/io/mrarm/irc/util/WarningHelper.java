@@ -7,6 +7,7 @@ import android.content.Context;
 import android.os.Build;
 import androidx.core.app.NotificationCompat;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,7 +34,7 @@ public class WarningHelper {
     }
 
     private static Context mAppContext;
-    private static Activity mActivity;
+    private static WeakReference<Activity> mActivityRef = new WeakReference<>(null);
 
     private static final List<Warning> mWarnings = new ArrayList<>();
 
@@ -42,8 +43,8 @@ public class WarningHelper {
     }
 
     public static void setActivity(Activity activity) {
-        Activity oldActivity = mActivity;
-        mActivity = activity;
+        Activity oldActivity = mActivityRef.get();
+        mActivityRef = new WeakReference<>(activity);
         synchronized (mWarnings) {
             for (Warning warning : mWarnings) {
                 if (activity != null) {
@@ -52,14 +53,14 @@ public class WarningHelper {
                 } else {
                     warning.showNotification(mAppContext);
                     if (oldActivity != null)
-                        warning.dismissDialog(activity);
+                        warning.dismissDialog(oldActivity);
                 }
             }
         }
     }
 
     public static Activity getActivity() {
-        return mActivity;
+        return mActivityRef.get();
     }
 
     public static void showWarning(Warning warning) {
@@ -69,9 +70,12 @@ public class WarningHelper {
                     return;
             }
             mWarnings.add(warning);
-            if (mActivity != null) {
-                mActivity.runOnUiThread(() -> {
-                    warning.showDialog(mActivity);
+            Activity activity = mActivityRef.get();
+            if (activity != null) {
+                activity.runOnUiThread(() -> {
+                    Activity currentActivity = mActivityRef.get();
+                    if (currentActivity != null)
+                        warning.showDialog(currentActivity);
                 });
             } else {
                 warning.showNotification(mAppContext);
@@ -135,12 +139,13 @@ public class WarningHelper {
         }
 
         public void dismissNotification(Context context) {
-            if (mNotificationId == -1)
+            int id = mNotificationId;
+            if (id == -1)
                 return;
+            mNotificationId = -1;
             NotificationManager notificationManager = (NotificationManager)
                     context.getSystemService(Context.NOTIFICATION_SERVICE);
-            notificationManager.cancel(mNotificationId);
-            mNotificationId = -1;
+            notificationManager.cancel(id);
         }
 
         public void showDialog(Activity activity) {

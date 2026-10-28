@@ -19,7 +19,6 @@ import io.mrarm.irc.util.theme.live.LiveThemeViewFactory;
 
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
@@ -92,8 +91,6 @@ public class ThemeEditorActivity extends ThemedActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_settings_theme, menu);
-        if (Build.VERSION.SDK_INT < 19)
-            menu.findItem(R.id.action_export).setVisible(false);
         return true;
     }
 
@@ -119,13 +116,11 @@ public class ThemeEditorActivity extends ThemedActivity {
                     .show();
             return true;
         } else if (item.getItemId() == R.id.action_export) {
-            if (Build.VERSION.SDK_INT >= 19) {
-                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("application/x-mrarm-irc-theme");
-                intent.putExtra(Intent.EXTRA_TITLE, getThemeInfo().name + ".irctheme");
-                startActivityForResult(intent, REQUEST_CODE_EXPORT);
-            }
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("application/x-mrarm-irc-theme");
+            intent.putExtra(Intent.EXTRA_TITLE, getThemeInfo().name + ".irctheme");
+            startActivityForResult(intent, REQUEST_CODE_EXPORT);
         }
         return super.onOptionsItemSelected(item);
     }
@@ -137,11 +132,13 @@ public class ThemeEditorActivity extends ThemedActivity {
                 return;
             try {
                 Uri uri = data.getData();
-                ParcelFileDescriptor desc = getContentResolver().openFileDescriptor(uri, "w");
-                BufferedWriter wr = new BufferedWriter(new FileWriter(desc.getFileDescriptor()));
-                ThemeManager.getInstance(this).exportTheme(getThemeInfo(), wr);
-                wr.close();
-                desc.close();
+                try (ParcelFileDescriptor desc = getContentResolver().openFileDescriptor(uri, "w")) {
+                    if (desc != null) {
+                        try (BufferedWriter wr = new BufferedWriter(new FileWriter(desc.getFileDescriptor()))) {
+                            ThemeManager.getInstance(this).exportTheme(getThemeInfo(), wr);
+                        }
+                    }
+                }
             } catch (IOException e) {
                 e.printStackTrace();
                 Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();

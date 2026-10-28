@@ -6,6 +6,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -67,15 +68,30 @@ public class ChatPagerAdapter extends FragmentPagerAdapter {
     }
 
     public void updateChannelList() {
-        channels = connectionInfo.getChannels();
+        List<String> allChannels = connectionInfo.getChannels();
+        channels = new ArrayList<>(allChannels);
         Iterator<Map.Entry<String, Long>> it = channelIds.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String, Long> entry = it.next();
-            if (!channels.contains(entry.getKey()))
+            boolean found = false;
+            for (String channel : channels) {
+                if (channel.equalsIgnoreCase(entry.getKey())) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
                 it.remove();
         }
         for (String channel : channels) {
-            if (!channelIds.containsKey(channel))
+            boolean found = false;
+            for (String key : channelIds.keySet()) {
+                if (key.equalsIgnoreCase(channel)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
                 channelIds.put(channel, nextChannelId++);
         }
         notifyDataSetChanged();
@@ -94,10 +110,10 @@ public class ChatPagerAdapter extends FragmentPagerAdapter {
             ChatMessagesFragment fragment = (ChatMessagesFragment) object;
             if (fragment.isServerStatus())
                 return POSITION_UNCHANGED;
-            int iof = channels.indexOf(fragment.getChannelName());
-            if (iof == -1)
+            int iof = findChannel(fragment.getChannelName());
+            if (iof == 0)
                 return POSITION_NONE;
-            return iof + 1;
+            return iof;
         }
         return super.getItemPosition(object);
     }
@@ -106,7 +122,12 @@ public class ChatPagerAdapter extends FragmentPagerAdapter {
     public long getItemId(int position) {
         if (position == 0)
             return 0;
-        return channelIds.get(getChannel(position));
+        String channel = getChannel(position);
+        for (Map.Entry<String, Long> entry : channelIds.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(channel))
+                return entry.getValue();
+        }
+        return 0;
     }
 
     @Override
@@ -130,7 +151,13 @@ public class ChatPagerAdapter extends FragmentPagerAdapter {
     }
 
     public int findChannel(String channel) {
-        return channels.indexOf(channel) + 1;
+        if (channel == null)
+            return 0;
+        for (int i = 0; i < channels.size(); i++) {
+            if (channels.get(i).equalsIgnoreCase(channel))
+                return i + 1;
+        }
+        return 0;
     }
 
 }

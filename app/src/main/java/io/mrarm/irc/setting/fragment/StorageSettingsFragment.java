@@ -24,9 +24,9 @@ public class StorageSettingsFragment extends Fragment implements NamedSettingsFr
         View view = inflater.inflate(R.layout.simple_list, container, false);
 
         RecyclerView recyclerView = view.findViewById(R.id.items);
-        LinearLayoutManager layoutManager = new LinearLayoutManager(getActivity());
+        LinearLayoutManager layoutManager = new LinearLayoutManager(requireContext());
         recyclerView.setLayoutManager(layoutManager);
-        StorageSettingsAdapter adapter = new StorageSettingsAdapter(getActivity());
+        StorageSettingsAdapter adapter = new StorageSettingsAdapter(requireContext());
         recyclerView.setItemAnimator(null);
         recyclerView.setAdapter(adapter);
 

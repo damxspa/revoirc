@@ -3,24 +3,46 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
+
+    <queries>
+        <package android:name="com.iqoo.secure" />
+        <package android:name="com.vivo.permissionmanager" />
+        <intent>
+            <action android:name="android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+            <data android:scheme="package" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
 
     <application
         android:name=".IRCApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:manageSpaceActivity=".StorageSettingsActivity"
+        android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|locale|layoutDirection"
             android:label="@string/app_name"
             android:launchMode="singleTask"
             android:theme="@style/AppTheme.NoActionBar"
@@ -39,7 +61,7 @@
         </activity>
         <activity
             android:name=".IRCLinkActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|locale|layoutDirection"
             android:label="@string/title_activity_irc_link"
             android:exported="true">
             <intent-filter>
@@ -85,7 +107,7 @@
             android:label="@string/title_activity_edit_ignore_entry" />
         <activity
             android:name=".ChannelListActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout"
+            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|locale|layoutDirection"
             android:label="@string/title_activity_channel_list"
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
@@ -93,6 +115,7 @@
             android:label="@string/title_activity_certificate_manager" />
         <activity
             android:name=".SettingsActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|locale|layoutDirection"
             android:label="@string/title_activity_settings"
             android:theme="@style/AppTheme" />
         <activity
@@ -127,13 +150,17 @@
             android:name=".DCCActivity"
             android:exported="true"
             android:label="@string/title_activity_dcc" />
+        <activity
+            android:name=".ImageActivity"
+            android:configChanges="orientation|screenSize"
+            android:theme="@style/AppTheme.NoActionBar" />
 
-        <service android:name=".IRCService" />
+        <service
+            android:name=".IRCService"
+            android:foregroundServiceType="remoteMessaging" />
         <service
             android:name=".job.ServerPingJobService"
             android:permission="android.permission.BIND_JOB_SERVICE" />
-
-        <receiver android:name=".job.ServerPingBroadcastReceiver" />
 
         <service
             android:name=".IRCChooserTargetService"

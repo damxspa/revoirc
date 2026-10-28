@@ -2,6 +2,7 @@ package io.mrarm.irc.dialog;
 
 import android.content.Context;
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
@@ -53,7 +54,7 @@ public class ChannelSearchDialog extends SearchDialog {
             mConnectionManager = ServerConnectionManager.getInstance(context);
             mSecondaryTextColor = StyledAttributesHelper.getColor(context,
                     android.R.attr.textColorSecondary, 0);
-            mHighlightTextColor = context.getResources().getColor(R.color.searchColorHighlight);
+            mHighlightTextColor = ContextCompat.getColor(context, R.color.searchColorHighlight);
             filterWithQuery("");
         }
 

@@ -1,7 +1,7 @@
 package io.mrarm.irc.setting.fragment;
 
+import android.content.Context;
 import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
 
 import io.mrarm.irc.R;
 import io.mrarm.irc.config.NickAutocompleteSettings;
@@ -19,7 +19,8 @@ public class AutocompletePreferenceFragment extends SettingsListFragment
     @Override
     public SettingsListAdapter createAdapter() {
         SettingsListAdapter a = new SettingsListAdapter(this);
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        SharedPreferences prefs = requireContext().getSharedPreferences(
+                requireContext().getPackageName() + "_preferences", Context.MODE_PRIVATE);
         a.add(new CheckBoxSetting(
                 getString(R.string.pref_title_nick_autocomplete_show_button),
                 getString(R.string.pref_summary_nick_autocomplete_show_button))

@@ -1,6 +1,7 @@
 package io.mrarm.irc.config;
 
 import android.content.Context;
+import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -17,6 +18,8 @@ import io.mrarm.irc.R;
 
 public class NotificationRuleManager {
 
+    private static final String TAG = "NotificationRuleManager";
+
     public static final String RULES_PATH = "notification_rules.json";
 
     public static NotificationRule sNickMentionRule;
@@ -31,7 +34,7 @@ public class NotificationRuleManager {
 
     private static class UserRuleSettings {
 
-        private static int CURRENT_VERSION = 1;
+        private static final int CURRENT_VERSION = 1;
 
         private int version;
 
@@ -69,6 +72,10 @@ public class NotificationRuleManager {
     public static void loadUserRuleSettings(Reader reader) {
         UserRuleSettings settings = SettingsHelper.getGson().fromJson(reader,
                 UserRuleSettings.class);
+        if (settings == null) {
+            Log.w(TAG, "Failed to parse notification rules JSON");
+            return;
+        }
         sZNCPlaybackRule.settings.enabled = settings.zncPlaybackRuleEnabled;
         sNickMentionRule.settings = settings.nickMentionRuleSettings;
         sDirectMessageRule.settings = settings.directMessageRuleSettings;
@@ -86,11 +93,9 @@ public class NotificationRuleManager {
         if (sUserRulesLoaded)
             return true;
         sUserRulesLoaded = true;
-        try {
-            BufferedReader reader = new BufferedReader(new FileReader(
-                    new File(context.getFilesDir(), RULES_PATH)));
+        try (BufferedReader reader = new BufferedReader(new FileReader(
+                new File(context.getFilesDir(), RULES_PATH)))) {
             loadUserRuleSettings(reader);
-            reader.close();
             return true;
         } catch (Exception ignored) {
         }
@@ -110,11 +115,9 @@ public class NotificationRuleManager {
     }
 
     public static boolean saveUserRuleSettings(Context context) {
-        try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter(
-                    new File(context.getFilesDir(), RULES_PATH)));
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(
+                new File(context.getFilesDir(), RULES_PATH)))) {
             saveUserRuleSettings(context, writer);
-            writer.close();
             return true;
         } catch (IOException ignored) {
         }

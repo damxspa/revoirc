@@ -14,6 +14,7 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,9 +38,9 @@ public class CommandAliasManager {
     private static final SimpleTextVariableList sDefaultVariables;
     private static final List<CommandAlias> sDefaultAliases;
 
-    private static CommandAliasManager sInstance;
+    private static volatile CommandAliasManager sInstance;
 
-    private Context mContext;
+    private final Context mContext;
     private List<CommandAlias> mUserAliases;
 
     static {
@@ -64,8 +65,13 @@ public class CommandAliasManager {
     }
 
     public static CommandAliasManager getInstance(Context context) {
-        if (sInstance == null)
-            sInstance = new CommandAliasManager(context.getApplicationContext());
+        if (sInstance == null) {
+            synchronized (CommandAliasManager.class) {
+                if (sInstance == null) {
+                    sInstance = new CommandAliasManager(context.getApplicationContext());
+                }
+            }
+        }
         return sInstance;
     }
 
@@ -74,7 +80,7 @@ public class CommandAliasManager {
     }
 
     public CommandAliasManager(Context context) {
-        mContext = context;
+        mContext = context.getApplicationContext();
         mUserAliases = new ArrayList<>();
         loadUserSettings();
     }
@@ -86,9 +92,11 @@ public class CommandAliasManager {
     }
 
     public void loadUserSettings() {
-        try {
-            loadUserSettings(new BufferedReader(new FileReader(
-                    new File(mContext.getFilesDir(), ALIASES_PATH))));
+        File file = new File(mContext.getFilesDir(), ALIASES_PATH);
+        if (!file.exists())
+            return;
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            loadUserSettings(reader);
         } catch (Exception ignored) {
         }
     }
@@ -100,11 +108,9 @@ public class CommandAliasManager {
     }
 
     public boolean saveUserSettings() {
-        try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter(
-                    new File(mContext.getFilesDir(), ALIASES_PATH)));
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(
+                new File(mContext.getFilesDir(), ALIASES_PATH)))) {
             saveUserSettings(writer);
-            writer.close();
             return true;
         } catch (IOException ignored) {
         }
@@ -123,11 +129,11 @@ public class CommandAliasManager {
 
     public CommandAlias findCommandAlias(String name, String syntax) {
         for (CommandAlias a : mUserAliases) {
-            if (a.name.equalsIgnoreCase(name) && a.syntax.equals(syntax))
+            if (a.name.equalsIgnoreCase(name) && Objects.equals(a.syntax, syntax))
                 return a;
         }
         for (CommandAlias a : sDefaultAliases) {
-            if (a.name.equalsIgnoreCase(name) && a.syntax.equals(syntax))
+            if (a.name.equalsIgnoreCase(name) && Objects.equals(a.syntax, syntax))
                 return a;
         }
         return null;
@@ -150,18 +156,19 @@ public class CommandAliasManager {
         StringBuffer buf = new StringBuffer();
         while (matcher.find()) {
             String text = matcher.group(1);
+            if (text == null) continue;
             String replaceWith = variables.get(text);
             if (replaceWith == null)
                 replaceWith = sDefaultVariables.get(text);
             if (replaceWith == null)
-                throw new RuntimeException("Unknown variable: " + text);
+                replaceWith = "";
             matcher.appendReplacement(buf, Matcher.quoteReplacement(replaceWith));
         }
         matcher.appendTail(buf);
         return buf.toString();
     }
 
-    private List<CommandAlias> mAliasesStack = new ArrayList<>();
+    private final List<CommandAlias> mAliasesStack = new ArrayList<>();
 
     public ProcessCommandResult processCommand(ServerConnectionData connectionData,
                                                String command, SimpleTextVariableList vars) {
@@ -218,7 +225,7 @@ public class CommandAliasManager {
         }
 
         public CommandAliasSyntaxParser getSyntaxParser() {
-            if (syntaxParser != null && syntaxParser.getSyntax().equals(syntax))
+            if (syntaxParser != null && Objects.equals(syntaxParser.getSyntax(), syntax))
                 return syntaxParser;
             try {
                 syntaxParser = new CommandAliasSyntaxParser(syntax);

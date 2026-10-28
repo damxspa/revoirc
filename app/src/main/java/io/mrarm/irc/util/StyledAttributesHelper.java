@@ -91,9 +91,9 @@ public class StyledAttributesHelper {
         return ret;
     }
 
-    private Context mContext;
-    private TypedArray mArray;
-    private int[] mAttributes;
+    private final Context mContext;
+    private final TypedArray mArray;
+    private final int[] mAttributes;
 
     public StyledAttributesHelper(Context context, TypedArray ta, int[] attributes) {
         mContext = context;

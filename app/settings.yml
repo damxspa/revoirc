@@ -16,8 +16,6 @@ AppSettings:
     - spec: String defaultPartMessage = getContext().getString(R.string.pref_value_default_part_message)
 
     - spec: boolean reconnectEnabled = true
-    - spec: boolean reconnectWiFiOnly = false
-      pref: reconnect_wifi
     - spec: boolean reconnectOnConnectivityChangeEnabled = true
       pref: reconnect_connchg
     - spec: String reconnectInterval
@@ -25,16 +23,33 @@ AppSettings:
       getter: getReconnectIntervalString
 
     - spec: boolean pingEnabled = false
-    - spec: boolean pingWiFiOnly = true
-      pref: ping_wifi
     - spec: int pingInterval = 15 * 60 * 1000
+    - spec: int pingIntervalMobile = 5 * 60 * 1000
+    - spec: boolean lowPowerModeEnabled = false
+      pref: low_power_mode_enabled
+      setter: true
 
     - spec: boolean drawerPinned = false
       setter: true
     - spec: boolean drawerAlwaysShowServer = false
       getter: shouldDrawerAlwaysShowServer
 
+    - spec: boolean closePrivateQuit = false
+    - spec: boolean notifyPrivateQuit = false
+      getter: isNotifyPrivateQuitEnabled
+    
+    - spec: String privateMessageDelay = "0"
+      pref: private_message_delay
+      setter: true
+
     - spec: String theme
+      setter: true
+
+    - spec: String statusBarStyle = "dark"
+      setter: true
+
+    - spec: String nightMode = "auto"
+      enum: ["auto", "on", "off"]
       setter: true
 
     - spec: long storageLimitGlobal = StorageLimitsDialog.DEFAULT_LIMIT_GLOBAL
@@ -83,4 +98,3 @@ NickAutocompleteSettings:
     - spec: boolean channelSuggestions = true
       pref: channel_autocomplete_suggestions
       getter: areChannelSuggestionsEnabled
-

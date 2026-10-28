@@ -6,6 +6,19 @@
     app:theme="@style/Theme.AppCompat"
     android:background="@color/colorPrimary">
 
+    <ImageView
+        android:id="@+id/avatar"
+        android:layout_width="128dp"
+        android:layout_height="128dp"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginLeft="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:scaleType="centerCrop"
+        app:srcCompat="@drawable/ic_user" />
+
     <TextView
         android:id="@+id/nick"
         android:layout_width="wrap_content"
@@ -52,6 +65,55 @@
         android:layout_toLeftOf="@+id/message_button"
         android:layout_toStartOf="@+id/message_button" />
 
+    <LinearLayout
+        android:id="@+id/right_info_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:layout_marginRight="16dp"
+        android:layout_marginEnd="16dp"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/send_message_new"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="@string/action_message_user"
+            android:textAppearance="@style/TextAppearance.AppCompat.Subhead"
+            android:textColor="@android:color/white"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackground" />
+
+        <TextView
+            android:id="@+id/status_new"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.AppCompat.Subhead"
+            android:textColor="@android:color/white"
+            android:text="" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginEnd="16dp"
+        android:textAppearance="@style/TextAppearance.AppCompat.Caption"
+        android:textColor="@color/abc_secondary_text_material_dark"
+        android:text="" />
+
     <ImageButton
         android:id="@+id/message_button"
         android:layout_width="wrap_content"
@@ -62,7 +124,6 @@
         android:padding="16dp"
         android:background="?attr/actionBarItemBackground"
         app:tint="@color/abc_primary_text_material_dark"
-        app:srcCompat="@drawable/ic_message" />
-
+        app:srcCompat="@drawable/ic_more_vert" />
 
 </RelativeLayout>

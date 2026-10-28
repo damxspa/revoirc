@@ -8,8 +8,11 @@ public class ServerPingBroadcastReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        ServerPingScheduler.getInstance(context).onJobRan();
-        ServerPingTask.pingServers(context, () -> {});
+        ServerPingScheduler scheduler = ServerPingScheduler.getInstance(context);
+        scheduler.onJobRan();
+        ServerPingTask.pingServers(context, () -> {
+            scheduler.startIfEnabled();
+        });
     }
 
 }

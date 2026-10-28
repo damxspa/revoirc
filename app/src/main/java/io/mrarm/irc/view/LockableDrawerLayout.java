@@ -17,6 +17,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import io.mrarm.irc.R;
+import io.mrarm.irc.util.StyledAttributesHelper;
+
 public class LockableDrawerLayout extends DrawerLayout {
 
     private boolean mLockable = false;
@@ -67,15 +70,15 @@ public class LockableDrawerLayout extends DrawerLayout {
 
     private void updateLockState() {
         if (isCurrentlyLocked()) {
-            if (getDrawerLockMode(Gravity.START) == DrawerLayout.LOCK_MODE_LOCKED_OPEN)
+            if (getDrawerLockMode(GravityCompat.START) == DrawerLayout.LOCK_MODE_LOCKED_OPEN)
                 return;
-            openDrawer(Gravity.START, false);
+            openDrawer(GravityCompat.START, false);
             setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN, GravityCompat.START);
             setScrimColor(Color.TRANSPARENT);
         } else {
-            if (getDrawerLockMode(Gravity.START) == DrawerLayout.LOCK_MODE_UNLOCKED)
+            if (getDrawerLockMode(GravityCompat.START) == DrawerLayout.LOCK_MODE_UNLOCKED)
                 return;
-            closeDrawer(Gravity.START, false);
+            closeDrawer(GravityCompat.START, false);
             setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.START);
             setScrimColor(0x99000000);
         }
@@ -166,40 +169,46 @@ public class LockableDrawerLayout extends DrawerLayout {
         public ActionBarDrawerToggle(Toolbar toolbar, LockableDrawerLayout drawerLayout,
                                      int openTextId, int closeTextId) {
             mDrawable = new DrawerArrowDrawable(toolbar.getContext());
+            int textColor = StyledAttributesHelper.getColor(toolbar.getContext(), R.attr.actionBarTextColorPrimary, Color.WHITE);
+            mDrawable.setColor(textColor);
             mToolbar = toolbar;
             mOpenTextId = openTextId;
             mCloseTextId = closeTextId;
             drawerLayout.addDrawerListener(this);
             toolbar.setNavigationIcon(mDrawable);
-            toolbar.setNavigationContentDescription(drawerLayout.isDrawerOpen(Gravity.START)
+            toolbar.setNavigationContentDescription(drawerLayout.isDrawerOpen(GravityCompat.START)
                     ? closeTextId : openTextId);
             toolbar.setNavigationOnClickListener((View view) -> {
-                if (drawerLayout.isDrawerOpen(Gravity.START))
-                    drawerLayout.closeDrawer(Gravity.START, !drawerLayout.isCurrentlyLocked());
+                if (drawerLayout.isDrawerOpen(GravityCompat.START))
+                    drawerLayout.closeDrawer(GravityCompat.START, !drawerLayout.isCurrentlyLocked());
                 else
-                    drawerLayout.openDrawer(Gravity.START, !drawerLayout.isCurrentlyLocked());
+                    drawerLayout.openDrawer(GravityCompat.START, !drawerLayout.isCurrentlyLocked());
                 drawerLayout.requestLayout();
             });
-            mOpenTextId = openTextId;
-            mCloseTextId = closeTextId;
+            mDrawable.setProgress(drawerLayout.isDrawerOpen(GravityCompat.START) ? 1.0f : 0.0f);
         }
 
         @Override
         public void onDrawerOpened(View drawerView) {
-            if (((LayoutParams) drawerView.getLayoutParams()).gravity != Gravity.START)
+            if (((LayoutParams) drawerView.getLayoutParams()).gravity != GravityCompat.START)
                 return;
             mToolbar.setNavigationContentDescription(mCloseTextId);
+            mDrawable.setProgress(1.0f);
         }
 
         @Override
         public void onDrawerClosed(View drawerView) {
-            if (((LayoutParams) drawerView.getLayoutParams()).gravity != Gravity.START)
+            if (((LayoutParams) drawerView.getLayoutParams()).gravity != GravityCompat.START)
                 return;
             mToolbar.setNavigationContentDescription(mOpenTextId);
+            mDrawable.setProgress(0.0f);
         }
 
         @Override
         public void onDrawerSlide(View drawerView, float slideOffset) {
+            if (((LayoutParams) drawerView.getLayoutParams()).gravity != GravityCompat.START)
+                return;
+            mDrawable.setProgress(Math.min(1.0f, Math.max(0.0f, slideOffset)));
         }
 
         @Override

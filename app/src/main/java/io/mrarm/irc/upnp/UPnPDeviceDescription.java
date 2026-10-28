@@ -22,16 +22,35 @@ public class UPnPDeviceDescription {
     private List<UPnPDeviceDescription> mDeviceList;
     private List<Service> mServiceList;
 
+    public static String getElementName(String localName, String qName) {
+        if (localName != null && !localName.isEmpty())
+            return localName;
+        if (qName != null && qName.contains(":"))
+            return qName.substring(qName.indexOf(':') + 1);
+        return qName;
+    }
+
     public void loadFromUrl(String url) throws IOException, SAXException {
         URLConnection connection = new URL(url).openConnection();
         XMLReader reader;
         try {
-            reader = SAXParserFactory.newInstance().newSAXParser().getXMLReader();
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            factory.setNamespaceAware(true);
+            try {
+                factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+                factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+                factory.setFeature("http://javax.xml.XMLConstants/feature/secure-processing", true);
+            } catch (Throwable ignored) {
+            }
+            reader = factory.newSAXParser().getXMLReader();
         } catch (ParserConfigurationException e) {
             throw new RuntimeException(e);
         }
         reader.setContentHandler(new SAXRootParser(reader, this));
-        reader.parse(new InputSource(connection.getInputStream()));
+        try (java.io.InputStream stream = connection.getInputStream()) {
+            reader.parse(new InputSource(stream));
+        }
     }
 
     public String getDeviceType() {
@@ -105,7 +124,8 @@ public class UPnPDeviceDescription {
         @Override
         public void startElement(String uri, String localName, String qName,
                                  Attributes attributes) {
-            if (localName.equals("device")) {
+            String name = getElementName(localName, qName);
+            if (name.equalsIgnoreCase("device")) {
                 mReader.setContentHandler(new SAXDeviceParser(mReader, this, mDevice));
             }
         }
@@ -132,24 +152,25 @@ public class UPnPDeviceDescription {
         public void startElement(String uri, String localName, String qName, Attributes attributes)
                 throws SAXException {
             mContent.setLength(0);
-            if (localName.equals("device")) {
+            String name = getElementName(localName, qName);
+            if (name.equalsIgnoreCase("device")) {
                 if (!mParsingDeviceList)
                     throw new SAXException("Invalid tree");
                 UPnPDeviceDescription child = new UPnPDeviceDescription();
                 mDevice.mDeviceList.add(child);
                 mReader.setContentHandler(new SAXDeviceParser(mReader, this, child));
-            } else if (localName.equals("deviceList")) {
+            } else if (name.equalsIgnoreCase("deviceList")) {
                 if (mParsingDeviceList)
                     throw new SAXException("Invalid tree");
                 mParsingDeviceList = true;
                 mDevice.mDeviceList = new ArrayList<>();
-            } else if (localName.equals("service")) {
+            } else if (name.equalsIgnoreCase("service")) {
                 if (!mParsingServiceList)
                     throw new SAXException("Invalid tree");
                 Service child = new Service();
                 mDevice.mServiceList.add(child);
                 mReader.setContentHandler(new SAXServiceParser(mReader, this, child));
-            } else if (localName.equals("serviceList")) {
+            } else if (name.equalsIgnoreCase("serviceList")) {
                 if (mParsingServiceList)
                     throw new SAXException("Invalid tree");
                 mParsingServiceList = true;
@@ -164,13 +185,14 @@ public class UPnPDeviceDescription {
 
         @Override
         public void endElement(String uri, String localName, String qName) {
-            if (localName.equals("deviceType"))
+            String name = getElementName(localName, qName);
+            if (name.equalsIgnoreCase("deviceType"))
                 mDevice.mDeviceType = mContent.toString();
-            else if (localName.equals("deviceList"))
+            else if (name.equalsIgnoreCase("deviceList"))
                 mParsingDeviceList = false;
-            else if (localName.equals("serviceList"))
+            else if (name.equalsIgnoreCase("serviceList"))
                 mParsingServiceList = false;
-            else if (localName.equals("device"))
+            else if (name.equalsIgnoreCase("device"))
                 mReader.setContentHandler(mParent);
         }
 
@@ -202,13 +224,14 @@ public class UPnPDeviceDescription {
 
         @Override
         public void endElement(String uri, String localName, String qName) {
-            if (localName.equals("serviceType"))
+            String name = getElementName(localName, qName);
+            if (name.equalsIgnoreCase("serviceType"))
                 mService.mServiceType = mContent.toString();
-            else if (localName.equals("controlURL"))
+            else if (name.equalsIgnoreCase("controlURL"))
                 mService.mControlURL = mContent.toString();
-            else if (localName.equals("SCPDURL"))
+            else if (name.equalsIgnoreCase("SCPDURL"))
                 mService.mSCPDURL = mContent.toString();
-            else if (localName.equals("service"))
+            else if (name.equalsIgnoreCase("service"))
                 mReader.setContentHandler(mParent);
         }
 

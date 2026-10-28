@@ -30,17 +30,17 @@ import io.mrarm.irc.util.SpannableStringHelper;
 public class TextFormatBar extends FrameLayout {
 
     private EditText mEditText;
-    private View mBoldButton;
-    private View mItalicButton;
-    private View mUnderlineButton;
-    private View mTextColorButton;
-    private ImageView mTextColorValue;
-    private ColorStateList mTextColorValueDefault;
-    private View mFillColorButton;
-    private ImageView mFillColorValue;
-    private ColorStateList mFillColorValueDefault;
-    private View mClearButton;
-    private ImageButton mExtraButton;
+    private final View mBoldButton;
+    private final View mItalicButton;
+    private final View mUnderlineButton;
+    private final View mTextColorButton;
+    private final ImageView mTextColorValue;
+    private final ColorStateList mTextColorValueDefault;
+    private final View mFillColorButton;
+    private final ImageView mFillColorValue;
+    private final ColorStateList mFillColorValueDefault;
+    private final View mClearButton;
+    private final ImageButton mExtraButton;
     private OnChangeListener mChangeListener;
 
     public TextFormatBar(Context context) {
@@ -63,6 +63,10 @@ public class TextFormatBar extends FrameLayout {
         mFillColorValue = findViewById(R.id.format_fill_color_value);
         mClearButton = findViewById(R.id.format_clear);
         mExtraButton = findViewById(R.id.format_extra);
+
+        mTextColorValueDefault = ImageViewCompat.getImageTintList(mTextColorValue);
+        mFillColorValueDefault = ImageViewCompat.getImageTintList(mFillColorValue);
+
         mBoldButton.setOnClickListener((View v) -> {
             if (v.isSelected())
                 removeSpan(new StyleSpan(Typeface.BOLD));
@@ -101,8 +105,6 @@ public class TextFormatBar extends FrameLayout {
             removeSpan(UnderlineSpan.class);
             removeSpan(StyleSpan.class);
         });
-        mTextColorValueDefault = ImageViewCompat.getImageTintList(mTextColorValue);
-        mFillColorValueDefault = ImageViewCompat.getImageTintList(mFillColorValue);
         ImageViewCompat.setImageTintMode(mTextColorValue, PorterDuff.Mode.SRC_IN);
         ImageViewCompat.setImageTintMode(mFillColorValue, PorterDuff.Mode.SRC_IN);
 
@@ -181,7 +183,7 @@ public class TextFormatBar extends FrameLayout {
             mChangeListener.onChange(this, mEditText);
     }
 
-    protected void removeSpan(Class span) {
+    protected void removeSpan(Class<?> span) {
         SpannableStringHelper.removeSpans(mEditText.getText(), span, mEditText.getSelectionStart(), mEditText.getSelectionEnd(), null, true);
         notifyChange();
     }
@@ -222,7 +224,7 @@ public class TextFormatBar extends FrameLayout {
         void onChange(TextFormatBar formatBar, EditText editText);
     }
 
-    private static OnLongClickListener mExplainationListener = (View view) -> {
+    private static final OnLongClickListener mExplainationListener = (View view) -> {
         Toast toast = Toast.makeText(view.getContext(), view.getContentDescription(), Toast.LENGTH_SHORT);
         Rect rectWindow = new Rect();
         Rect rectView = new Rect();

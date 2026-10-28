@@ -2,7 +2,11 @@ package io.mrarm.irc;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
-import android.os.AsyncTask;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
+import android.os.Build;
+import android.util.Log;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
@@ -16,6 +20,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -23,15 +31,18 @@ import javax.net.ssl.TrustManager;
 
 import io.mrarm.chatlib.irc.IRCConnectionRequest;
 import io.mrarm.chatlib.irc.cap.SASLOptions;
+import io.mrarm.irc.util.AvatarUtils;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ServerConfigData;
 import io.mrarm.irc.config.ServerConfigManager;
+import io.mrarm.irc.config.BackupPaths;
 import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.setting.ReconnectIntervalSetting;
 
 public class ServerConnectionManager {
 
-    public static final String CONNECTED_SERVERS_FILE_PATH = "connected_servers.json";
+    private static final String TAG = "ServerConnectionManager";
+    public static final String CONNECTED_SERVERS_FILE_PATH = BackupPaths.CONNECTED_SERVERS_FILE_PATH;
 
     private static ServerConnectionManager instance;
 
@@ -43,7 +54,9 @@ public class ServerConnectionManager {
     private final List<ConnectionsListener> mListeners = new ArrayList<>();
     private final List<ServerConnectionInfo.ChannelListChangeListener> mChannelsListeners = new ArrayList<>();
     private final List<ServerConnectionInfo.InfoChangeListener> mInfoListeners = new ArrayList<>();
+    private final Executor mSaveExecutor = Executors.newSingleThreadExecutor();
     private boolean mDestroying = false;
+    private boolean mExecutorShutdown = false;
 
     public static boolean hasInstance() {
         return instance != null;
@@ -59,13 +72,35 @@ public class ServerConnectionManager {
         if (instance == null)
             return;
         instance.mDestroying = true;
-        while (instance.mConnections.size() > 0) {
+        while (!instance.mConnections.isEmpty()) {
             ServerConnectionInfo connection = instance.mConnections.get(instance.mConnections.size() - 1);
             connection.disconnect();
             instance.removeConnection(connection, false);
             instance.killDisconnectingConnection(connection.getUUID());
         }
+        instance.shutdownExecutor();
         instance = null;
+    }
+
+    /**
+     * Shuts down the save executor gracefully.
+     * Should be called when the application is terminating.
+     */
+    public void shutdownExecutor() {
+        if (mExecutorShutdown) return;
+        mExecutorShutdown = true;
+        if (mSaveExecutor instanceof ExecutorService) {
+            ExecutorService executorService = (ExecutorService) mSaveExecutor;
+            executorService.shutdown();
+            try {
+                if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                    executorService.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     public ServerConnectionManager(Context context) {
@@ -75,7 +110,8 @@ public class ServerConnectionManager {
         ConnectedServersList servers = null;
         try {
             servers = SettingsHelper.getGson().fromJson(new BufferedReader(new FileReader(mConnectedServersFile)), ConnectedServersList.class);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to load connected servers list", e);
         }
 
         if (servers != null) {
@@ -85,7 +121,8 @@ public class ServerConnectionManager {
                 if (configData != null) {
                     try {
                         createConnection(configData, server.channels, false);
-                    } catch (NickNotSetException ignored) {
+                    } catch (NickNotSetException e) {
+                        Log.w(TAG, "Nick not set for autoconnect server: " + server.uuid);
                     }
                 }
             }
@@ -101,23 +138,15 @@ public class ServerConnectionManager {
             server.channels = connectionInfo.getChannels();
             list.servers.add(server);
         }
-        try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter(mConnectedServersFile));
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(mConnectedServersFile))) {
             SettingsHelper.getGson().toJson(list, writer);
-            writer.close();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to save autoconnect list", e);
         }
     }
 
     void saveAutoconnectListAsync() {
-        AsyncTask<Void, Void, Void> task = new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected Void doInBackground(Void... voids) {
-                saveAutoconnectList();
-                return null;
-            }
-        };
-        task.execute();
+        mSaveExecutor.execute(this::saveAutoconnectList);
     }
 
     public Context getContext() {
@@ -156,9 +185,13 @@ public class ServerConnectionManager {
         IRCConnectionRequest request = new IRCConnectionRequest();
         request
                 .setServerAddress(data.address, data.port);
-        if (data.charset != null)
-            request.setCharset(Charset.forName(data.charset));
-        if (data.nicks != null && data.nicks.size() > 0) {
+        if (data.charset != null) {
+            try {
+                request.setCharset(Charset.forName(data.charset));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        if (data.nicks != null && !data.nicks.isEmpty()) {
             for (String nick : data.nicks)
                 request.addNick(nick);
         } else {
@@ -169,16 +202,22 @@ public class ServerConnectionManager {
         }
         if (data.user != null)
             request.setUser(data.user);
-        else if (AppSettings.getDefaultUser() != null && AppSettings.getDefaultUser().length() > 0)
+        else if (AppSettings.getDefaultUser() != null && !AppSettings.getDefaultUser().isEmpty())
             request.setUser(AppSettings.getDefaultUser());
         else
             request.setUser(request.getNickList().get(0));
         if (data.realname != null)
             request.setRealName(data.realname);
-        else if (AppSettings.getDefaultRealname() != null && AppSettings.getDefaultRealname().length() > 0)
+        else if (AppSettings.getDefaultRealname() != null && !AppSettings.getDefaultRealname().isEmpty())
             request.setRealName(AppSettings.getDefaultRealname());
         else
             request.setRealName(request.getNickList().get(0));
+
+        if (AvatarUtils.isChateagratisServer(data.address)) {
+            String username = data.authUser != null && !data.authUser.trim().isEmpty() ? data.authUser.trim() :
+                    (data.user != null && !data.user.trim().isEmpty() ? data.user.trim() : request.getNickList().get(0));
+            request.setRealName(AvatarUtils.buildGecosFromAvatarUrl(AvatarUtils.AVATAR_URL_PREFIX + username.toLowerCase(java.util.Locale.ROOT)));
+        }
 
         if (data.pass != null)
             request.setServerPass(data.pass);
@@ -186,10 +225,10 @@ public class ServerConnectionManager {
         SASLOptions saslOptions = null;
         UserKeyManager userKeyManager = null;
         if (data.authMode != null) {
-            if (data.authMode.equals(ServerConfigData.AUTH_SASL) && data.authUser != null &&
+            if (ServerConfigData.AUTH_SASL.equals(data.authMode) && data.authUser != null &&
                     data.authPass != null)
                 saslOptions = SASLOptions.createPlainAuth(data.authUser, data.authPass);
-            if (data.authMode.equals(ServerConfigData.AUTH_SASL_EXTERNAL)) {
+            if (ServerConfigData.AUTH_SASL_EXTERNAL.equals(data.authMode)) {
                 saslOptions = SASLOptions.createExternal();
                 userKeyManager = new UserKeyManager(data.getAuthCert(), data.getAuthPrivateKey());
             }
@@ -231,24 +270,32 @@ public class ServerConnectionManager {
     public void removeConnection(ServerConnectionInfo connection, boolean saveAutoconnect) {
         NotificationManager.getInstance().clearAllNotifications(mContext, connection);
         synchronized (this) {
-            synchronized (connection) {
-                if (connection.isDisconnecting()) {
-                    synchronized (mDisconnectingConnections) {
-                        if (mDisconnectingConnections.containsKey(connection.getUUID()))
-                            throw new RuntimeException("mDisconnectingConnections already contains a disconnecting connection with this UUID");
-                        mDisconnectingConnections.put(connection.getUUID(), connection);
-                    }
-                } else if (connection.isConnecting() || connection.isConnected() || !connection.hasUserDisconnectRequest()) {
-                    throw new RuntimeException("Trying to remove a non-disconnected connection");
-                } else {
-                    connection.close();
+            boolean isDisconnecting;
+            boolean isConnecting;
+            boolean isConnected;
+            boolean hasUserDisconnectRequest;
+            synchronized (connection.getLock()) {
+                isDisconnecting = connection.isDisconnecting();
+                isConnecting = connection.isConnecting();
+                isConnected = connection.isConnected();
+                hasUserDisconnectRequest = connection.hasUserDisconnectRequest();
+            }
+            if (isDisconnecting) {
+                synchronized (mDisconnectingConnections) {
+                    if (mDisconnectingConnections.containsKey(connection.getUUID()))
+                        throw new RuntimeException("mDisconnectingConnections already contains a disconnecting connection with this UUID");
+                    mDisconnectingConnections.put(connection.getUUID(), connection);
                 }
+            } else if (isConnecting || isConnected || !hasUserDisconnectRequest) {
+                throw new RuntimeException("Trying to remove a non-disconnected connection");
+            } else {
+                connection.close();
             }
             mConnections.remove(connection);
             mConnectionsMap.remove(connection.getUUID());
             if (saveAutoconnect)
                 saveAutoconnectListAsync();
-            if (mConnections.size() == 0)
+            if (mConnections.isEmpty())
                 IRCService.stop(mContext);
             else if (!mDestroying)
                 IRCService.start(mContext); // update connection count
@@ -279,7 +326,7 @@ public class ServerConnectionManager {
 
     public void disconnectAndRemoveAllConnections(boolean kill) {
         synchronized (this) {
-            while (mConnections.size() > 0) {
+            while (!mConnections.isEmpty()) {
                 ServerConnectionInfo connection = mConnections.get(mConnections.size() - 1);
                 connection.disconnect();
                 removeConnection(connection, false);
@@ -306,7 +353,7 @@ public class ServerConnectionManager {
         if (!AppSettings.isReconnectEnabled())
             return -1;
         List<ReconnectIntervalSetting.Rule> rules = AppSettings.getReconnectIntervalRules();
-        if (rules.size() == 0)
+        if (rules.isEmpty())
             return -1;
         int att = 0;
         for (ReconnectIntervalSetting.Rule rule : rules) {
@@ -383,17 +430,24 @@ public class ServerConnectionManager {
     }
 
     public void notifyConnectivityChanged(boolean hasAnyConnectivity) {
-        boolean hasWifi = isWifiConnected(mContext);
         synchronized (this) {
             for (ServerConnectionInfo server : mConnectionsMap.values())
-                server.notifyConnectivityChanged(hasAnyConnectivity, hasWifi);
+                server.notifyConnectivityChanged(hasAnyConnectivity);
         }
     }
 
     public static boolean isWifiConnected(Context context) {
         ConnectivityManager mgr = (ConnectivityManager) context.getSystemService(
                 Context.CONNECTIVITY_SERVICE);
-        return mgr.getNetworkInfo(ConnectivityManager.TYPE_WIFI).isConnected();
+        if (mgr == null)
+            return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Network activeNetwork = mgr.getActiveNetwork();
+            NetworkCapabilities caps = mgr.getNetworkCapabilities(activeNetwork);
+            return caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+        }
+        NetworkInfo wifiInfo = mgr.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+        return wifiInfo != null && wifiInfo.isConnected();
     }
 
     public interface ConnectionsListener {
@@ -417,7 +471,7 @@ public class ServerConnectionManager {
 
     }
 
-    public class NickNotSetException extends RuntimeException {
+    public static class NickNotSetException extends RuntimeException {
     }
 
 }

@@ -1,27 +1,21 @@
 package io.mrarm.irc.job;
 
-import android.annotation.SuppressLint;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
-import android.os.Build;
-import androidx.annotation.RequiresApi;
 import android.util.Log;
 
 import io.mrarm.irc.ServerConnectionManager;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.config.UiSettingChangeCallback;
+import io.mrarm.irc.util.BatteryOptimizationHelper;
 
 public class ServerPingScheduler {
 
     private static final String TAG = "ServerPingScheduler";
 
-    private static final int INTENT_ID = 300;
     public static final int JOB_ID = 1;
 
     private static ServerPingScheduler instance;
@@ -32,12 +26,10 @@ public class ServerPingScheduler {
         return instance;
     }
 
-
-    private Context context;
+    private final Context context;
     private boolean running;
     private boolean enabled = false;
     private long interval = 15 * 60 * 1000; // 15 minutes
-    private boolean onlyOnWifi = true;
 
     public ServerPingScheduler(Context ctx) {
         this.context = ctx;
@@ -47,18 +39,24 @@ public class ServerPingScheduler {
     }
 
     @UiSettingChangeCallback(keys = {AppSettings.PREF_PING_ENABLED,
-            AppSettings.PREF_PING_WI_FI_ONLY, AppSettings.PREF_PING_INTERVAL})
-    private void onSettingChanged() {
+            AppSettings.PREF_PING_INTERVAL, AppSettings.PREF_PING_INTERVAL_MOBILE,
+            AppSettings.PREF_LOW_POWER_MODE_ENABLED})
+    public void onSettingChanged() {
         enabled = AppSettings.isPingEnabled();
-        onlyOnWifi = AppSettings.isPingWiFiOnly();
-        interval = AppSettings.getPingInterval();
+        if (enabled) {
+            if (AppSettings.isLowPowerModeEnabled())
+                interval = BatteryOptimizationHelper.getPollingInterval() * 1000L;
+            else if (!ServerConnectionManager.isWifiConnected(context))
+                interval = AppSettings.getPingIntervalMobile();
+            else
+                interval = AppSettings.getPingInterval();
+        }
         stop();
         startIfEnabled();
     }
 
     void onJobRan() {
         if (!running) {
-            // The job should not be running
             Log.w(TAG, "A job that should have not ran has been started; forcibly stopping");
             forceStop();
         }
@@ -67,66 +65,32 @@ public class ServerPingScheduler {
     public void startIfEnabled() {
         if (!enabled)
             return;
-
-        if (isUsingNetworkStateAwareApi() || !onlyOnWifi) {
-            start();
-        } else {
-            onWifiStateChanged(ServerConnectionManager.isWifiConnected(context));
-        }
+        start();
     }
 
-    public void onWifiStateChanged(boolean connectedToWifi) {
-        if (!isUsingNetworkStateAwareApi() && onlyOnWifi)
-            return;
-        if (connectedToWifi)
-            start();
-        else
-            stop();
-    }
-
-    public boolean isUsingJobService() {
-        return (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP);
-    }
-
-    public boolean isUsingNetworkStateAwareApi() {
-        return isUsingJobService();
-    }
-
-    @SuppressLint("NewApi")
     private void start() {
-        if (running)
-            return;
-        Log.d(TAG, "Starting the job (with job service = " + isUsingJobService() + ")");
+        Log.d(TAG, "Starting/Rescheduling the job");
         running = true;
-        if (isUsingJobService())
-            startUsingJobService();
-        else
-            startUsingAlarmManager();
+        startUsingJobService();
     }
 
     public void stop() {
         if (!running)
             return;
-        Log.d(TAG, "Stopping the job (with job service = " + isUsingJobService() + ")");
+        Log.d(TAG, "Stopping the job");
         forceStop();
     }
 
-    @SuppressLint("NewApi")
     public void forceStop() {
         running = false;
-        if (isUsingJobService())
-            stopUsingJobService();
-        else
-            stopUsingAlarmManager();
+        stopUsingJobService();
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void startUsingJobService() {
         JobInfo jobInfo = new JobInfo.Builder(JOB_ID,
                 new ComponentName(context, ServerPingJobService.class))
                 .setPeriodic(interval)
-                .setRequiredNetworkType(onlyOnWifi ? JobInfo.NETWORK_TYPE_UNMETERED
-                        : JobInfo.NETWORK_TYPE_ANY)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .build();
         JobScheduler scheduler = (JobScheduler)
                 context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
@@ -134,32 +98,11 @@ public class ServerPingScheduler {
         scheduler.schedule(jobInfo);
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void stopUsingJobService() {
         JobScheduler scheduler = (JobScheduler)
                 context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
         assert scheduler != null;
         scheduler.cancel(JOB_ID);
-    }
-
-    private PendingIntent getAlarmManagerIntent() {
-        Intent intent = new Intent(context, ServerPingBroadcastReceiver.class);
-        PendingIntent pi = PendingIntent.getBroadcast(context, INTENT_ID, intent, 0);
-        return pi;
-    }
-
-    private void startUsingAlarmManager() {
-        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        assert am != null;
-
-        am.setRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, System.currentTimeMillis(),
-                interval, getAlarmManagerIntent());
-    }
-
-    private void stopUsingAlarmManager() {
-        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        assert am != null;
-        am.cancel(getAlarmManagerIntent());
     }
 
 }

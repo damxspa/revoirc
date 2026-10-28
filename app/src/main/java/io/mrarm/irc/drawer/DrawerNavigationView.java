@@ -1,12 +1,16 @@
 package io.mrarm.irc.drawer;
 
-import android.annotation.TargetApi;
 import android.content.Context;
-import android.os.Build;
-import com.google.android.material.navigation.NavigationView;
-import androidx.recyclerview.widget.RecyclerView;
 import android.util.AttributeSet;
-import android.view.WindowInsets;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.navigation.NavigationView;
 
 import io.mrarm.irc.R;
 
@@ -14,29 +18,31 @@ public class DrawerNavigationView extends NavigationView {
 
     private RecyclerView mNavList;
 
-    public DrawerNavigationView(Context context) {
+    public DrawerNavigationView(@NonNull Context context) {
         this(context, null);
     }
 
-    public DrawerNavigationView(Context context, AttributeSet attrs) {
+    public DrawerNavigationView(@NonNull Context context, @Nullable AttributeSet attrs) {
         this(context, attrs, 0);
     }
 
-    public DrawerNavigationView(Context context, AttributeSet attrs, int defStyleAttr) {
+    public DrawerNavigationView(@NonNull Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-    }
-
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    @Override
-    public WindowInsets dispatchApplyWindowInsets(WindowInsets insets) {
-        if (mNavList == null)
-            mNavList = findViewById(R.id.nav_list);
-        mNavList.setPadding(insets.getSystemWindowInsetLeft(),
-                0,
-                insets.getSystemWindowInsetRight(),
-                insets.getSystemWindowInsetBottom());
-        ((DrawerMenuListAdapter) mNavList.getAdapter()).setHeaderPaddingTop(insets.getSystemWindowInsetTop());
-        return super.dispatchApplyWindowInsets(insets);
+        ViewCompat.setOnApplyWindowInsetsListener(this, (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            if (mNavList == null)
+                mNavList = findViewById(R.id.nav_list);
+            if (mNavList != null) {
+                mNavList.setPadding(systemBars.left,
+                        0,
+                        systemBars.right,
+                        systemBars.bottom);
+                if (mNavList.getAdapter() instanceof DrawerMenuListAdapter) {
+                    ((DrawerMenuListAdapter) mNavList.getAdapter()).setHeaderPaddingTop(systemBars.top);
+                }
+            }
+            return insets;
+        });
     }
 
 }

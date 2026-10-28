@@ -2,17 +2,18 @@ package io.mrarm.irc.dialog;
 
 import android.app.Activity;
 import android.content.Context;
-import android.os.Build;
 import androidx.annotation.NonNull;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import android.view.View;
 import android.view.WindowManager;
 
 import io.mrarm.irc.R;
+import io.mrarm.irc.ThemedActivity;
 
 public class StatusBarColorBottomSheetDialog extends ProperHeightBottomSheetDialog {
 
     private int mStatusBarColor;
+    private int mPreviousStatusBarColor = -1;
 
     public StatusBarColorBottomSheetDialog(@NonNull Context context) {
         super(context);
@@ -62,12 +63,22 @@ public class StatusBarColorBottomSheetDialog extends ProperHeightBottomSheetDial
     }
 
     private void updateActivityStatusBar(boolean dialogOpen) {
-        if (Build.VERSION.SDK_INT < 21 || getOwnerActivity() == null)
+        Activity activity = getOwnerActivity();
+        if (activity == null)
             return;
         if (dialogOpen) {
-            getOwnerActivity().getWindow().setStatusBarColor(mStatusBarColor);
+            if (mPreviousStatusBarColor == -1) {
+                mPreviousStatusBarColor = activity.getWindow().getStatusBarColor();
+            }
+            activity.getWindow().setStatusBarColor(mStatusBarColor);
         } else {
-            getOwnerActivity().getWindow().setStatusBarColor(0);
+            if (activity instanceof ThemedActivity) {
+                ((ThemedActivity) activity).updateStatusBarStyle();
+            } else if (mPreviousStatusBarColor != -1) {
+                activity.getWindow().setStatusBarColor(mPreviousStatusBarColor);
+            } else {
+                activity.getWindow().setStatusBarColor(0);
+            }
         }
     }
 

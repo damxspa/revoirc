@@ -1,12 +1,16 @@
 package io.mrarm.irc;
 
+import android.app.Activity;
 import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import com.google.android.material.textfield.TextInputLayout;
 import androidx.core.graphics.drawable.DrawableCompat;
@@ -26,9 +30,13 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,6 +57,7 @@ import io.mrarm.irc.setting.SettingsListAdapter;
 import io.mrarm.irc.util.EntryRecyclerViewAdapter;
 import io.mrarm.irc.util.SimpleCounter;
 import io.mrarm.irc.util.SimpleTextWatcher;
+import io.mrarm.irc.util.VibrationUtils;
 import io.mrarm.irc.view.ChipsEditText;
 
 public class EditNotificationSettingsActivity extends ThemedActivity {
@@ -58,7 +67,14 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
 
     SettingsListAdapter mAdapter;
     SimpleCounter mRequestCodeCounter = new SimpleCounter(1);
-    int mAndroidNotSettingsReqCode = mRequestCodeCounter.next();
+
+    private final ActivityResultLauncher<Intent> mAndroidNotSettingsLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (hasNotificationRuleChanges())
+                    loadOptions();
+            }
+    );
 
     NotificationRule mEditingRule;
     boolean mEditingDefaultRule = false;
@@ -69,10 +85,10 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
     CheckBoxSetting mShowNotificationEntry;
     CheckBoxSetting mUseMentionFormattingEntry;
     RingtoneSetting mSoundEntry;
-    ListSetting mVibrationEntry;
-    int[] mVibrationOptions;
+    VibrationSetting mVibrationEntry;
     ListSetting mPriorityEntry;
     ColorListSetting mColorEntry;
+    LightPulseSetting mLightPulseEntry;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,7 +107,9 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         }
 
         setContentView(R.layout.activity_edit_notification_settings);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
         mRecyclerView = findViewById(R.id.list);
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
@@ -106,13 +124,13 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         mUseMentionFormattingEntry = new CheckBoxSetting(getString(R.string.notification_mention), true);
         mShowNotificationEntry = new CheckBoxSetting(getString(R.string.notification_show), true);
         mSoundEntry = new RingtoneSetting(mAdapter, getString(R.string.notification_sound), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION));
-        mVibrationOptions = getResources().getIntArray(R.array.notification_vibration_option_values);
-        mVibrationEntry = new ListSetting(getString(R.string.notification_vibration), getResources().getStringArray(R.array.notification_vibration_options), 0);
+        mVibrationEntry = new VibrationSetting(0);
         mPriorityEntry = new ListSetting(getString(R.string.notification_priority), getResources().getStringArray(R.array.notification_priority_options), 1);
         String[] colorNames = getResources().getStringArray(R.array.color_picker_color_names);
         colorNames[0] = getString(R.string.value_none);
         mColorEntry = new ColorListSetting(getString(R.string.notification_color), getResources().getIntArray(R.array.colorPickerColors), colorNames, -1);
         mColorEntry.setHasDefaultOption(true);
+        mLightPulseEntry = new LightPulseSetting(500, 2000);
 
         if (mEditingRule != null) {
             mBasicEntry.mName = mEditingRule.getName();
@@ -163,6 +181,7 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
             mAdapter.add(mPriorityEntry);
         mAdapter.add(mColorEntry);
+        mAdapter.add(mLightPulseEntry);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mEditingRule != null) {
             mAdapter.add(new ClickableSetting(getString(
                     R.string.notification_android_settings_link), null)
@@ -174,13 +193,16 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
                         intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
                         intent.putExtra(Settings.EXTRA_CHANNEL_ID,
                                 mEditingRule.settings.notificationChannelId);
-                        startActivityForResult(intent, mAndroidNotSettingsReqCode);
+                        mAndroidNotSettingsLauncher.launch(intent);
                     }));
         }
         mRecyclerView.setAdapter(mAdapter);
 
         onShowNotificationSettingUpdated();
         mShowNotificationEntry.addListener((EntryRecyclerViewAdapter.Entry entry) -> {
+            onShowNotificationSettingUpdated();
+        });
+        mColorEntry.addListener((EntryRecyclerViewAdapter.Entry entry) -> {
             onShowNotificationSettingUpdated();
         });
     }
@@ -197,10 +219,10 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
 
         Uri soundUri = mSoundEntry.getValue();
         if (channel.getSound() != soundUri &&
-                (channel.getSound() == null || !channel.getSound().equals(soundUri)))
+                (channel.getSound() == null || !Objects.equals(channel.getSound(), soundUri)))
             return true;
 
-        int vibrationDuration = mVibrationOptions[mVibrationEntry.getSelectedOption()];
+        int vibrationDuration = mVibrationEntry.duration;
         if (channel.shouldVibrate() != (vibrationDuration != 0))
             return true;
         if (channel.shouldVibrate()) {
@@ -212,6 +234,9 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         }
 
         if (channel.shouldShowLights() != (mColorEntry.getSelectedColorIndex() != 0))
+            return true;
+        if (mEditingRule.settings.lightOnDuration != mLightPulseEntry.onDuration ||
+                mEditingRule.settings.lightOffDuration != mLightPulseEntry.offDuration)
             return true;
         //noinspection RedundantIfStatement
         if (channel.shouldShowLights() && channel.getLightColor() !=
@@ -230,20 +255,11 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
                     : Uri.parse(mEditingRule.settings.soundUri)));
         else
             mSoundEntry.setValue(null);
-        int vibrationOption;
-        if (mEditingRule.settings.vibrationEnabled)
-            vibrationOption = (mEditingRule.settings.vibrationDuration == 0
-                    ? -1 : mEditingRule.settings.vibrationDuration);
-        else
-            vibrationOption = 0;
-        int vibrationOptionIndex = 0;
-        for (int i = mVibrationOptions.length - 1; i >= 0; i--) {
-            if (mVibrationOptions[i] == vibrationOption) {
-                vibrationOptionIndex = i;
-                break;
-            }
-        }
-        mVibrationEntry.setSelectedOption(vibrationOptionIndex);
+        mVibrationEntry.duration = mEditingRule.settings.vibrationDuration;
+        mVibrationEntry.update();
+        mLightPulseEntry.onDuration = mEditingRule.settings.lightOnDuration;
+        mLightPulseEntry.offDuration = mEditingRule.settings.lightOffDuration;
+        mLightPulseEntry.update();
         mPriorityEntry.setSelectedOption(mEditingRule.settings.priority + 1);
         if (mEditingRule.settings.lightEnabled)
             mColorEntry.setSelectedColor(mEditingRule.settings.light);
@@ -256,22 +272,24 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
                 mEditingRule == null || mEditingRule.settings == null ||
                 mEditingRule.settings.notificationChannelId == null)
             return;
-        android.app.NotificationManager mgr = (android.app.NotificationManager)
+        NotificationManager mgr = (NotificationManager)
                 getSystemService(NOTIFICATION_SERVICE);
         NotificationChannel channel =
                 mgr.getNotificationChannel(mEditingRule.settings.notificationChannelId);
 
         mEditingRule.settings.soundEnabled = channel.getSound() != null;
         mEditingRule.settings.soundUri = null;
-        if (channel.getSound() != null && !channel.getSound().equals(
+        if (channel.getSound() != null && !Objects.equals(channel.getSound(),
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)))
             mEditingRule.settings.soundUri = channel.getSound().toString();
 
-        mEditingRule.settings.vibrationEnabled = channel.shouldVibrate();
-        if (channel.shouldVibrate())
-            mEditingRule.settings.vibrationDuration = channel.getVibrationPattern() == null ||
-                    channel.getVibrationPattern().length != 2
-                    ? 0 : (int) channel.getVibrationPattern()[1];
+        if (channel.shouldVibrate() && channel.getVibrationPattern() != null && channel.getVibrationPattern().length == 2) {
+            mEditingRule.settings.vibrationEnabled = true;
+            mEditingRule.settings.vibrationDuration = (int) channel.getVibrationPattern()[1];
+        } else {
+            mEditingRule.settings.vibrationEnabled = false;
+            mEditingRule.settings.vibrationDuration = 0;
+        }
 
         mEditingRule.settings.lightEnabled = channel.shouldShowLights();
         if (channel.shouldShowLights())
@@ -285,7 +303,7 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         StringBuilder str = new StringBuilder(regex.length());
         int iof, i = 2;
         while ((iof = regex.indexOf("\\E", i)) != -1 && iof < regex.length() - 2) {
-            if (iof + 2 + 5 >= regex.length() || !regex.substring(iof + 2, iof + 2 + 5).equals("\\\\E\\Q"))
+            if (iof + 2 + 5 >= regex.length() || !Objects.equals(regex.substring(iof + 2, iof + 2 + 5), "\\\\E\\Q"))
                 return null;
             str.append(regex.substring(i, iof));
             str.append("\\E");
@@ -301,6 +319,7 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         mVibrationEntry.setEnabled(checked);
         mPriorityEntry.setEnabled(checked);
         mColorEntry.setEnabled(checked);
+        mLightPulseEntry.setEnabled(checked && mColorEntry.getSelectedColorIndex() != 0);
     }
 
     @Override
@@ -328,17 +347,21 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
     }
 
     public boolean save(NotificationRule rule) {
+        // Flush the view cache to ensure all off-screen items are unbound
+        mRecyclerView.setItemViewCacheSize(0);
+        mRecyclerView.setItemViewCacheSize(2);
+
         // "unbind" all the items - this will in fact save their state instead
         for (int i = mRecyclerView.getChildCount() - 1; i >= 0; i--) {
             RecyclerView.ViewHolder holder = mRecyclerView.getChildViewHolder(mRecyclerView.getChildAt(i));
             if (holder instanceof EntryRecyclerViewAdapter.EntryHolder)
-                ((EntryRecyclerViewAdapter.EntryHolder) holder).unbind();
+                ((EntryRecyclerViewAdapter.EntryHolder<?>) holder).unbind();
         }
 
         if (!mEditingDefaultRule) {
             // validate
             for (NotificationRule other : NotificationRuleManager.getUserRules(this)) {
-                if (other != rule && other.getName().equals(mBasicEntry.mName)) {
+                if (other != rule && Objects.equals(other.getName(), mBasicEntry.mName)) {
                     mBasicEntry.setHasDuplicateError();
                     mRecyclerView.scrollToPosition(mAdapter.getEntries().indexOf(mBasicEntry));
                     return false;
@@ -380,10 +403,12 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         rule.settings.lightEnabled = (mColorEntry.getSelectedColorIndex() != 0);
         if (rule.settings.lightEnabled)
             rule.settings.light = (mColorEntry.getSelectedColorIndex() == -1 ? 0 : mColorEntry.getSelectedColor());
-        int vibrationDuration = mVibrationOptions[mVibrationEntry.getSelectedOption()];
+        int vibrationDuration = mVibrationEntry.duration;
         rule.settings.vibrationEnabled = (vibrationDuration != 0);
         if (rule.settings.vibrationEnabled)
-            rule.settings.vibrationDuration = (vibrationDuration == -1 ? 0 : vibrationDuration);
+            rule.settings.vibrationDuration = vibrationDuration;
+        rule.settings.lightOnDuration = mLightPulseEntry.onDuration;
+        rule.settings.lightOffDuration = mLightPulseEntry.offDuration;
         rule.settings.priority = mPriorityEntry.getSelectedOption() - 1;
         Uri soundUri = mSoundEntry.getValue();
         rule.settings.soundEnabled = (soundUri != null);
@@ -414,11 +439,7 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == mAndroidNotSettingsReqCode) {
-            if (hasNotificationRuleChanges())
-                loadOptions();
-            return;
-        }
+        super.onActivityResult(requestCode, resultCode, data);
         mAdapter.onActivityResult(requestCode, resultCode, data);
     }
 
@@ -593,7 +614,7 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         public AddRuleEntryHolder(View itemView, SettingsListAdapter adapter) {
             super(itemView, adapter);
             itemView.setOnClickListener((View v) -> {
-                adapter.add(getAdapterPosition(), new RuleEntry(NotificationRule.AppliesToEntry.channelMessages()));
+                adapter.add(getBindingAdapterPosition(), new RuleEntry(NotificationRule.AppliesToEntry.channelMessages()));
             });
         }
 
@@ -659,9 +680,12 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
             mChannelsCtr.setVisibility(View.GONE);
 
             Button deleteButton = itemView.findViewById(R.id.delete);
-            Drawable d = AppCompatResources.getDrawable(itemView.getContext(), R.drawable.ic_delete).mutate();
-            DrawableCompat.setTint(d, deleteButton.getTextColors().getDefaultColor());
-            deleteButton.setCompoundDrawablesWithIntrinsicBounds(d, null, null, null);
+            Drawable d = AppCompatResources.getDrawable(itemView.getContext(), R.drawable.ic_delete);
+            if (d != null) {
+                d = d.mutate();
+                DrawableCompat.setTint(d, deleteButton.getTextColors().getDefaultColor());
+                deleteButton.setCompoundDrawablesWithIntrinsicBounds(d, null, null, null);
+            }
 
             itemView.findViewById(R.id.expand).setOnClickListener((View view) -> {
                 itemView.clearFocus();
@@ -669,7 +693,7 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
             });
             deleteButton.setOnClickListener((View view) -> {
                 itemView.clearFocus();
-                adapter.remove(getAdapterPosition());
+                adapter.remove(getBindingAdapterPosition());
             });
             mServerSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
@@ -763,7 +787,7 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
                 ServerConfigData s = ServerConfigManager.getInstance(mDesc.getContext()).findServer(entry.mEntry.server);
                 summaryText.append(s != null ? s.name : "null");
                 summaryText.append(mDesc.getContext().getString(R.string.text_comma));
-                if (entry.mEntry.channels != null && entry.mEntry.channels.size() > 0) {
+                if (entry.mEntry.channels != null && !entry.mEntry.channels.isEmpty()) {
                     int count = entry.mEntry.channels.size();
                     if (count > 1) {
                         summaryText.append(mDesc.getResources().getQuantityString(R.plurals.notification_rule_summary_multi_channels, count, count));
@@ -777,7 +801,7 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
                 summaryText.append(mDesc.getContext().getString(R.string.notification_rule_summary_any_server));
             }
             summaryText.append(mDesc.getContext().getString(R.string.text_comma));
-            if (entry.mEntry.nicks != null && entry.mEntry.nicks.size() > 0) {
+            if (entry.mEntry.nicks != null && !entry.mEntry.nicks.isEmpty()) {
                 int count = entry.mEntry.nicks.size();
                 if (count > 1) {
                     summaryText.append(mDesc.getResources().getQuantityString(R.plurals.notification_rule_summary_multi_nicks, count, count));
@@ -790,6 +814,170 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
             mDesc.setText(summaryText.toString());
         }
 
+    }
+
+    public static class VibrationSetting extends EntryRecyclerViewAdapter.Entry {
+        private static final int sHolder = EntryRecyclerViewAdapter.registerViewHolder(VibrationSettingHolder.class, R.layout.notification_settings_vibration);
+
+        int duration;
+        boolean enabled = true;
+
+        public VibrationSetting(int duration) {
+            this.duration = duration;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+            onUpdated();
+        }
+
+        public void update() {
+            onUpdated();
+        }
+
+        @Override
+        public int getViewHolder() {
+            return sHolder;
+        }
+    }
+
+    public static class VibrationSettingHolder extends SettingsListAdapter.SettingsEntryHolder<VibrationSetting> {
+        Spinner mMode;
+        EditText mDuration;
+        View mDurationCtr;
+        Button mTest;
+        int[] mOptionValues;
+
+        public VibrationSettingHolder(View itemView, SettingsListAdapter adapter) {
+            super(itemView, adapter);
+            mMode = itemView.findViewById(R.id.vibration_mode);
+            mDuration = itemView.findViewById(R.id.vibration_duration);
+            mDurationCtr = itemView.findViewById(R.id.vibration_duration_ctr);
+            mTest = itemView.findViewById(R.id.test_vibration);
+
+            mOptionValues = itemView.getContext().getResources().getIntArray(R.array.notification_vibration_option_values);
+            ArrayAdapter<CharSequence> spinnerAdapter = new ArrayAdapter<>(itemView.getContext(),
+                    R.layout.simple_spinner_item, android.R.id.text1,
+                    itemView.getResources().getStringArray(R.array.notification_vibration_options));
+            spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            mMode.setAdapter(spinnerAdapter);
+
+            mMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    if (mOptionValues[position] == -2) {
+                        mDurationCtr.setVisibility(View.VISIBLE);
+                    } else {
+                        mDurationCtr.setVisibility(View.GONE);
+                    }
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {}
+            });
+
+            mTest.setOnClickListener((View v) -> {
+                int duration = getVibrationDuration();
+                if (duration <= 0) return;
+                VibrationUtils.vibrate(itemView.getContext(), duration);
+            });
+        }
+
+        private int getVibrationDuration() {
+            int pos = mMode.getSelectedItemPosition();
+            if (pos == -1) return 0;
+            if (mOptionValues[pos] == -2) {
+                String durStr = mDuration.getText().toString();
+                return durStr.isEmpty() ? 0 : Integer.parseInt(durStr);
+            }
+            return mOptionValues[pos];
+        }
+
+        @Override
+        public void bind(VibrationSetting entry) {
+            mMode.setEnabled(entry.enabled);
+            mDuration.setEnabled(entry.enabled);
+            mTest.setEnabled(entry.enabled);
+            int selection = mOptionValues.length - 1; // Default to Disabled
+            for (int i = 0; i < mOptionValues.length; i++) {
+                if (mOptionValues[i] == entry.duration) {
+                    selection = i;
+                    break;
+                }
+            }
+            if (selection == mOptionValues.length - 1 && entry.duration > 0) {
+                // Check if it's a custom duration
+                for (int i = 0; i < mOptionValues.length; i++) {
+                    if (mOptionValues[i] == -2) {
+                        selection = i;
+                        break;
+                    }
+                }
+            }
+            mMode.setSelection(selection);
+            mDuration.setText("" + entry.duration);
+            mDurationCtr.setVisibility(mOptionValues[selection] == -2 ? View.VISIBLE : View.GONE);
+        }
+
+        @Override
+        public void unbind() {
+            getEntry().duration = getVibrationDuration();
+        }
+    }
+
+    public static class LightPulseSetting extends EntryRecyclerViewAdapter.Entry {
+        private static final int sHolder = EntryRecyclerViewAdapter.registerViewHolder(LightPulseSettingHolder.class, R.layout.notification_settings_light_pulse);
+
+        int onDuration;
+        int offDuration;
+        boolean enabled = true;
+
+        public LightPulseSetting(int onDuration, int offDuration) {
+            this.onDuration = onDuration;
+            this.offDuration = offDuration;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+            onUpdated();
+        }
+
+        public void update() {
+            onUpdated();
+        }
+
+        @Override
+        public int getViewHolder() {
+            return sHolder;
+        }
+    }
+
+    public static class LightPulseSettingHolder extends SettingsListAdapter.SettingsEntryHolder<LightPulseSetting> {
+        EditText mOnDuration;
+        EditText mOffDuration;
+
+        public LightPulseSettingHolder(View itemView, SettingsListAdapter adapter) {
+            super(itemView, adapter);
+            mOnDuration = itemView.findViewById(R.id.light_on_duration);
+            mOffDuration = itemView.findViewById(R.id.light_off_duration);
+        }
+
+        @Override
+        public void bind(LightPulseSetting entry) {
+            mOnDuration.setEnabled(entry.enabled);
+            mOffDuration.setEnabled(entry.enabled);
+            mOnDuration.setText(String.valueOf(entry.onDuration));
+            mOffDuration.setText(String.valueOf(entry.offDuration));
+        }
+
+        @Override
+        public void unbind() {
+            LightPulseSetting entry = getEntry();
+            String onDurStr = mOnDuration.getText().toString();
+            entry.onDuration = onDurStr.isEmpty() ? 0 : Integer.parseInt(onDurStr);
+            String offDurStr = mOffDuration.getText().toString();
+            entry.offDuration = offDurStr.isEmpty() ? 0 : Integer.parseInt(offDurStr);
+        }
     }
 
 }

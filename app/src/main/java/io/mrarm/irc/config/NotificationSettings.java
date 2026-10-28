@@ -12,9 +12,11 @@ public class NotificationSettings {
 
     public boolean lightEnabled = true;
     public int light = 0;
+    public int lightOnDuration = 500;
+    public int lightOffDuration = 2000;
 
     public boolean vibrationEnabled = true;
-    public int vibrationDuration = 0;
+    public int vibrationDuration = 500;
 
     public boolean soundEnabled = true;
     public String soundUri;

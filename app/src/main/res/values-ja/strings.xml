@@ -1,0 +1,605 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RevoIRC</string>
+    <string name="navigation_drawer_open">ナビゲーションドロワーを開く</string>
+    <string name="navigation_drawer_close">ナビゲーションドロワーを閉じる</string>
+    <string name="tab_server">サーバー</string>
+    <string name="message_hint">メッセージを送信</string>
+    <string name="message_disconnected">切断されました</string>
+    <string name="message_join" formatted="false">%s が参加しました</string>
+    <string name="message_kick" formatted="false">%s が %s をキックしました (%s)</string>
+    <string name="message_part" formatted="false">%s が退出しました (%s)</string>
+    <string name="message_part_no_message" formatted="false">%s が退出しました</string>
+    <string name="message_quit" formatted="false">%s が切断しました (%s)</string>
+    <string name="message_nick_change" formatted="false">%s は %s に変更されました</string>
+    <string name="message_topic" formatted="false">トピック: %s</string>
+    <string name="message_topic_whotime" formatted="false">トピックは %s によって %s に設定されました</string>
+    <string name="message_topic_by" formatted="false">トピック: %s (%s が設定)</string>
+    <string name="message_topic_none" formatted="false">トピックは設定されていません</string>
+    <string name="message_host_info" formatted="false">サーバー名: %s, 実行環境: %s。サポートされているユーザーモード: %s, サポートされているチャンネルモード: %s</string>
+    <string name="message_motd">今日のメッセージ (MOTD)</string>
+    <string name="message_whois">%s のユーザー情報</string>
+    <string name="message_mode" formatted="false">%s %s</string>
+    <string name="message_mode_set" formatted="false">%s を設定</string>
+    <string name="message_mode_unset" formatted="false">%s を解除</string>
+    <string name="message_mode_gave" formatted="false">%s を付与</string>
+    <string name="message_mode_removed" formatted="false">%s を削除</string>
+    <string name="message_mode_gave_to" formatted="false">%s を %s に付与</string>
+    <string name="message_mode_removed_from" formatted="false">%s を %s から削除</string>
+    <plurals name="message_mode_channel">
+        <item quantity="one">チャンネルモード \'%s\'</item>
+        <item quantity="other">チャンネルモード \'%s\'</item>
+    </plurals>
+    <string name="message_mode_channel_value" formatted="false">チャンネルモード \'%s\' を %s に</string>
+    <string name="message_mode_channel_ban">%s のBAN</string>
+    <string name="message_mode_nick_owner">チャンネルオーナー権限</string>
+    <string name="message_mode_nick_admin">チャンネル管理者権限</string>
+    <string name="message_mode_nick_op">チャンネルオペレーター権限</string>
+    <string name="message_mode_nick_half_op">チャンネルハーフオペレーター権限</string>
+    <string name="message_mode_nick_voice">ボイス</string>
+    <string name="message_ctcp_ping">CTCP ping を受信しました</string>
+    <string name="message_ctcp_version">CTCP version を受信しました</string>
+    <string name="command_error_not_found">コマンドが見つかりません。</string>
+    <string name="command_error_internal">コマンド処理中に内部エラーが発生しました。</string>
+    <string name="command_send_raw">Rawとして送信</string>
+    <string name="channel_topic">トピック</string>
+    <string name="channel_topic_info" formatted="false">%s が %s に設定</string>
+    <string name="channel_topic_none">トピックは設定されていません</string>
+    <string name="channel_members">メンバー</string>
+    <string name="message_sent">メッセージ送信済み</string>
+    <string name="message_share_title">チャットメッセージを共有</string>
+    <string name="message_new_messages">新着メッセージ</string>
+    <plurals name="unread_message_counter">
+        <item quantity="one">1 件の未読メッセージ</item>
+        <item quantity="other">%d 件の未読メッセージ</item>
+    </plurals>
+    <plurals name="message_delete_confirm">
+        <item quantity="one">選択したメッセージを削除しますか？</item>
+        <item quantity="other">選択した %d 件のメッセージを削除しますか？</item>
+    </plurals>
+    <string name="message_delete_confirm_note">メッセージはこのデバイス上でのみ削除されます。</string>
+    <string name="action_ok">OK</string>
+    <string name="action_done">完了</string>
+    <string name="action_delete">削除</string>
+    <string name="action_edit">編集</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="action_expand">展開</string>
+    <string name="action_settings">設定</string>
+    <string name="action_connect">接続</string>
+    <string name="action_disconnect">切断</string>
+    <string name="action_reconnect">再接続</string>
+    <string name="action_open">開く</string>
+    <string name="action_back">戻る</string>
+    <string name="action_close">閉じる</string>
+    <string name="action_disconnect_and_close">切断して閉じる</string>
+    <string name="action_servers">サーバー管理</string>
+    <string name="action_add_below">下に追加</string>
+    <string name="action_add_rule">ルールを追加</string>
+    <string name="action_reorder">並べ替え</string>
+    <string name="action_undo">元に戻す</string>
+    <string name="action_copy">コピー</string>
+    <string name="action_clone">複製</string>
+    <string name="action_continue">続行</string>
+    <string name="action_finish">完了</string>
+    <string name="action_search">検索</string>
+    <string name="action_search_ellipsis">検索…</string>
+    <string name="action_sort">並べ替え</string>
+    <string name="action_sort_none">並べ替えない</string>
+    <string name="action_sort_name">名前順</string>
+    <string name="action_join_channel">チャンネルに参加</string>
+    <string name="action_message_user">ユーザーにメッセージ送信</string>
+    <string name="action_part_channel">チャンネルから退出</string>
+    <string name="action_close_direct">会話を閉じる</string>
+    <string name="action_clear_all">すべてクリア</string>
+    <string name="action_clear_history">履歴をクリア</string>
+    <string name="action_reset">リセット</string>
+    <string name="action_exit">終了</string>
+    <string name="action_reply">返信</string>
+    <string name="action_share">共有</string>
+    <string name="action_dcc_send">DCCでファイルを送信</string>
+    <string name="action_accept">承諾</string>
+    <string name="action_reject">拒否</string>
+    <string name="action_ask_again">再試行</string>
+    <string name="action_rename">名前を変更</string>
+    <string name="action_export">エクスポート</string>
+    <string name="action_import_theme">テーマをインポート</string>
+    <string name="action_delete_confirm_title">よろしいですか？</string>
+    <string name="action_delete_confirm_body" formatted="false">%s を削除しますか？この操作は取り消せません。</string>
+    <string name="format_bold">太字</string>
+    <string name="format_italic">斜体</string>
+    <string name="format_underline">下線</string>
+    <string name="format_text_color">文字色</string>
+    <string name="format_fill_color">背景色</string>
+    <string name="format_clear">書式をクリア</string>
+    <string name="service_title">IRCに接続中</string>
+    <plurals name="service_status_connected">
+        <item quantity="one">%d 個のネットワークに接続中</item>
+        <item quantity="other">%d 個のネットワークに接続中</item>
+    </plurals>
+    <plurals name="service_status_connecting">
+        <item quantity="one">%d 個のネットワークに接続中</item>
+        <item quantity="other">%d 個のネットワークに接続中</item>
+    </plurals>
+    <plurals name="service_status_disconnected">
+        <item quantity="one">%d 個のネットワークから切断中</item>
+        <item quantity="other">%d 個のネットワークから切断中</item>
+    </plurals>
+    <plurals name="notify_multiple_messages">
+        <item quantity="one">%d 件の未読メッセージ</item>
+        <item quantity="other">%d 件の未読メッセージ</item>
+    </plurals>
+    <string name="notification_action_required">ユーザー操作が必要です</string>
+    <string name="notification_channel_group_system">その他の通知</string>
+    <string name="notification_channel_group_default">デフォルトの通知ルール</string>
+    <string name="notification_channel_group_user">ユーザー通知ルール</string>
+    <string name="notification_channel_idle">ステータス通知</string>
+    <string name="notification_channel_warning">警告通知</string>
+    <string name="connection_error_no_nick">ニックネームが設定されていません</string>
+    <string name="connection_error_command_title">接続後コマンドの処理エラー</string>
+    <string name="connection_error_command_notification_desc">接続後コマンドの処理中に内部エラーが発生しました。</string>
+    <plurals name="connection_error_command_dialog_content">
+        <item quantity="one">ネットワーク \"%s\" のコマンド処理中にエラーが発生しました:\n\n%s</item>
+        <item quantity="other">ネットワーク \"%s\" のコマンド処理中にエラーが発生しました:\n\n%s</item>
+    </plurals>
+    <string name="server_list_header_active">アクティブ</string>
+    <string name="server_list_header_inactive">非アクティブ</string>
+    <plurals name="server_list_connected_channels">
+        <item quantity="one">接続中, %d チャンネル</item>
+        <item quantity="other">接続中, %d チャンネル</item>
+    </plurals>
+    <plurals name="server_list_connected_privates">
+        <item quantity="one">%d プライベート</item>
+        <item quantity="other">%d プライベート</item>
+    </plurals>
+    <string name="server_list_connecting">接続中…</string>
+    <string name="server_list_disconnected">切断中</string>
+    <string name="add_server">サーバーを追加</string>
+    <string name="edit_server">サーバーを編集</string>
+    <string name="server_save_error">サーバー情報の保存に失敗しました</string>
+    <string name="server_error_name_collision">同じ名前のサーバーが既に存在します</string>
+    <string name="server_error_name_empty">サーバー名は空にできません</string>
+    <string name="server_error_invalid_address">無効なアドレス</string>
+    <string name="server_error_invalid_port">無効なポート</string>
+    <string name="server_address">サーバーアドレス</string>
+    <string name="server_port">ポート</string>
+    <string name="server_ssl">SSL/TLSを使用</string>
+    <plurals name="server_manage_custom_certs_text">
+        <item quantity="one">%d 個のカスタム証明書が保存済み</item>
+        <item quantity="other">%d 個のカスタム証明書が保存済み</item>
+    </plurals>
+    <string name="server_manage_custom_certs">カスタム証明書を管理</string>
+    <string name="server_password_unchanged">変更なし</string>
+    <string name="server_authentication_mode">認証モード</string>
+    <string name="server_channels">自動参加チャンネル</string>
+    <string name="server_rejoin_channels">開いているチャンネルに再参加</string>
+    <string name="server_commands">自動実行コマンド</string>
+    <string name="server_encoding">エンコーディング</string>
+    <string name="server_nicks">ニックネーム</string>
+    <string name="server_user">ユーザー</string>
+    <string name="server_realname">本名</string>
+    <string name="server_sasl_ext_none">証明書未設定</string>
+    <string name="server_sasl_ext_fp">証明書の指紋: %s</string>
+    <string name="server_sasl_ext_import">PEMをインポート</string>
+    <string name="server_sasl_ext_create">新規作成</string>
+    <string name="error_cert_already_present">指定されたファイルに複数の証明書エントリがあります。</string>
+    <string name="error_privkey_already_present">指定されたファイルに複数の秘密鍵エントリがあります。</string>
+    <string name="error_cert_or_privkey_missing">指定されたファイルに秘密鍵または証明書がありません。</string>
+    <string-array name="server_auth_modes">
+        <item>なし</item>
+        <item>ユーザー名とパスワード (SASL)</item>
+        <item>クライアント証明書 (CertFP)</item>
+    </string-array>
+    <string name="server_password">サーバーパスワード</string>
+    <string name="title_activity_certificate_manager">証明書リスト</string>
+    <string name="certificate_manager_empty">保存されたカスタム証明書はありません。</string>
+    <string name="certificate_error">%s の証明書検証に失敗しました</string>
+    <string name="certificate_error_ignore">承諾して続行</string>
+    <string name="certificate_bad_cert">以下の証明書はシステムによって認識されません:</string>
+    <string name="certificate_bad_hostname">ホストから提供された証明書内のホスト名 (%1$s) が、接続先ホスト名 (%2$s) と一致しません。</string>
+    <string name="certificate_error_footer">意味が不明な場合は、この証明書を承諾しないでください。</string>
+    <string name="certificate_error_remember">例外を記憶する</string>
+    <string name="title_activity_channel_list">チャンネルリスト</string>
+    <string name="action_sort_member_count">メンバー数で並べ替え</string>
+    <plurals name="channel_list_title_with_member_count">
+        <item quantity="one">%s (%d 人のメンバー)</item>
+        <item quantity="other">%s (%d 人のメンバー)</item>
+    </plurals>
+    <string name="title_activity_settings">設定</string>
+    <string name="value_default">デフォルト</string>
+    <string name="value_custom">カスタム</string>
+    <string name="value_custom_specific">カスタム (%s)</string>
+    <string name="value_none">なし</string>
+    <string name="value_any">任意</string>
+    <string name="value_always">常に</string>
+    <string name="value_never">しない</string>
+    <string name="value_preset">プリセット</string>
+    <string name="value_not_set">未設定</string>
+    <string name="value_total">合計</string>
+    <string name="value_copy">%s (コピー)</string>
+    <string name="entry_name">名前</string>
+    <string name="entry_text">テキスト</string>
+    <string name="entry_username">ユーザー名</string>
+    <string name="entry_password">パスワード</string>
+    <string name="entry_comment">コメント</string>
+    <string name="text_comma">", "</string>
+    <string name="text_and">" and "</string>
+    <string name="error_generic">エラーが発生しました。</string>
+    <string name="error_file_open">ファイルを開けませんでした。</string>
+    <plurals name="time_seconds">
+        <item quantity="one">%d 秒</item>
+        <item quantity="other">%d 秒</item>
+    </plurals>
+    <plurals name="time_minutes">
+        <item quantity="one">%d 分</item>
+        <item quantity="other">%d 分</item>
+    </plurals>
+    <plurals name="time_hours">
+        <item quantity="one">%d 時間</item>
+        <item quantity="other">%d 時間</item>
+    </plurals>
+    <plurals name="time_days">
+        <item quantity="one">%d 日</item>
+        <item quantity="other">%d 日</item>
+    </plurals>
+    <string name="pref_header_user">ユーザー情報</string>
+    <string name="pref_title_default_nick">デフォルトのニックネーム</string>
+    <string name="pref_title_default_user">デフォルトのユーザー名</string>
+    <string name="pref_title_default_realname">デフォルトの本名</string>
+    <string name="pref_title_default_quit_message">切断メッセージ</string>
+    <string name="pref_title_default_part_message">退出メッセージ</string>
+    <string name="pref_value_default_quit_message">Quit</string>
+    <string name="pref_value_default_part_message">Leaving</string>
+    <string name="pref_header_interface">インターフェース</string>
+    <string name="pref_header_chat">チャット</string>
+    <string name="pref_title_font">フォント</string>
+    <string name="pref_title_font_size">フォントサイズ</string>
+    <string name="pref_title_hide_join_part">参加/退出メッセージを非表示</string>
+    <string name="pref_summary_hide_join_part">すべての参加/退出メッセージを隠します。</string>
+    <string name="pref_title_autocorrect">自動修正を有効化</string>
+    <string name="pref_summary_autocorrect">キーボードの自動修正を有効にします</string>
+    <string name="pref_title_appbar_compact_mode">ネットワークヘッダーを隠す</string>
+    <string name="pref_title_message_format">メッセージ形式</string>
+    <string name="pref_title_nick_autocomplete">ニックネーム/チャンネルの自動補完</string>
+    <string name="pref_title_chat_box_always_multiline">テキストボックスを複数行に</string>
+    <string name="pref_summary_chat_box_always_multiline">テキストボックスで自動改行を有効にし、Enterキーを送信ボタンにします</string>
+    <string name="pref_title_chat_box_history_swipe_mode">スワイプによる履歴ナビゲーション</string>
+    <string name="pref_title_chat_multi_scroll_mode">バッチ選択モードを使用</string>
+    <string name="pref_summary_chat_multi_scroll_mode">常に古いバッチ選択モードを有効にします</string>
+    <string name="pref_header_misc">その他</string>
+    <string name="pref_title_drawer_always_show_server">ドロワーにサーバーを表示</string>
+    <string name="pref_summary_drawer_always_show_server">ドロワーにサーバータブを常に表示します</string>
+    <string name="pref_title_close_private_quit">ユーザーが退出時にプライベートメッセージを自動的に閉じる</string>
+    <string name="pref_title_chat_show_dcc_send">DCC送信ボタンを表示</string>
+    <string name="pref_summary_chat_show_dcc_send">プライベートチャットでDCC送信ボタンを表示します</string>
+    <string name="pref_title_nick_autocomplete_show_button">ボタンを表示</string>
+    <string name="pref_summary_nick_autocomplete_show_button">ニックネーム自動補完ボタンを表示します</string>
+    <string name="pref_title_nick_autocomplete_double_tap">テキストフィールドをダブルタップ</string>
+    <string name="pref_summary_nick_autocomplete_double_tap">テキストフィールドをダブルタップで補完</string>
+    <string name="pref_title_nick_autocomplete_suggestions">ニックネームを提案</string>
+    <string name="pref_summary_nick_autocomplete_suggestions">2文字入力後にニックネーム候補を表示</string>
+    <string name="pref_title_nick_autocomplete_at_suggestions">\'@\'後に候補を表示</string>
+    <string name="pref_summary_nick_autocomplete_at_suggestions">\'@\'の後にニックネーム候補を表示</string>
+    <string name="pref_title_nick_autocomplete_at_suggestions_remove_at">\'@\'を自動削除</string>
+    <string name="pref_summary_nick_autocomplete_at_suggestions_remove_at">候補選択後に \'@\' を削除</string>
+    <string name="pref_title_channel_autocomplete_suggestions">チャンネルを提案</string>
+    <string name="pref_summary_channel_autocomplete_suggestions">\'#\'の後にチャンネル候補を表示</string>
+    <string-array name="pref_entries_font">
+        <item>デフォルト (Sans)</item>
+        <item>Serif</item>
+        <item>Monospace</item>
+    </string-array>
+    <string name="font_size_sample_text">これはフォントサイズ確認用のサンプルテキストです。下のスライダーで変更できます。</string>
+    <string-array name="pref_entries_appbar_compact_mode">
+        <item>@string/value_never</item>
+        <item>@string/value_always</item>
+        <item>メッセージの余白が少ない場合</item>
+    </string-array>
+    <string-array name="pref_entries_chat_history_swipe_mode">
+        <item>無効</item>
+        <item>水平 (左から右で履歴)</item>
+        <item>水平 (右から左で履歴)</item>
+        <item>垂直 (上から下で履歴)</item>
+        <item>垂直 (下から上で履歴)</item>
+    </string-array>
+    <string name="title_activity_message_format_settings">メッセージ形式</string>
+    <string name="message_format">形式</string>
+    <string name="message_format_date">時間形式</string>
+    <string name="message_format_date_fixed_width">固定幅</string>
+    <string name="message_format_normal">メッセージ形式</string>
+    <string name="message_format_normal_mention">メンション付きメッセージ形式</string>
+    <string name="message_format_action">動作 (me) メッセージ形式</string>
+    <string name="message_format_action_mention">メンション付き動作メッセージ形式</string>
+    <string name="message_format_notice">通知メッセージ形式</string>
+    <string name="message_format_event">イベント形式</string>
+    <string name="message_format_event_hostname">ユーザーホスト名を表示</string>
+    <string name="message_format_date_invalid">無効な時間形式</string>
+    <string name="message_format_time">時間</string>
+    <string name="message_format_sender">送信者</string>
+    <string name="message_format_message">メッセージ</string>
+    <string name="message_format_sender_prefix">プレフィックス</string>
+    <string name="message_format_time_add">時間</string>
+    <string name="message_format_sender_add">送信者</string>
+    <string name="message_format_message_add">メッセージ</string>
+    <string name="message_format_wrap_anchor_add">折り返し</string>
+    <string name="message_format_sender_prefix_add">プレフィックス</string>
+    <string name="message_format_add_chip">チップを追加</string>
+    <string name="message_format_sender_color">ニックネーム色</string>
+    <string name="message_example_sender">sender-nick</string>
+    <string name="message_example_message">これはサンプルメッセージです。</string>
+    <string-array name="time_format_presets_desc">
+        <item>括弧付き24時間制</item>
+        <item>24時間制</item>
+        <item>24時間制 (秒付き)</item>
+        <item>12時間制</item>
+    </string-array>
+    <string name="pref_header_theme">テーマ</string>
+    <string name="theme_create_new">テーマを作成</string>
+    <string name="theme_custom_default_name">@string/value_custom</string>
+    <string name="title_activity_theme_editor">テーマエディタ</string>
+    <string name="theme_category_common">共通</string>
+    <string name="theme_base">ベーステーマ</string>
+    <string name="theme_color_primary">プライマリ色</string>
+    <string name="theme_color_primary_dark">ダークプライマリ色</string>
+    <string name="theme_color_accent">アクセント色</string>
+    <string name="theme_color_action_bar_text_primary">バーテキスト色</string>
+    <string name="theme_color_action_bar_text_secondary">バーサブテキスト色</string>
+    <string name="theme_color_status_bar_light">ライトステータスバー</string>
+    <string name="theme_color_background">背景色</string>
+    <string name="theme_color_background_floating">背景色 (浮動ウィンドウ)</string>
+    <string name="theme_color_text_primary">プライマリテキスト色</string>
+    <string name="theme_color_text_secondary">サブテキスト色</string>
+    <string name="theme_color_icon">アイコン色</string>
+    <string name="theme_color_icon_opaque">不透明アイコン色</string>
+    <string name="theme_category_chat">チャット</string>
+    <string name="theme_category_chat_irc">IRC書式コード</string>
+    <string name="theme_color_irc_black">黒</string>
+    <string name="theme_color_irc_white">白</string>
+    <string name="theme_color_irc_blue">青</string>
+    <string name="theme_color_irc_green">緑</string>
+    <string name="theme_color_irc_light_red">薄赤</string>
+    <string name="theme_color_irc_brown">茶</string>
+    <string name="theme_color_irc_purple">紫</string>
+    <string name="theme_color_irc_orange">橙</string>
+    <string name="theme_color_irc_yellow">黄</string>
+    <string name="theme_color_irc_light_green">薄緑</string>
+    <string name="theme_color_irc_cyan">シアン</string>
+    <string name="theme_color_irc_light_cyan">薄シアン</string>
+    <string name="theme_color_irc_light_blue">薄青</string>
+    <string name="theme_color_irc_pink">ピンク</string>
+    <string name="theme_color_irc_gray">灰</string>
+    <string name="theme_color_irc_light_gray">薄灰</string>
+    <string name="theme_category_chat_message">メッセージ</string>
+    <string name="theme_color_message_timestamp">タイムスタンプ</string>
+    <string name="theme_color_message_status_text">ステータステキスト</string>
+    <string name="theme_color_message_disconnected">切断メッセージ</string>
+    <string name="theme_color_message_topic">トピックメッセージ</string>
+    <string name="theme_category_chat_member_list">メンバーリスト</string>
+    <string name="theme_color_member_owner">オーナー</string>
+    <string name="theme_color_member_admin">管理者</string>
+    <string name="theme_color_member_op">オペレーター</string>
+    <string name="theme_color_member_half_op">ハーフオペレーター</string>
+    <string name="theme_color_member_voice">ボイス</string>
+    <string name="theme_color_member_normal">通常メンバー</string>
+    <string name="theme_default_dark">デフォルト (ダーク)</string>
+    <string name="pref_header_notifications">通知</string>
+    <string name="notification_custom_rules">カスタムルール</string>
+    <string name="notification_tip_no_custom_rules">ルールはありません。右下の＋ボタンで追加してください。</string>
+    <string name="notification_custom_rule_deleted">通知ルールを削除しました。</string>
+    <string name="notification_rule_name_collision">同じ名前のルールが既に存在します</string>
+    <string name="notification_rule_regex_invalid">無効な正規表現</string>
+    <string name="notification_rule_nick">ニックネームへのメンション</string>
+    <string name="notification_rule_chan_messages">チャンネルメッセージ</string>
+    <string name="notification_rule_direct">ダイレクトメッセージ</string>
+    <string name="notification_rule_notice">プライベート通知</string>
+    <string name="notification_rule_chan_notice">チャンネル通知</string>
+    <string name="notification_rule_zncplayback">ZNC再生通知を無効化</string>
+    <string name="title_activity_edit_notification_settings">通知設定</string>
+    <string name="notification_header_match">マッチ</string>
+    <string name="notification_match_mode">モード</string>
+    <string name="notification_match_case">大文字小文字を区別</string>
+    <string-array name="notification_match_modes">
+        <item>含む</item>
+        <item>単語として含む</item>
+        <item>正規表現</item>
+    </string-array>
+    <string name="notification_header_applies_to">適用先</string>
+    <string name="notification_rule_server">サーバー</string>
+    <string name="notification_rule_summary_any_server">すべてのサーバー</string>
+    <string name="notification_rule_summary_any_channel">すべてのチャンネル</string>
+    <plurals name="notification_rule_summary_multi_channels">
+        <item quantity="other">%d 個のチャンネル</item>
+    </plurals>
+    <string name="notification_rule_summary_any_nick">すべてのニックネーム</string>
+    <plurals name="notification_rule_summary_multi_nicks">
+        <item quantity="other">%d 個のニックネーム</item>
+    </plurals>
+    <string name="notification_header_options">オプション</string>
+    <string name="notification_mention">メンション形式を使用</string>
+    <string name="notification_show">通知を表示</string>
+    <string name="notification_sound">サウンド</string>
+    <string name="notification_vibration">振動</string>
+    <string name="notification_vibration_duration_hint">振動時間 (ms)</string>
+    <string name="notification_vibration_test">テスト</string>
+    <string name="notification_priority">優先度</string>
+    <string name="notification_color">LEDの色</string>
+    <string name="notification_light_on_duration">点灯時間 (ms)</string>
+    <string name="notification_light_off_duration">消灯時間 (ms)</string>
+    <string name="notification_android_settings_link">詳細設定…</string>
+    <string-array name="notification_vibration_options">
+        <item>短</item>
+        <item>長</item>
+        <item>カスタム</item>
+        <item>無効</item>
+    </string-array>
+    <string-array name="notification_priority_options">
+        <item>通常</item>
+        <item>高 (デフォルト)</item>
+        <item>最高</item>
+    </string-array>
+    <string name="pref_header_reconnect">再接続</string>
+    <string name="pref_title_start_on_boot">起動時に開始</string>
+    <string name="pref_description_start_on_boot">再起動後に自動的に開始</string>
+    <string name="pref_title_auto_reconnect">自動再接続</string>
+    <string name="pref_description_auto_reconnect">切断時に自動で再接続</string>
+    <string name="pref_title_reconnect_connchg">ネットワーク変更を追跡</string>
+    <string name="pref_description_reconnect_connchg">ネットワーク変更時に再接続</string>
+    <string name="pref_title_reconnect_pattern">再接続間隔</string>
+    <string name="reconnect_header_interval">間隔</string>
+    <string name="reconnect_header_tries">試行回数</string>
+    <plurals name="reconnect_desc_tries">
+        <item quantity="one">" (%d 回試行)"</item>
+        <item quantity="other">" (%d 回試行)"</item>
+    </plurals>
+    <string-array name="duration_types">
+        <item>秒</item>
+        <item>分</item>
+        <item>時間</item>
+    </string-array>
+    <string name="pref_title_ping_enabled">定期的にハートビートを送信</string>
+    <string name="pref_description_ping_enabled">接続維持のためpingを定期送信 (バッテリー消費増)</string>
+    <string name="pref_title_ping_interval">間隔</string>
+    <string name="pref_header_command_aliases">コマンドエイリアス</string>
+    <string name="title_activity_edit_command_alias">エイリアスを編集</string>
+    <string name="title_activity_add_command_alias">エイリアスを追加</string>
+    <string name="title_activity_view_command_alias">エイリアスを表示</string>
+    <string name="edit_command_alias_error_name_collision">同じ名前/構文のエイリアスが既に存在します</string>
+    <string name="edit_command_alias_type">タイプ</string>
+    <string name="edit_command_alias_syntax">構文</string>
+    <string name="edit_command_alias_channel">チャンネル</string>
+    <string-array name="edit_command_alias_types">
+        <item>メッセージ</item>
+        <item>クライアントコマンド</item>
+        <item>Raw</item>
+    </string-array>
+    <string name="pref_header_storage">ストレージ</string>
+    <string name="pref_storage_chat_logs_title">チャット履歴</string>
+    <string name="pref_storage_change_limits">制限を変更</string>
+    <string name="pref_storage_configuration_title">設定</string>
+    <string name="pref_storage_reset_configuration">設定をリセット</string>
+    <string name="pref_storage_reset_configuration_confirm">すべての設定をリセットしてデータを削除しますか？</string>
+    <string name="pref_storage_clear_all_chat_logs">チャット履歴を全て削除</string>
+    <string name="pref_storage_clear_all_chat_logs_confirm">全てのチャット履歴を削除しますか？</string>
+
+    <string name="pref_storage_export_logs_txt">チャットログをTXTとして書き出す</string>
+    <string name="pref_storage_export_logs_html">チャットログをHTMLとして書き出す</string>
+
+    <string name="pref_storage_clear_server_chat_logs">サーバーチャット履歴を削除</string>
+    <string name="pref_header_storage_limits">制限</string>
+    <string name="pref_storage_limit_global_title">全域履歴保存制限</string>
+    <string name="pref_storage_limit_def_server_title">サーバーごと履歴保存制限</string>
+    <string name="pref_storage_no_limit">制限なし</string>
+    <string name="pref_storage_limit_notice">これはソフトリミットであり、超過することがあります。</string>
+    <string name="pref_storage_set_server_limit">サーバー制限を設定</string>
+    <string name="pref_storage_change_server_limit">サーバー制限を変更</string>
+    <string name="pref_storage_remove_server_limit">サーバー制限をリセット</string>
+    <string name="pref_storage_limit_server_title">サーバー保存制限</string>
+    <string name="pref_header_backup">バックアップ</string>
+    <string name="backup_create">新規バックアップを作成</string>
+    <string name="backup_restore">バックアップを復元</string>
+    <string name="title_activity_backup">バックアップ</string>
+    <string name="title_activity_restore">復元</string>
+    <string name="title_activity_backup_password">パスワードを設定</string>
+    <string name="title_activity_backup_password_restore">パスワードを入力</string>
+    <string name="title_activity_backup_progress">バックアップ作成中</string>
+    <string name="title_activity_backup_progress_restore">復元中</string>
+    <string name="backup_desc">再インストール後に設定を復元できるように構成をバックアップします。</string>
+    <string name="backup_password_text">バックアップにはすべての設定が含まれます。パスワードの設定を推奨します。</string>
+    <string name="backup_restore_password_text">保護されたバックアップです。復元にはパスワードが必要です。</string>
+    <string name="backup_created">バックアップ作成完了。</string>
+    <string name="backup_cancelled">バックアップ作成中止。</string>
+    <string name="backup_restored">バックアップ復元完了。</string>
+    <string name="backup_restore_cancelled">復元中止。</string>
+    <string name="backup_restore_invalid">無効なバックアップファイル。</string>
+    <string name="backup_restore_invalid_password">パスワードが違います</string>
+    <string name="backup_restore_password_not_empty">パスワードを入力してください</string>
+    <string name="please_wait_generic">お待ちください…</string>
+    <string name="title_activity_ignore_list">無視リスト</string>
+    <string name="title_activity_ignore_list_network">%s の無視リスト</string>
+    <string name="title_activity_edit_ignore_entry">無視リストを編集</string>
+    <string name="title_activity_add_ignore_entry">無視リストに追加</string>
+    <string name="user_title_away">%s (離席)</string>
+    <string name="user_nick">ニックネーム</string>
+    <string name="user_hostname">ホスト名</string>
+    <string name="user_server">サーバー</string>
+    <string name="user_server_format" formatted="false">%s (%s)</string>
+    <string name="user_channels">チャンネル</string>
+    <string name="user_idle">アイドル時間</string>
+    <string name="user_server_op">サーバーオペレーター</string>
+    <string name="user_server_op_desc">サーバーオペレーターです</string>
+    <string name="user_secure">接続セキュリティ</string>
+    <string name="user_secure_desc">安全な接続を使用中</string>
+    <string name="user_account">アカウント</string>
+    <string name="user_away">離席メッセージ</string>
+    <string name="user_info_copied">%s をコピーしました。</string>
+    <string name="color_picker_title">色を選択</string>
+    <string name="color_picker_palette">パレットから選択</string>
+    <string name="color_value_hex">Hexコード</string>
+    <string name="color_value_red">赤</string>
+    <string name="color_value_green">緑</string>
+    <string name="color_value_blue">青</string>
+    <string name="color_value_alpha">透明度</string>
+    <string-array name="color_picker_color_names">
+        <item>黒</item>
+        <item>白</item>
+        <item>青</item>
+        <item>緑</item>
+        <item>薄赤</item>
+        <item>茶</item>
+        <item>紫</item>
+        <item>橙</item>
+        <item>黄</item>
+        <item>薄緑</item>
+        <item>シアン</item>
+        <item>薄シアン</item>
+        <item>薄青</item>
+        <item>ピンク</item>
+        <item>灰</item>
+        <item>薄灰</item>
+    </string-array>
+    <string name="title_activity_irc_link">チャンネルに参加</string>
+    <string name="irc_link_pick_header">%1$s 上の %2$s に参加する接続を選択</string>
+    <string name="irc_link_show_all">他の接続を表示</string>
+    <string name="title_activity_dcc">DCC転送</string>
+    <string name="notification_channel_dcc">@string/title_activity_dcc</string>
+    <string name="dcc_summary_notification_title">DCC転送実行中</string>
+    <plurals name="dcc_summary_notification_text">
+        <item quantity="one">%d 件の転送が進行中</item>
+        <item quantity="other">%d 件の転送が進行中</item>
+    </plurals>
+    <string name="dcc_active_upload_transfer_status" formatted="false">%s にアップロード中</string>
+    <string name="dcc_active_download_transfer_status" formatted="false">%s からダウンロード中</string>
+    <string name="dcc_active_waiting_for_connection">接続待機中…</string>
+    <string name="dcc_active_waiting_for_approval">承認待機中…</string>
+    <string name="dcc_approve_notification_body" formatted="false">%s (サーバー: %s) からのファイル受信</string>
+    <string name="dcc_history_upload" formatted="false">%3$s (%1$s) に %2$s をアップロードしました</string>
+    <string name="dcc_history_download" formatted="false">%3$s (%1$s) から %2$s をダウンロードしました</string>
+    <string name="dcc_history_download_failed" formatted="false">%1$s から %2$s のダウンロード失敗</string>
+    <string name="dcc_approve_download_title">DCCファイル: %s</string>
+    <string name="dcc_approve_download_title_with_size" formatted="false">DCCファイル: %s (%s)</string>
+    <string name="dcc_approve_download_body" formatted="false">%s (サーバー: %s) がファイルを送信しています。\n\n注意：非暗号化接続で送られるため、あなたのIPが見える可能性があります。信頼できるユーザーの場合のみ承諾してください。</string>
+    <string name="dcc_approve_download_enable_anyway">強制的に有効</string>
+    <string name="dcc_enable_send_warning_title">セキュリティ警告</string>
+    <string name="dcc_enable_send_warning_body">DCCはレガシーなP2Pファイル転送プロトコルであり、非暗号化接続で行われます。データが盗聴や改ざんされるリスクがあるほか、あなたのIPアドレスが相手に知られます。DCCはモバイルデータ通信では動作しないことが多いため、3rdパーティサービスの使用を推奨します。</string>
+    <string name="dcc_system_downloads_permission_dialog_title">ダウンロードフォルダ権限</string>
+    <string name="dcc_system_downloads_permission_dialog_text">ダウンロードフォルダの権限が拒否されました。アプリ内のディレクトリが使用されます。変更するには「再試行」を押してください。</string>
+    <string name="dcc_set_download_dir">ダウンロードディレクトリ設定</string>
+    <string name="dcc_download_dir_application">アプリ内</string>
+    <string name="dcc_download_dir_system">システム</string>
+    <string name="dcc_download_dir_custom">カスタム</string>
+    <string name="dcc_error_no_activity">ファイルを開くアプリが見つかりません</string>
+    <string name="pref_header_language">言語</string>
+    <string name="action_export_logs_txt">TXTとしてエクスポート</string>
+    <string name="action_export_logs_html">HTMLとしてエクスポート</string>
+    <string name="action_export_logs">ログをエクスポート</string>
+    <string name="action_check_connection">接続状態を確認</string>
+    <string name="user_connected">オンライン</string>
+    <string name="user_disconnected">オフライン</string>
+    <string name="chat_export_file_name">revoirc-chat-export.zip</string>
+    <string name="chat_export_progress">チャットログをエクスポート中…</string>
+    <string name="chat_export_success">チャットログを正常にエクスポートしました</string>
+    <string name="chat_export_error">チャットログのエクスポート中にエラーが発生しました</string>
+
+    <string name="export_completed">エクスポートが完了しました: %s</string>
+    <string name="export_failed">エクスポートに失敗しました: %s</string>
+    <string name="action_mark_as_read">既読にする</string>
+</resources>

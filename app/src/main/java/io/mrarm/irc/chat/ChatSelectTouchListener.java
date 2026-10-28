@@ -195,7 +195,8 @@ public class ChatSelectTouchListener implements RecyclerView.OnItemTouchListener
 
     @Override
     public boolean onInterceptTouchEvent(RecyclerView rv, MotionEvent e) {
-        if (((ChatMessagesAdapter) mRecyclerView.getAdapter()).getSelectedItems().size() > 0)
+        RecyclerView.Adapter<?> adapter = mRecyclerView.getAdapter();
+        if (adapter instanceof ChatMessagesAdapter && !((ChatMessagesAdapter) adapter).getSelectedItems().isEmpty())
             return false;
         if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
             mTouchDownX = e.getX();
@@ -244,10 +245,12 @@ public class ChatSelectTouchListener implements RecyclerView.OnItemTouchListener
     public void startLongPressSelect() {
         clearSelection();
 
-        ((ChatMessagesAdapter) mRecyclerView.getAdapter()).clearSelection();
+        RecyclerView.Adapter<?> adapter = mRecyclerView.getAdapter();
+        if (adapter instanceof ChatMessagesAdapter)
+            ((ChatMessagesAdapter) adapter).clearSelection();
         if (!mLastTouchInText && mMultiSelectListener != null) {
-            mMultiSelectListener.startSelectMode(mRecyclerView.getAdapter().getItemId(
-                    getItemPosition(mLastTouchTextId)));
+            mMultiSelectListener.startSelectMode(adapter != null ? adapter.getItemId(
+                    getItemPosition(mLastTouchTextId)) : -1);
             return;
         }
 
@@ -274,12 +277,15 @@ public class ChatSelectTouchListener implements RecyclerView.OnItemTouchListener
         boolean first = true;
         int selStartIndex = getItemPosition(mSelectionStartId);
         int selEndIndex = getItemPosition(mSelectionEndId);
+        RecyclerView.Adapter<?> adapter = mRecyclerView.getAdapter();
+        if (!(adapter instanceof AdapterInterface))
+            return "";
         for (int i = selStartIndex; i <= selEndIndex; i++) {
             if (first)
                 first = false;
             else
                 builder.append('\n');
-            CharSequence text = ((AdapterInterface) mRecyclerView.getAdapter()).getTextAt(i);
+            CharSequence text = ((AdapterInterface) adapter).getTextAt(i);
             if (i == selStartIndex && i == selEndIndex)
                 builder.append(text.subSequence(mSelectionStartOffset, mSelectionEndOffset));
             else if (i == selStartIndex)
@@ -381,9 +387,12 @@ public class ChatSelectTouchListener implements RecyclerView.OnItemTouchListener
         TextView textView = findTextViewIn(view);
         if (textView == null)
             return;
-        int selStartIndex = ((AdapterInterface) mRecyclerView.getAdapter())
+        RecyclerView.Adapter<?> adapter = mRecyclerView.getAdapter();
+        if (!(adapter instanceof AdapterInterface))
+            return;
+        int selStartIndex = ((AdapterInterface) adapter)
                 .getItemPosition(mSelectionStartId);
-        int selEndIndex = ((AdapterInterface) mRecyclerView.getAdapter())
+        int selEndIndex = ((AdapterInterface) adapter)
                 .getItemPosition(mSelectionEndId);
         if (position >= selStartIndex && position <= selEndIndex) {
             if (selStartIndex == selEndIndex)

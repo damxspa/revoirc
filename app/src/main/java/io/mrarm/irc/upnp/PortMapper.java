@@ -26,88 +26,95 @@ public class PortMapper {
     public static PortMappingResult mapPort(PortMappingRequest request) throws IOException {
         SSDPDiscovery discovery = new SSDPDiscovery();
         discovery.bind();
-        discovery.setReceiveTimeout(1);
-        discovery.sendSearch(UPnPTypes.UPNP_INTERNET_GATEWAY_DEVICE_V1, 1);
-        SSDPDiscovery.Response response;
-        while ((response = discovery.receive()) != null) {
-            Log.d("PortMapper", "Found device using SSDP: " +
-                    response.getDescriptionLocation());
-            UPnPDeviceDescription.Service service = getWANService(response);
-            if (service == null) {
-                Log.d("PortMapper", "Skipping device");
-                continue;
-            }
-            Log.d("DCCManager", "Found a valid service: " + service.getControlURL());
-
-
-            URL controlDescURL = new URL(new URL(response.getDescriptionLocation()),
-                    service.getSCPDURL());
-            UPnPServiceControlDescription controlDescription =
-                    new UPnPServiceControlDescription();
-            try {
-                controlDescription.loadFromUrl(controlDescURL.toString());
-            } catch (IOException | SAXException e) {
-                Log.w("PortMapper", "Failed to fetch service control description");
-                e.printStackTrace();
-                controlDescription = null;
-            }
-
-            URL serviceURL = new URL(new URL(response.getDescriptionLocation()),
-                    service.getControlURL());
-            String localIP = resolveLocalIP(serviceURL);
-            String externalIP;
-            try {
-                GetExternalIPAddressCall call =
-                        new GetExternalIPAddressCall(service.getServiceType());
-                GetExternalIPAddressResponse resp = call.send(serviceURL);
-                externalIP = resp.getNewExternalIPAddress();
-            } catch (Exception e) {
-                Log.w("PortMapper", "Failed to send GetExternalIPAddressCall request");
-                e.printStackTrace();
-                continue;
-            }
-
-            // First try to bind using AddAnyPortMapping
-            if (controlDescription != null &&
-                    controlDescription.findAction(AddAnyPortMappingCall.ACTION_NAME) != null) {
-                try {
-                    AddAnyPortMappingCall call =
-                            new AddAnyPortMappingCall(service.getServiceType());
-                    fillInCallData(call, request, localIP);
-                    AddAnyPortMappingResponse resp = call.send(serviceURL);
-                    return new PortMappingResult(request, externalIP, resp.getNewReservedPort(),
-                            service.getServiceType(), serviceURL);
-                } catch (Exception e) {
-                    Log.w("PortMapper", "Failed to send AddAnyPortMapping request");
-                    e.printStackTrace();
+        try {
+            discovery.setReceiveTimeout(1);
+            discovery.sendSearch(UPnPTypes.UPNP_INTERNET_GATEWAY_DEVICE_V1, 1);
+            SSDPDiscovery.Response response;
+            while ((response = discovery.receive()) != null) {
+                Log.d("PortMapper", "Found device using SSDP: " +
+                        response.getDescriptionLocation());
+                UPnPDeviceDescription.Service service = getWANService(response);
+                if (service == null) {
+                    Log.d("PortMapper", "Skipping device");
+                    continue;
                 }
-            }
-            // Then try to bind using AddPortMapping on the desired point, and if that fails try to
-            // use 2 different random ports
-            int attempt = 0;
-            do {
+                Log.d("DCCManager", "Found a valid service: " + service.getControlURL());
+
+
+                URL controlDescURL = new URL(new URL(response.getDescriptionLocation()),
+                        service.getSCPDURL());
+                UPnPServiceControlDescription controlDescription =
+                        new UPnPServiceControlDescription();
                 try {
-                    AddPortMappingCall call =
-                            new AddPortMappingCall(service.getServiceType());
-                    fillInCallData(call, request, localIP);
-                    if (attempt != 0)
-                        call.setNewExternalPort(1024 + new Random().nextInt(65535 - 1024));
-                    call.send(serviceURL);
-                    return new PortMappingResult(request, externalIP, call.getNewExternalPort(),
-                            service.getServiceType(), serviceURL);
-                } catch (Exception e) {
-                    if (e instanceof UPnPRPCError) {
-                        Log.w("PortMapper", "UPnP Error: " +
-                                ((UPnPRPCError) e).getErrorCode() + " " +
-                                ((UPnPRPCError) e).getErrorDescription());
+                    controlDescription.loadFromUrl(controlDescURL.toString());
+                } catch (IOException | SAXException e) {
+                    Log.w("PortMapper", "Failed to fetch service control description");
+                    e.printStackTrace();
+                    controlDescription = null;
+                }
+
+                URL serviceURL = new URL(new URL(response.getDescriptionLocation()),
+                        service.getControlURL());
+                String localIP = resolveLocalIP(serviceURL);
+                String externalIP;
+                try {
+                    GetExternalIPAddressCall call =
+                            new GetExternalIPAddressCall(service.getServiceType());
+                    GetExternalIPAddressResponse resp = call.send(serviceURL);
+                    externalIP = resp.getNewExternalIPAddress();
+                    if (externalIP == null) {
+                        Log.w("PortMapper", "GetExternalIPAddress returned null IP");
+                        continue;
                     }
-                    Log.w("PortMapper", "Failed to send AddPortMapping request");
+                } catch (Exception e) {
+                    Log.w("PortMapper", "Failed to send GetExternalIPAddressCall request");
                     e.printStackTrace();
+                    continue;
                 }
-                attempt++;
-            } while (attempt < 3);
+
+                // First try to bind using AddAnyPortMapping
+                if (controlDescription != null &&
+                        controlDescription.findAction(AddAnyPortMappingCall.ACTION_NAME) != null) {
+                    try {
+                        AddAnyPortMappingCall call =
+                                new AddAnyPortMappingCall(service.getServiceType());
+                        fillInCallData(call, request, localIP);
+                        AddAnyPortMappingResponse resp = call.send(serviceURL);
+                        return new PortMappingResult(request, externalIP, resp.getNewReservedPort(),
+                                service.getServiceType(), serviceURL);
+                    } catch (Exception e) {
+                        Log.w("PortMapper", "Failed to send AddAnyPortMapping request");
+                        e.printStackTrace();
+                    }
+                }
+                // Then try to bind using AddPortMapping on the desired point, and if that fails try to
+                // use 2 different random ports
+                int attempt = 0;
+                do {
+                    try {
+                        AddPortMappingCall call =
+                                new AddPortMappingCall(service.getServiceType());
+                        fillInCallData(call, request, localIP);
+                        if (attempt != 0)
+                            call.setNewExternalPort(1024 + new Random().nextInt(65535 - 1024));
+                        call.send(serviceURL);
+                        return new PortMappingResult(request, externalIP, call.getNewExternalPort(),
+                                service.getServiceType(), serviceURL);
+                    } catch (Exception e) {
+                        if (e instanceof UPnPRPCError) {
+                            Log.w("PortMapper", "UPnP Error: " +
+                                    ((UPnPRPCError) e).getErrorCode() + " " +
+                                    ((UPnPRPCError) e).getErrorDescription());
+                        }
+                        Log.w("PortMapper", "Failed to send AddPortMapping request");
+                        e.printStackTrace();
+                    }
+                    attempt++;
+                } while (attempt < 3);
+            }
+        } finally {
+            discovery.close();
         }
-        discovery.close();
         throw new IOException("No supported gateway found");
     }
 
@@ -168,14 +175,9 @@ public class PortMapper {
     }
 
     private static String resolveLocalIP(URL targetUrl) throws IOException {
-        DatagramSocket socket = null;
-        try {
-            socket = new DatagramSocket();
-            socket.connect(new InetSocketAddress(targetUrl.getHost(), targetUrl.getPort()));
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.connect(new InetSocketAddress(targetUrl.getHost(), targetUrl.getPort() != -1 ? targetUrl.getPort() : 80));
             return socket.getLocalAddress().getHostAddress();
-        } finally {
-            if (socket != null)
-                socket.close();
         }
     }
 

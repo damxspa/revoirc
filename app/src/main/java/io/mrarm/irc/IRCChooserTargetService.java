@@ -11,6 +11,7 @@ import android.service.chooser.ChooserTargetService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @TargetApi(Build.VERSION_CODES.M)
@@ -31,7 +32,7 @@ public class IRCChooserTargetService extends ChooserTargetService {
     }
 
     public static void unsetChannel(UUID server, String channel) {
-        if (server == sServer && channel != null && channel.equals(sChannel)) {
+        if (server == sServer && channel != null && Objects.equals(channel, sChannel)) {
             sServer = null;
             sChannel = channel;
         }

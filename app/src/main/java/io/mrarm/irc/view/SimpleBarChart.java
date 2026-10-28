@@ -5,6 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import android.util.AttributeSet;
 import android.view.View;
@@ -16,9 +17,9 @@ public class SimpleBarChart extends View {
     private float[] mValues;
     private int[] mColors;
     private float mValuesTotal;
-    private Path mPath = new Path();
-    private RectF mTempRect = new RectF();
-    private Paint mPaint = new Paint();
+    private final Path mPath = new Path();
+    private final RectF mTempRect = new RectF();
+    private final Paint mPaint = new Paint();
 
     public SimpleBarChart(Context context) {
         this(context, null);
@@ -51,7 +52,7 @@ public class SimpleBarChart extends View {
     }
 
     @Override
-    public void draw(Canvas canvas) {
+    public void draw(@NonNull Canvas canvas) {
         super.draw(canvas);
         float x = getPaddingLeft();
         float y = getPaddingTop();

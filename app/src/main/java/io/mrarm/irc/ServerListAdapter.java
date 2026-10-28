@@ -3,6 +3,8 @@ package io.mrarm.irc;
 import android.app.Activity;
 import android.graphics.drawable.Drawable;
 import androidx.core.graphics.drawable.DrawableCompat;
+import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,6 +17,7 @@ import java.util.List;
 
 import io.mrarm.irc.config.ServerConfigData;
 import io.mrarm.irc.config.ServerConfigManager;
+import io.mrarm.irc.util.IRCUtils;
 
 public class ServerListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
         implements ServerConnectionManager.ConnectionsListener,
@@ -48,10 +51,10 @@ public class ServerListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     public ServerListAdapter(Activity context) {
         mContext = context;
-        mColorConnected = context.getResources().getColor(R.color.serverListConnected);
-        mColorConnecting = context.getResources().getColor(R.color.serverListConnecting);
-        mColorDisconnected = context.getResources().getColor(R.color.serverListDisconnected);
-        mColorInactive = context.getResources().getColor(R.color.serverListInactive);
+        mColorConnected = ContextCompat.getColor(context, R.color.serverListConnected);
+        mColorConnecting = ContextCompat.getColor(context, R.color.serverListConnecting);
+        mColorDisconnected = ContextCompat.getColor(context, R.color.serverListDisconnected);
+        mColorInactive = ContextCompat.getColor(context, R.color.serverListInactive);
         updateConnections();
     }
 
@@ -180,8 +183,9 @@ public class ServerListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         this.mInactiveServerLongClickListener = listener;
     }
 
+    @NonNull
     @Override
-    public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup viewGroup, int viewType) {
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup viewGroup, int viewType) {
         if (viewType == TYPE_HEADER) {
             View view = LayoutInflater.from(viewGroup.getContext())
                     .inflate(R.layout.server_list_header, viewGroup, false);
@@ -311,7 +315,7 @@ public class ServerListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             mConfigData = data;
             Drawable d = DrawableCompat.wrap(mIconBg.getBackground());
             DrawableCompat.setTint(d, adapter.mColorInactive);
-            mIconBg.setBackgroundDrawable(d);
+            mIconBg.setBackground(d);
             mName.setText(data.name);
         }
 
@@ -353,8 +357,21 @@ public class ServerListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             if (connectionInfo.isConnected()) {
                 DrawableCompat.setTint(d, adapter.mColorConnected);
                 mIcon.setImageResource(R.drawable.ic_server_connected);
-                int channels = connectionInfo.getChannels().size();
-                mDesc.setText(mDesc.getResources().getQuantityString(R.plurals.server_list_connected, channels, channels));
+                int channels = 0;
+                int privates = 0;
+                for (String channel : connectionInfo.getChannels()) {
+                    if (IRCUtils.isChannel(channel))
+                        channels++;
+                    else
+                        privates++;
+                }
+                StringBuilder desc = new StringBuilder();
+                desc.append(mDesc.getResources().getQuantityString(R.plurals.server_list_connected_channels, channels, channels));
+                if (privates > 0) {
+                    desc.append(" - ");
+                    desc.append(mDesc.getResources().getQuantityString(R.plurals.server_list_connected_privates, privates, privates));
+                }
+                mDesc.setText(desc.toString());
             } else if (connectionInfo.isConnecting()) {
                 DrawableCompat.setTint(d, adapter.mColorConnecting);
                 mIcon.setImageResource(R.drawable.ic_refresh);
@@ -364,7 +381,7 @@ public class ServerListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 mIcon.setImageResource(R.drawable.ic_close);
                 mDesc.setText(R.string.server_list_disconnected);
             }
-            mIconBg.setBackgroundDrawable(d);
+            mIconBg.setBackground(d);
             mName.setText(connectionInfo.getName());
         }
 

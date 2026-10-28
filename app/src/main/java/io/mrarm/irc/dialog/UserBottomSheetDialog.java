@@ -3,29 +3,43 @@ package io.mrarm.irc.dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
+
+import androidx.core.content.ContextCompat;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
+import androidx.appcompat.content.res.AppCompatResources;
+import androidx.appcompat.widget.PopupMenu;
 import androidx.core.view.ViewCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.util.Pair;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.activity.OnBackPressedCallback;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import coil.Coil;
+import coil.request.ImageRequest;
+import coil.transform.CircleCropTransformation;
 import io.mrarm.chatlib.ChatApi;
 import io.mrarm.chatlib.dto.WhoisInfo;
+import io.mrarm.irc.ImageActivity;
 import io.mrarm.irc.MainActivity;
 import io.mrarm.irc.R;
 import io.mrarm.irc.ServerConnectionInfo;
 import io.mrarm.irc.util.AdvancedDividerItemDecoration;
+import io.mrarm.irc.util.AvatarUtils;
 
 public class UserBottomSheetDialog {
 
@@ -38,6 +52,7 @@ public class UserBottomSheetDialog {
     private String mNick;
     private String mUser;
     private String mRealName;
+    private String mAccount;
     private boolean mAway;
     private List<Pair<String, String>> mEntries = new ArrayList<>();
 
@@ -52,17 +67,24 @@ public class UserBottomSheetDialog {
     }
 
     public void requestData(String nick, ChatApi connection) {
-        setUser(nick, null, null, false);
+        setUser(nick, null, null, null, false);
         connection.sendWhois(nick, (WhoisInfo info) -> {
             mRecyclerView.post(() -> {
+                if (mHeader != null)
+                    mHeader.setStatus(R.string.user_connected);
                 setData(info);
             });
-        }, null);
+        }, (Exception e) -> {
+            mRecyclerView.post(() -> {
+                if (mHeader != null)
+                    mHeader.setStatus(R.string.user_disconnected);
+            });
+        });
     }
 
     public void setData(WhoisInfo info) {
         mEntries.clear();
-        setUser(info.getNick(), info.getUser(), info.getRealName(), (info.getAwayMessage() != null));
+        setUser(info.getNick(), info.getUser(), info.getRealName(), info.getLoggedInAsAccount(), (info.getAwayMessage() != null));
         if (info.getAwayMessage() != null)
             addEntry(R.string.user_away, info.getAwayMessage());
         addEntry(R.string.user_hostname, info.getHost());
@@ -107,10 +129,11 @@ public class UserBottomSheetDialog {
         return mContext.getResources().getQuantityString(R.plurals.time_seconds, seconds, seconds);
     }
 
-    public void setUser(String nick, String user, String realName, boolean away) {
+    public void setUser(String nick, String user, String realName, String account, boolean away) {
         mNick = nick;
         mUser = user;
         mRealName = realName;
+        mAccount = account;
         mAway = away;
         updateDialogStatusBarColor();
         if (mHeader != null)
@@ -137,41 +160,99 @@ public class UserBottomSheetDialog {
         mHeader = new HeaderHelper(view.findViewById(R.id.header));
         mHeader.bind();
 
-        mRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+        // Store references to listeners for cleanup
+        final RecyclerView.OnScrollListener scrollListener = new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
                 mHeader.updateScrollY();
             }
-        });
+        };
+        
+        mRecyclerView.addOnScrollListener(scrollListener);
 
         mAdapter = new ItemAdapter();
         mRecyclerView.setAdapter(mAdapter);
 
         view.findViewById(R.id.message_button).setOnClickListener((View v) -> {
-            List<String> l = new ArrayList<>();
-            l.add(mNick);
-            mConnection.getApiInstance().joinChannels(l, (Void vo) -> {
-                view.post(() -> {
-                    if (mContext instanceof MainActivity)
-                        ((MainActivity) mContext).openServer(mConnection, mNick);
-                    mDialog.cancel();
-                });
-            }, null);
+            PopupMenu menu = new PopupMenu(mContext, v);
+            menu.getMenu().add(0, 1, 0, mContext.getString(R.string.action_message_user));
+            menu.getMenu().add(0, 2, 0, mContext.getString(R.string.action_view_avatar));
+            menu.setOnMenuItemClickListener(item -> {
+                if (item.getItemId() == 1) {
+                    List<String> l = new ArrayList<>();
+                    l.add(mNick);
+                    mConnection.getApiInstance().joinChannels(l, (Void vo) -> {
+                        view.post(() -> {
+                            if (mContext instanceof MainActivity)
+                                ((MainActivity) mContext).openServer(mConnection, mNick);
+                            mDialog.cancel();
+                        });
+                    }, (Exception e) -> {
+                        // Handle error in joining channels
+                        view.post(() -> {
+                            Toast.makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT).show();
+                        });
+                    });
+                    return true;
+                }
+                if (item.getItemId() == 2) {
+                    Intent intent = new Intent(mContext, ImageActivity.class);
+                    String url = AvatarUtils.getAvatarUrl(mConnection, mRealName, mNick, mAccount);
+                    if (url == null || url.isEmpty()) {
+                        url = AvatarUtils.getAvatarUrlForNick(mNick);
+                    }
+                    AvatarUtils.clearImageCache(mContext);
+                    url = AvatarUtils.ensureTimestamp(url);
+                    intent.putExtra(ImageActivity.EXTRA_URL, url);
+                    mContext.startActivity(intent);
+                    return true;
+                }
+                return false;
+            });
+            menu.show();
         });
 
         mDialog = new StatusBarColorBottomSheetDialog(mContext);
+        mDialog.setCancelable(true);
+        mDialog.setCanceledOnTouchOutside(true);
         mDialog.setContentView(view);
-        int compatMaxHeight = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_height_compact_activate);
-        mDialog.getWindow().getDecorView().addOnLayoutChangeListener((View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) -> {
-            if (bottom - top == oldBottom - oldTop)
-                return;
-            view.post(() -> {
-                BottomSheetBehavior behaviour = BottomSheetBehavior.from(mDialog.
-                        findViewById(R.id.design_bottom_sheet));
-                view.setMinimumHeight(bottom - top);
-                mHeader.setCompactMode(behaviour.getPeekHeight() < compatMaxHeight);
-            });
+        mDialog.getOnBackPressedDispatcher().addCallback(mDialog, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                mDialog.cancel();
+            }
         });
+        mDialog.setOnKeyListener((dialog, keyCode, event) -> {
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
+                mDialog.cancel();
+                return true;
+            }
+            return false;
+        });
+        int compatMaxHeight = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_height_compact_activate);
+        if (mDialog.getWindow() != null) {
+            // Store layout change listener for cleanup
+            final View.OnLayoutChangeListener layoutChangeListener = (View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) -> {
+                if (bottom - top == oldBottom - oldTop)
+                    return;
+                view.post(() -> {
+                    View bottomSheet = mDialog.findViewById(R.id.design_bottom_sheet);
+                    if (bottomSheet == null) return;
+                    BottomSheetBehavior behaviour = BottomSheetBehavior.from(bottomSheet);
+                    view.setMinimumHeight(bottom - top);
+                    mHeader.setCompactMode(behaviour.getPeekHeight() < compatMaxHeight);
+                });
+            };
+            mDialog.getWindow().getDecorView().addOnLayoutChangeListener(layoutChangeListener);
+            
+            // Set dismiss listener to cleanup
+            mDialog.setOnDismissListener(dialog -> {
+                if (mDialog.getWindow() != null) {
+                    mDialog.getWindow().getDecorView().removeOnLayoutChangeListener(layoutChangeListener);
+                }
+                mRecyclerView.removeOnScrollListener(scrollListener);
+            });
+        }
         updateDialogStatusBarColor();
     }
 
@@ -179,9 +260,9 @@ public class UserBottomSheetDialog {
         if (mDialog == null)
             return;
         if (mAway)
-            mDialog.setStatusBarColor(mContext.getResources().getColor(R.color.userAwayColorPrimaryDark));
+            mDialog.setStatusBarColor(ContextCompat.getColor(mContext, R.color.userAwayColorPrimaryDark));
         else
-            mDialog.setStatusBarColor(mContext.getResources().getColor(R.color.colorPrimaryDark));
+            mDialog.setStatusBarColor(ContextCompat.getColor(mContext, R.color.colorPrimaryDark));
     }
 
     public BottomSheetDialog show() {
@@ -237,6 +318,12 @@ public class UserBottomSheetDialog {
         private TextView mName;
         private TextView mNick;
         private TextView mUser;
+        private TextView mStatus;
+        private ImageView mAvatar;
+        private View mMessageButton;
+        private View mRightInfoContainer;
+        private TextView mSendMessageNew;
+        private TextView mStatusNew;
         private int mBottomMargin;
         private int mNameBottomMargin;
         private int mTargetNameBottomMargin;
@@ -244,12 +331,20 @@ public class UserBottomSheetDialog {
         private int mMinHeight;
         private int mElevation;
         private boolean mCompactMode = false;
+        private boolean mBottomAvatarMode = false;
 
         public HeaderHelper(View itemView) {
             mContainer = itemView;
             mName = itemView.findViewById(R.id.name);
             mNick = itemView.findViewById(R.id.nick);
             mUser = itemView.findViewById(R.id.user);
+            mStatus = itemView.findViewById(R.id.status);
+            mAvatar = itemView.findViewById(R.id.avatar);
+            mMessageButton = itemView.findViewById(R.id.message_button);
+            mRightInfoContainer = itemView.findViewById(R.id.right_info_container);
+            mSendMessageNew = itemView.findViewById(R.id.send_message_new);
+            mStatusNew = itemView.findViewById(R.id.status_new);
+            mAvatar.setImageTintList(AppCompatResources.getColorStateList(mContext, R.color.abc_primary_text_material_dark));
             setCompactMode(false, true);
             mElevation = mContext.getResources().getDimensionPixelSize(R.dimen.abc_action_bar_elevation_material);
 
@@ -268,6 +363,127 @@ public class UserBottomSheetDialog {
             }
             mNick.setText(UserBottomSheetDialog.this.mNick);
             mUser.setText(UserBottomSheetDialog.this.mUser);
+
+            String host = mConnection != null ? mConnection.getHost() : null;
+            boolean isAllowedServer = host != null && AvatarUtils.isChateagratisServer(host);
+
+            if (mAvatar != null && UserBottomSheetDialog.this.mNick != null) {
+                String baseUrl = mConnection != null ? mConnection.getServerConfig().avatarUrl : null;
+                String url = null;
+                if (baseUrl != null) {
+                    url = baseUrl;
+                    if (url.contains("%nick%")) {
+                        url = url.replace("%nick%", UserBottomSheetDialog.this.mNick);
+                    }
+                    if (mAccount != null && url.contains("%account%")) {
+                        url = url.replace("%account%", mAccount);
+                    } else if (mAccount == null && url.contains("%account%")) {
+                        url = null;
+                    } else if (!baseUrl.contains("%nick%")) {
+                        url = baseUrl + (mAccount != null ? mAccount : UserBottomSheetDialog.this.mNick);
+                    }
+                } else if (isAllowedServer) {
+                    url = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
+                }
+
+                mBottomAvatarMode = isAllowedServer;
+
+                if (mBottomAvatarMode) {
+                    mName.setVisibility(View.GONE);
+                    mMessageButton.setVisibility(View.GONE);
+                    mStatus.setVisibility(View.GONE);
+                    mRightInfoContainer.setVisibility(View.VISIBLE);
+
+                    mSendMessageNew.setOnClickListener(v -> {
+                        List<String> l = new ArrayList<>();
+                        l.add(UserBottomSheetDialog.this.mNick);
+                        mConnection.getApiInstance().joinChannels(l, (Void vo) -> {
+                            mContainer.post(() -> {
+                                if (mContext instanceof MainActivity)
+                                    ((MainActivity) mContext).openServer(mConnection, UserBottomSheetDialog.this.mNick);
+                                mDialog.cancel();
+                            });
+                        }, (Exception e) -> {
+                            // Handle error in joining channels
+                            mContainer.post(() -> {
+                                Toast.makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT).show();
+                            });
+                        });
+                    });
+
+                    // Safe casting of LayoutParams
+                    ViewGroup.LayoutParams params = mAvatar.getLayoutParams();
+                    if (params instanceof RelativeLayout.LayoutParams) {
+                        RelativeLayout.LayoutParams avatarParams = (RelativeLayout.LayoutParams) params;
+                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
+                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_START);
+                        avatarParams.removeRule(RelativeLayout.CENTER_IN_PARENT);
+                        avatarParams.width = mMaxHeight;
+                        avatarParams.height = mMaxHeight;
+                        avatarParams.topMargin = 0;
+                        avatarParams.leftMargin = 0;
+                        avatarParams.setMarginStart(0);
+                        mAvatar.setLayoutParams(avatarParams);
+                    }
+                } else {
+                    mName.setVisibility(View.VISIBLE);
+                    mMessageButton.setVisibility(View.VISIBLE);
+                    mStatus.setVisibility(View.VISIBLE);
+                    mRightInfoContainer.setVisibility(View.GONE);
+
+                    // Safe casting of LayoutParams
+                    ViewGroup.LayoutParams params = mAvatar.getLayoutParams();
+                    if (params instanceof RelativeLayout.LayoutParams) {
+                        RelativeLayout.LayoutParams avatarParams = (RelativeLayout.LayoutParams) params;
+                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+                        avatarParams.removeRule(RelativeLayout.CENTER_IN_PARENT);
+                        avatarParams.removeRule(RelativeLayout.ALIGN_PARENT_LEFT);
+                        avatarParams.removeRule(RelativeLayout.ALIGN_PARENT_START);
+                        avatarParams.width = (int) (128 * mContext.getResources().getDisplayMetrics().density);
+                        avatarParams.height = avatarParams.width;
+                        avatarParams.topMargin = (int) (16 * mContext.getResources().getDisplayMetrics().density);
+                        avatarParams.leftMargin = (int) (16 * mContext.getResources().getDisplayMetrics().density);
+                        avatarParams.setMarginStart(avatarParams.leftMargin);
+                        mAvatar.setLayoutParams(avatarParams);
+                    }
+                    mNameBottomMargin = mContext.getResources().getDimensionPixelSize(mCompactMode ?
+                            R.dimen.dialog_bottom_user_header_name_bottom_margin_compact :
+                            R.dimen.dialog_bottom_user_header_name_bottom_margin);
+                }
+
+                if (url == null || url.isEmpty()) {
+                    url = AvatarUtils.getAvatarUrlForNick(UserBottomSheetDialog.this.mNick);
+                }
+
+                if (url != null) {
+                    mAvatar.setVisibility(View.VISIBLE);
+                    mAvatar.setImageTintList(null);
+                    mAvatar.setColorFilter(null);
+                    AvatarUtils.loadAvatar(mContext, mConnection, mAvatar, mRealName, UserBottomSheetDialog.this.mNick, mAccount, !mBottomAvatarMode);
+
+                    mAvatar.setOnClickListener(v -> {
+                        Intent intent = new Intent(mContext, ImageActivity.class);
+                        String currentUrl = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
+                        if (currentUrl == null || currentUrl.isEmpty()) {
+                            currentUrl = AvatarUtils.getAvatarUrlForNick(UserBottomSheetDialog.this.mNick);
+                        }
+                        AvatarUtils.clearImageCache(mContext);
+                        currentUrl = AvatarUtils.ensureTimestamp(currentUrl);
+                        intent.putExtra(ImageActivity.EXTRA_URL, currentUrl);
+                        mContext.startActivity(intent);
+                    });
+                } else {
+                    mAvatar.setVisibility(View.GONE);
+                    mAvatar.setOnClickListener(null);
+                }
+            }
+            updateScrollY();
+        }
+
+        public void setStatus(int resId) {
+            mStatus.setText(resId);
+            mStatusNew.setText(resId);
         }
 
         public void setScrollY(int y) {
@@ -276,25 +492,55 @@ public class UserBottomSheetDialog {
                 cy = mMaxHeight - mMinHeight;
                 mNick.setVisibility(View.GONE);
                 mUser.setVisibility(View.GONE);
+                if (mRightInfoContainer != null)
+                    mRightInfoContainer.setVisibility(View.GONE);
             } else {
                 mNick.setVisibility(View.VISIBLE);
                 mUser.setVisibility(View.VISIBLE);
-                RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mNick.getLayoutParams();
-                params.bottomMargin = mBottomMargin - y;
-                mNick.setLayoutParams(params);
-                params = (RelativeLayout.LayoutParams) mUser.getLayoutParams();
-                params.bottomMargin = mBottomMargin - y;
-                mUser.setLayoutParams(params);
+                if (mBottomAvatarMode && mRightInfoContainer != null)
+                    mRightInfoContainer.setVisibility(View.VISIBLE);
+                
+                // Safe casting of LayoutParams
+                ViewGroup.LayoutParams nickParams = mNick.getLayoutParams();
+                if (nickParams instanceof RelativeLayout.LayoutParams) {
+                    RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) nickParams;
+                    params.bottomMargin = mBottomMargin - y;
+                    mNick.setLayoutParams(params);
+                }
+                
+                ViewGroup.LayoutParams userParams = mUser.getLayoutParams();
+                if (userParams instanceof RelativeLayout.LayoutParams) {
+                    RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) userParams;
+                    params.bottomMargin = mBottomMargin - y;
+                    mUser.setLayoutParams(params);
+                }
+
+                if (mBottomAvatarMode) {
+                    // Avatar is centered, so it stays centered relative to the changing height of the container.
+                }
             }
+            if (mAvatar != null)
+                mAvatar.setAlpha(1.0f - (float) cy / (mMaxHeight - mMinHeight));
+            if (mRightInfoContainer != null)
+                mRightInfoContainer.setAlpha(1.0f - (float) cy / (mMaxHeight - mMinHeight));
             ViewCompat.setElevation(mContainer, cy == (mMaxHeight - mMinHeight) ? mElevation : 0);
-            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mName.getLayoutParams();
-            params.bottomMargin = Math.max(mNameBottomMargin - cy, mTargetNameBottomMargin);
-            mName.setLayoutParams(params);
-            params = (RelativeLayout.LayoutParams) mContainer.getLayoutParams();
-            int newH = mMaxHeight - cy;
-            if (newH != params.height) {
-                params.height = mMaxHeight - cy;
-                mContainer.setLayoutParams(params);
+            
+            // Safe casting of LayoutParams
+            ViewGroup.LayoutParams nameParams = mName.getLayoutParams();
+            if (nameParams instanceof RelativeLayout.LayoutParams) {
+                RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) nameParams;
+                params.bottomMargin = Math.max(mNameBottomMargin - cy, mTargetNameBottomMargin);
+                mName.setLayoutParams(params);
+            }
+            
+            ViewGroup.LayoutParams containerParams = mContainer.getLayoutParams();
+            if (containerParams instanceof RelativeLayout.LayoutParams) {
+                RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) containerParams;
+                int newH = mMaxHeight - cy;
+                if (newH != params.height) {
+                    params.height = mMaxHeight - cy;
+                    mContainer.setLayoutParams(params);
+                }
             }
         }
 
@@ -326,13 +572,31 @@ public class UserBottomSheetDialog {
                 mMinHeight = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_min_height);
                 mBottomMargin = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_bottom_margin);
                 mNameBottomMargin = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_name_bottom_margin);
+                if (mBottomAvatarMode) {
+                    // FIXED: Use float for density calculation to avoid truncation
+                    float density = mContext.getResources().getDisplayMetrics().density;
+                    mNameBottomMargin = (int) (166 * density);
+                }
                 mTargetNameBottomMargin = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_name_bottom_margin_target);
             }
             RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mContainer.getLayoutParams();
             params.height = mMaxHeight;
             mContainer.setLayoutParams(params);
+            if (mBottomAvatarMode && mAvatar != null) {
+                // Safe casting of LayoutParams for avatar
+                ViewGroup.LayoutParams avatarParamsObj = mAvatar.getLayoutParams();
+                if (avatarParamsObj instanceof RelativeLayout.LayoutParams) {
+                    RelativeLayout.LayoutParams avatarParams = (RelativeLayout.LayoutParams) avatarParamsObj;
+                    avatarParams.width = mMaxHeight;
+                    avatarParams.height = mMaxHeight;
+                    mAvatar.setLayoutParams(avatarParams);
+                }
+            }
             mRecyclerView.setPadding(0, mMaxHeight, 0, 0);
-            ((LinearLayoutManager) mRecyclerView.getLayoutManager()).scrollToPositionWithOffset(0, 0);
+            RecyclerView.LayoutManager layoutManager = mRecyclerView.getLayoutManager();
+            if (layoutManager instanceof LinearLayoutManager) {
+                ((LinearLayoutManager) layoutManager).scrollToPositionWithOffset(0, 0);
+            }
             setScrollY(0);
         }
 
@@ -345,9 +609,11 @@ public class UserBottomSheetDialog {
     private static void copyValueToClipboard(Context context, CharSequence key, CharSequence value) {
         ClipboardManager clipboard = (ClipboardManager) context
                 .getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText(key, value);
+        // Handle null key safely
+        String safeKey = (key != null) ? key.toString() : "";
+        ClipData clip = ClipData.newPlainText(safeKey, value);
         clipboard.setPrimaryClip(clip);
-        Toast.makeText(context, context.getString(R.string.user_info_copied, key),
+        Toast.makeText(context, context.getString(R.string.user_info_copied, safeKey),
                 Toast.LENGTH_SHORT).show();
     }
 

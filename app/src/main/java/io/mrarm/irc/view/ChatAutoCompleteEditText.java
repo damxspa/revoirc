@@ -170,6 +170,8 @@ public class ChatAutoCompleteEditText extends FormattableEditText implements
 
     private boolean enoughToFilter() {
         Editable s = getText();
+        if (s == null)
+            return false;
         int end = getSelectionEnd();
         if (end < 0)
             return false;
@@ -185,18 +187,24 @@ public class ChatAutoCompleteEditText extends FormattableEditText implements
     }
 
     private boolean isCommandNameToken() {
-        return findTokenStart() == 0 && getText().length() > 0 && getText().charAt(0) == '/';
+        Editable text = getText();
+        return findTokenStart() == 0 && text != null && text.length() > 0 && text.charAt(0) == '/';
     }
 
     private void updateCompletingCommands() {
-        String text = getText().toString();
-        if (text.length() == 0 || text.charAt(0) != '/') {
+        Editable textE = getText();
+        if (textE == null) {
+            mCompletingCommands = null;
+            return;
+        }
+        String text = textE.toString();
+        if (text.isEmpty() || text.charAt(0) != '/') {
             mCompletingCommands = null;
             return;
         }
         int iof = text.indexOf(' ');
-        String currentCommand = iof != -1 ? text.substring(1, iof) : text;
-        if (mCompletingCommands != null && mCompletingCommands.get(0).name.equalsIgnoreCase(currentCommand))
+        String currentCommand = iof != -1 ? text.substring(1, iof) : text.substring(1);
+        if (mCompletingCommands != null && !mCompletingCommands.isEmpty() && mCompletingCommands.get(0).name.equalsIgnoreCase(currentCommand))
             return; // up to date
         mCompletingCommands = new ArrayList<>();
         for (CommandAliasManager.CommandAlias alias : CommandAliasManager.getDefaultAliases()) {
@@ -207,7 +215,7 @@ public class ChatAutoCompleteEditText extends FormattableEditText implements
             if (alias.name.equalsIgnoreCase(currentCommand))
                 mCompletingCommands.add(alias);
         }
-        if (mCompletingCommands.size() == 0)
+        if (mCompletingCommands.isEmpty())
             mCompletingCommands = null;
     }
 
@@ -215,7 +223,9 @@ public class ChatAutoCompleteEditText extends FormattableEditText implements
         if (mCompletingCommands == null)
             return false;
         int end = getSelectionStart();
-        String[] args = getText().toString().substring(0, end).split(" ", -1);
+        Editable text = getText();
+        if (text == null) return false;
+        String[] args = text.toString().substring(0, end).split(" ", -1);
         if (args.length <= 1)
             return false;
         int flags = 0;
@@ -272,7 +282,9 @@ public class ChatAutoCompleteEditText extends FormattableEditText implements
         int end = findTokenEnd();
         clearComposingText();
         // QwertyKeyListener.markAsReplaced(getText(), start, end, TextUtils.substring(getText(), start, end));
-        getText().replace(start, end, val);
+        Editable text = getText();
+        if (text != null)
+            text.replace(start, end, val);
     }
 
     public void moveInHistory(boolean up) {
@@ -368,8 +380,10 @@ public class ChatAutoCompleteEditText extends FormattableEditText implements
 
     public int findTokenStart() {
         int cursor = getSelectionStart();
+        Editable text = getText();
+        if (text == null) return 0;
         for (int start = cursor; start > 0; start--) {
-            char c = getText().charAt(start - 1);
+            char c = text.charAt(start - 1);
             if (c == ' ' || c == ',')
                 return start;
         }
@@ -377,10 +391,12 @@ public class ChatAutoCompleteEditText extends FormattableEditText implements
     }
 
     public int findTokenEnd() {
-        int len = getText().length();
+        Editable text = getText();
+        if (text == null) return 0;
+        int len = text.length();
         int cursor = getSelectionStart();
         for (int end = cursor; end < len; end++) {
-            char c = getText().charAt(end);
+            char c = text.charAt(end);
             if (c == ' ' || c == ',' || c == ':')
                 return end;
         }
@@ -390,13 +406,16 @@ public class ChatAutoCompleteEditText extends FormattableEditText implements
     private String getCurrentToken() {
         int start = findTokenStart();
         int end = getSelectionEnd();
-        return getText().toString().substring(start, end);
+        Editable text = getText();
+        if (text == null) return "";
+        return text.toString().substring(start, end);
     }
 
     public CharSequence terminateNickToken(CharSequence text) {
         int start = findTokenStart();
-        if (!mAtSuggestionsRemoveAt &&
-                (getText().length() > start && getText().charAt(start) == '@'))
+        Editable editText = getText();
+        if (editText != null && !mAtSuggestionsRemoveAt &&
+                (editText.length() > start && editText.charAt(start) == '@'))
             return "@" + text + " ";
         if (start == 0)
             return text + ": ";

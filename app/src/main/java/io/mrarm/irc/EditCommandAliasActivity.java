@@ -15,6 +15,8 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import java.util.Objects;
+
 import io.mrarm.irc.config.CommandAliasManager;
 import io.mrarm.irc.util.StyledAttributesHelper;
 
@@ -38,13 +40,15 @@ public class EditCommandAliasActivity extends ThemedActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_command_alias);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
         String aliasName = getIntent().getStringExtra(ARG_ALIAS_NAME);
         String aliasSyntax = getIntent().getStringExtra(ARG_ALIAS_SYNTAX);
         if (aliasName != null && aliasSyntax != null) {
             for (CommandAliasManager.CommandAlias a : CommandAliasManager.getInstance(this).getUserAliases()) {
-                if (a.name.equalsIgnoreCase(aliasName) && a.syntax.equals(aliasSyntax)) {
+                if (a.name.equalsIgnoreCase(aliasName) && Objects.equals(a.syntax, aliasSyntax)) {
                     mEditingAlias = a;
                     mCreatingNew = false;
                     break;
@@ -52,7 +56,7 @@ public class EditCommandAliasActivity extends ThemedActivity {
             }
             if (mEditingAlias == null) {
                 for (CommandAliasManager.CommandAlias a : CommandAliasManager.getDefaultAliases()) {
-                    if (a.name.equalsIgnoreCase(aliasName) && a.syntax.equals(aliasSyntax)) {
+                    if (a.name.equalsIgnoreCase(aliasName) && Objects.equals(a.syntax, aliasSyntax)) {
                         mEditingAlias = a;
                         mReadOnly = true;
                         mCreatingNew = false;
@@ -102,10 +106,14 @@ public class EditCommandAliasActivity extends ThemedActivity {
                 setEditTextDisabled(mChannel);
                 setEditTextDisabled(mText);
 
-                getSupportActionBar().setTitle(R.string.title_activity_view_command_alias);
+                if (getSupportActionBar() != null) {
+                    getSupportActionBar().setTitle(R.string.title_activity_view_command_alias);
+                }
             }
         } else {
-            getSupportActionBar().setTitle(R.string.title_activity_add_command_alias);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setTitle(R.string.title_activity_add_command_alias);
+            }
         }
     }
 

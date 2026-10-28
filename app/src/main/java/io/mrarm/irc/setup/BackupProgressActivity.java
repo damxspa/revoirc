@@ -3,8 +3,6 @@ package io.mrarm.irc.setup;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.webkit.MimeTypeMap;
@@ -20,9 +18,11 @@ import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
 
 import io.mrarm.irc.config.BackupManager;
 import io.mrarm.irc.R;
+import io.mrarm.irc.util.PoolSerialExecutor;
 
 public class BackupProgressActivity extends SetupProgressActivity {
 
@@ -34,6 +34,7 @@ public class BackupProgressActivity extends SetupProgressActivity {
 
     private boolean mRestoreMode = false;
     private File mBackupFile;
+    private final ExecutorService mExecutor = new PoolSerialExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,8 +48,14 @@ public class BackupProgressActivity extends SetupProgressActivity {
             BackupRequest request = new BackupRequest();
             request.password = getIntent().getStringExtra(ARG_USER_PASSWORD);
             acquireExitLock();
-            new BackupTask(this).execute(request);
+            mExecutor.execute(new BackupTask(this, request));
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mExecutor.shutdown();
     }
 
     public void setDone(int resId) {
@@ -73,18 +80,14 @@ public class BackupProgressActivity extends SetupProgressActivity {
             setDone(R.string.error_generic);
             return;
         }
-        if (Build.VERSION.SDK_INT >= 19) {
-            mBackupFile = file;
-            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType(MimeTypeMap.getSingleton().getMimeTypeFromExtension("zip"));
-            String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-            intent.putExtra(Intent.EXTRA_TITLE, "irc-client-backup-" + date + ".zip");
-            startActivityForResult(intent, BACKUP_FILE_REQUEST_CODE);
-            setSlideAnimation(false);
-        } else {
-            // TODO:
-        }
+        mBackupFile = file;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(MimeTypeMap.getSingleton().getMimeTypeFromExtension("zip"));
+        String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        intent.putExtra(Intent.EXTRA_TITLE, "irc-client-backup-" + date + ".zip");
+        startActivityForResult(intent, BACKUP_FILE_REQUEST_CODE);
+        setSlideAnimation(false);
     }
 
     public void onRestoreDone(Integer result) {
@@ -126,7 +129,7 @@ public class BackupProgressActivity extends SetupProgressActivity {
         RestoreRequest request = new RestoreRequest();
         request.file = mBackupFile;
         request.password = password;
-        new RestoreTask(this).execute(request);
+        mExecutor.execute(new RestoreTask(this, request));
     }
 
     public void cancel() {
@@ -149,12 +152,12 @@ public class BackupProgressActivity extends SetupProgressActivity {
                         mBackupFile.deleteOnExit();
                         FileInputStream fis = new FileInputStream(desc.getFileDescriptor());
                         FileOutputStream fos = new FileOutputStream(mBackupFile);
-                        new CopyFileTask(this).execute(new CopyRequest(fis, fos, desc));
+                        mExecutor.execute(new CopyFileTask(this, new CopyRequest(fis, fos, desc)));
                     } else {
                         ParcelFileDescriptor desc = getContentResolver().openFileDescriptor(uri, "w");
                         FileOutputStream fos = new FileOutputStream(desc.getFileDescriptor());
                         FileInputStream fis = new FileInputStream(mBackupFile);
-                        new CopyFileTask(this).execute(new CopyRequest(fis, fos, desc));
+                        mExecutor.execute(new CopyFileTask(this, new CopyRequest(fis, fos, desc)));
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -176,37 +179,35 @@ public class BackupProgressActivity extends SetupProgressActivity {
         public String password;
     }
 
-    private static class BackupTask extends AsyncTask<BackupRequest, Void, File> {
-        private WeakReference<BackupProgressActivity> mActivity;
-        private Context mContext;
+    private static class BackupTask implements Runnable {
+        private final WeakReference<BackupProgressActivity> mActivity;
+        private final Context mContext;
+        private final BackupRequest mRequest;
 
-        public BackupTask(BackupProgressActivity activity) {
+        public BackupTask(BackupProgressActivity activity, BackupRequest request) {
             mActivity = new WeakReference<>(activity);
             mContext = activity.getApplicationContext();
+            mRequest = request;
         }
 
         @Override
-        protected File doInBackground(BackupRequest... backupRequests) {
-            BackupRequest request = backupRequests[0];
+        public void run() {
             File backupFile = new File(mContext.getCacheDir(), "temp-backup.zip");
             if (backupFile.exists())
                 backupFile.delete();
             backupFile.deleteOnExit(); // in case something fails
             try {
-                BackupManager.createBackup(mContext, backupFile, request.password);
+                BackupManager.createBackup(mContext, backupFile, mRequest.password);
             } catch (IOException e) {
                 e.printStackTrace();
                 backupFile.delete();
-                return null;
+                backupFile = null;
             }
-            return backupFile;
-        }
-
-        @Override
-        protected void onPostExecute(File file) {
+            final File result = backupFile;
             BackupProgressActivity activity = mActivity.get();
-            if (activity != null)
-                activity.onBackupDone(file);
+            if (activity != null) {
+                activity.runOnUiThread(() -> activity.onBackupDone(result));
+            }
         }
     }
 
@@ -217,43 +218,45 @@ public class BackupProgressActivity extends SetupProgressActivity {
         public String password;
     }
 
-    private static class RestoreTask extends AsyncTask<RestoreRequest, Void, Integer> {
+    private static class RestoreTask implements Runnable {
         public static final int RESULT_OK = 0;
         public static final int RESULT_ERROR = 1;
         public static final int RESULT_INVALID_PASSWORD = 2;
 
-        private WeakReference<BackupProgressActivity> mActivity;
-        private Context mContext;
+        private final WeakReference<BackupProgressActivity> mActivity;
+        private final Context mContext;
+        private final RestoreRequest mRequest;
 
-        public RestoreTask(BackupProgressActivity activity) {
+        public RestoreTask(BackupProgressActivity activity, RestoreRequest request) {
             mActivity = new WeakReference<>(activity);
-            mContext = mActivity.get().getApplicationContext();
+            mContext = activity.getApplicationContext();
+            mRequest = request;
         }
 
         @Override
-        protected Integer doInBackground(RestoreRequest... restoreRequests) {
-            RestoreRequest request = restoreRequests[0];
+        public void run() {
+            RestoreRequest request = mRequest;
+            int result;
             try {
                 BackupManager.restoreBackup(mContext, request.file, request.password);
                 if (request.deleteFile)
                     request.file.delete();
-                return RESULT_OK;
+                result = RESULT_OK;
             } catch (IOException e) {
                 e.printStackTrace();
                 if (e.getCause() != null && e.getCause() instanceof ZipException &&
                         ((ZipException) e.getCause()).getCode() == ZipExceptionConstants.WRONG_PASSWORD)
-                    return RESULT_INVALID_PASSWORD;
+                    result = RESULT_INVALID_PASSWORD;
+                else
+                    result = RESULT_ERROR;
                 if (request.deleteFile)
                     request.file.delete();
-                return RESULT_ERROR;
             }
-        }
-
-        @Override
-        protected void onPostExecute(Integer result) {
+            final int finalResult = result;
             BackupProgressActivity activity = mActivity.get();
-            if (activity != null)
-                activity.onRestoreDone(result);
+            if (activity != null) {
+                activity.runOnUiThread(() -> activity.onRestoreDone(finalResult));
+            }
         }
     }
 
@@ -269,18 +272,21 @@ public class BackupProgressActivity extends SetupProgressActivity {
         }
     }
 
-    private static class CopyFileTask extends AsyncTask<CopyRequest, Void, Boolean> {
-        private WeakReference<BackupProgressActivity> mActivity;
+    private static class CopyFileTask implements Runnable {
+        private final WeakReference<BackupProgressActivity> mActivity;
+        private final CopyRequest mRequest;
 
-        public CopyFileTask(BackupProgressActivity activity) {
+        public CopyFileTask(BackupProgressActivity activity, CopyRequest request) {
             mActivity = new WeakReference<>(activity);
+            mRequest = request;
         }
 
         @Override
-        protected Boolean doInBackground(CopyRequest... args) {
+        public void run() {
+            boolean success = false;
             try {
-                FileInputStream fis = args[0].fis;
-                FileOutputStream fos = args[0].fos;
+                FileInputStream fis = mRequest.fis;
+                FileOutputStream fos = mRequest.fos;
                 byte[] buf = new byte[1024 * 16];
                 int c;
                 while ((c = fis.read(buf, 0, buf.length)) > 0) {
@@ -288,24 +294,21 @@ public class BackupProgressActivity extends SetupProgressActivity {
                 }
                 fis.close();
                 fos.close();
+                success = true;
             } catch (Exception e) {
                 e.printStackTrace();
-                return false;
             } finally {
                 try {
-                    if (args[0].fd != null)
-                        args[0].fd.close();
+                    if (mRequest.fd != null)
+                        mRequest.fd.close();
                 } catch (Exception ignored) {
                 }
             }
-            return true;
-        }
-
-        @Override
-        protected void onPostExecute(Boolean success) {
+            final boolean finalSuccess = success;
             BackupProgressActivity activity = mActivity.get();
-            if (activity != null)
-                activity.onBackupCopyDone(success);
+            if (activity != null) {
+                activity.runOnUiThread(() -> activity.onBackupCopyDone(finalSuccess));
+            }
         }
     }
 

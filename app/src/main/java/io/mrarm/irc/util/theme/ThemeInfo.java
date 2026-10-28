@@ -55,6 +55,7 @@ public class ThemeInfo {
     public static final String COLOR_IRC_MEMBER_NORMAL = "irc_colorMemberNormal";
 
     public static final String PROP_LIGHT_STATUS_BAR = "windowLightStatusBar";
+    public static final String PROP_LIGHT_NAVIGATION_BAR = "windowLightNavigationBar";
 
     public transient UUID uuid;
     public String name;

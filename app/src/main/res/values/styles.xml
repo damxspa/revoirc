@@ -17,9 +17,11 @@
 
         <item name="actionBarTextColorPrimary">@color/abc_primary_text_material_dark</item>
         <item name="actionBarTextColorSecondary">@color/abc_secondary_text_material_dark</item>
+
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
-    <style name="AppTheme.NoActionBar">
+    <style name="AppTheme.NoActionBar" parent="AppTheme">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="windowActionModeOverlay">true</item>

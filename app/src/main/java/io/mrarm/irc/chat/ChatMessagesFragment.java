@@ -1,6 +1,5 @@
 package io.mrarm.irc.chat;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -27,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import io.mrarm.chatlib.ChannelInfoListener;
@@ -52,9 +52,11 @@ import io.mrarm.irc.NotificationManager;
 import io.mrarm.irc.R;
 import io.mrarm.irc.ServerConnectionInfo;
 import io.mrarm.irc.ServerConnectionManager;
+import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ChatSettings;
 import io.mrarm.irc.config.MessageFormatSettings;
 import io.mrarm.irc.config.UiSettingChangeCallback;
+import io.mrarm.irc.util.IRCUtils;
 import io.mrarm.irc.util.LongPressSelectTouchListener;
 import io.mrarm.irc.util.ScrollPosLinearLayoutManager;
 import io.mrarm.irc.config.SettingsHelper;
@@ -167,11 +169,11 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        UUID connectionUUID = UUID.fromString(getArguments().getString(ARG_SERVER_UUID));
-        ServerConnectionInfo connectionInfo = ServerConnectionManager.getInstance(getContext())
+        UUID connectionUUID = UUID.fromString(requireArguments().getString(ARG_SERVER_UUID));
+        ServerConnectionInfo connectionInfo = ServerConnectionManager.getInstance(requireContext())
                 .getConnection(connectionUUID);
         mConnection = connectionInfo;
-        mChannelName = getArguments().getString(ARG_CHANNEL_NAME);
+        mChannelName = requireArguments().getString(ARG_CHANNEL_NAME);
 
         if (mChannelName != null) {
             mAdapter = new ChatMessagesAdapter(this, new ArrayList<>(), new ArrayList<>());
@@ -190,12 +192,12 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             connectionInfo.getApiInstance().subscribeChannelInfo(mChannelName, this, null, null);
             mNeedsUnsubscribeChannelInfo = true;
 
-            String msgIdStr = ((ChatFragment) getParentFragment()).getAndClearMessageJump(mChannelName);
+            String msgIdStr = ((ChatFragment) requireParentFragment()).getAndClearMessageJump(mChannelName);
             MessageId msgId = null;
             if (msgIdStr != null)
                 msgId = mConnection.getApiInstance().getMessageStorageApi().getMessageIdParser().parse(msgIdStr);
             reloadMessages(msgId);
-        } else if (getArguments().getBoolean(ARG_DISPLAY_STATUS)) {
+        } else if (requireArguments().getBoolean(ARG_DISPLAY_STATUS)) {
             mStatusAdapter = new ServerStatusMessagesAdapter(mConnection, new StatusMessageList(new ArrayList<>()));
             mStatusAdapter.setMessageFont(ChatSettings.getFont(), ChatSettings.getFontSize());
 
@@ -225,9 +227,9 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
         SettingsHelper.unregisterCallbacks(this);
 
-        if (mNeedsUnsubscribeChannelInfo)
+        if (mNeedsUnsubscribeChannelInfo && getArguments() != null)
             mConnection.getApiInstance().unsubscribeChannelInfo(getArguments().getString(ARG_CHANNEL_NAME), ChatMessagesFragment.this, null, null);
-        if (mNeedsUnsubscribeMessages)
+        if (mNeedsUnsubscribeMessages && getArguments() != null)
             mConnection.getApiInstance().getMessageStorageApi().unsubscribeChannelMessages(getArguments().getString(ARG_CHANNEL_NAME), ChatMessagesFragment.this, null, null);
         if (mNeedsUnsubscribeStatusMessages)
             mConnection.getApiInstance().unsubscribeStatusMessages(ChatMessagesFragment.this, null, null);
@@ -300,7 +302,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             ChannelNotificationManager mgr = mConnection.getNotificationManager().getChannelManager(mChannelName, true);
             MessageId msgId = mgr.getFirstUnreadMessage();
             int index = mAdapter.findMessageWithId(msgId);
-            if (index != -1)
+            if (index != -1 && mRecyclerView.getLayoutManager() instanceof LinearLayoutManager)
                 ((LinearLayoutManager) mRecyclerView.getLayoutManager()).scrollToPositionWithOffset(index, 0);
             else
                 reloadMessages(msgId);
@@ -328,7 +330,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
                             actionMode.getType() == android.view.ActionMode.TYPE_FLOATING)
                         return;
-                    ((ChatFragment) getParentFragment()).setTabsHidden(b);
+                    ((ChatFragment) requireParentFragment()).setTabsHidden(b);
                 });
                 mAdapter.setSelectListener(newSelectTouchListener);
                 mRecyclerView.addOnItemTouchListener(newSelectTouchListener);
@@ -338,7 +340,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
 
         if (getUserVisibleHint())
-            ((ChatFragment) getParentFragment()).getSendMessageHelper()
+            ((ChatFragment) requireParentFragment()).getSendMessageHelper()
                     .setCurrentChannel(mChannelName);
 
         updateUnreadCounter();
@@ -361,7 +363,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     }
 
     private void reloadMessages(MessageId nearMessage) {
-        if (ChatSettings.shouldHideJoinPartMessages())
+        boolean isPrivateChat = !IRCUtils.isChannel(mChannelName);
+        if (ChatSettings.shouldHideJoinPartMessages() && !isPrivateChat)
             mMessageFilterOptions = sFilterJoinParts;
         else
             mMessageFilterOptions = null;
@@ -389,13 +392,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             storage.getMessagesNear(mChannelName, nearMessage,
                     getFilterOptions(), (MessageList messages) -> {
                         cb.onResponse(messages);
-                        List<MessageId> ids = messages.getMessageIds();
                         updateMessageList(() -> {
-                            for (int i = ids.size() - 1; i >= 0; --i) {
-                                if (ids.get(i).equals(nearMessage)) {
-                                    // TODO: Is this behaviour reliable? It looks random to me, and doesn't seem to match what the docs define :/
-                                    ((LinearLayoutManager) mRecyclerView.getLayoutManager()).scrollToPositionWithOffset(i, 0);
-                                }
+                            int index = mAdapter.findMessageWithId(nearMessage);
+                            if (index != -1 && mRecyclerView != null && mRecyclerView.getLayoutManager() instanceof LinearLayoutManager) {
+                                ((LinearLayoutManager) mRecyclerView.getLayoutManager()).scrollToPositionWithOffset(index, 0);
                             }
                             mLoadNewerIdentifier = messages.getNewer();
                         });
@@ -418,8 +418,9 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
         if (unread > 0) {
             int index = mAdapter.findMessageWithId(unreadMsg);
-            View v = mRecyclerView.getLayoutManager().findViewByPosition(index);
-            if (v != null && mRecyclerView.getLayoutManager().isViewPartiallyVisible(v, true, true)) {
+            RecyclerView.LayoutManager lm = mRecyclerView.getLayoutManager();
+            View v = lm != null ? lm.findViewByPosition(index) : null;
+            if (v != null && lm.isViewPartiallyVisible(v, true, true)) {
                 unread = 0;
                 mgr.clearUnreadMessages();
             }
@@ -427,7 +428,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
         mUnreadCtr.setVisibility(View.GONE);
         if (unread > 0) {
-            if (mUnreadCheckFor == null || !mUnreadCheckFor.equals(unreadMsg)) {
+            if (!Objects.equals(mUnreadCheckFor, unreadMsg)) {
                 mUnreadCheckFor = unreadMsg;
                 mUnreadCheckedFirst = -1;
                 mUnreadCheckedLast = -1;
@@ -441,6 +442,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         if (mUnreadCtr.getVisibility() == View.GONE)
             return;
         LinearLayoutManager llm = (LinearLayoutManager) mRecyclerView.getLayoutManager();
+        if (llm == null) return;
         int firstPos = llm.findFirstCompletelyVisibleItemPosition();
         int lastPos = llm.findLastCompletelyVisibleItemPosition();
         long firstId = firstPos != RecyclerView.NO_POSITION ? mAdapter.getItemId(firstPos) : -1;
@@ -478,14 +480,14 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
     private boolean checkItemForUnread(ChatMessagesAdapter.Item item, MessageId lookingFor) {
         if (item instanceof ChatMessagesAdapter.MessageItem) {
-            return ((ChatMessagesAdapter.MessageItem) item).mMessageId.equals(lookingFor);
+            return Objects.equals(((ChatMessagesAdapter.MessageItem) item).mMessageId, lookingFor);
         }
         return false;
     }
 
     @Override
     public void onUnreadMessageCountChanged(ServerConnectionInfo info, String channel, int messageCount, int oldMessageCount) {
-        if (channel.equals(mChannelName)) {
+        if (Objects.equals(channel, mChannelName)) {
             updateMessageList(this::updateUnreadCounter);
         }
     }
@@ -506,11 +508,13 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     public void onPause() {
         super.onPause();
         MainActivity activity = (MainActivity) getActivity();
-        if (getUserVisibleHint() && (activity == null || !activity.isAppExiting()))
-            mConnection.getNotificationManager().getChannelManager(mChannelName, true).setOpened(getContext(), false);
-        if (mConnection != null && getUserVisibleHint() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            IRCChooserTargetService.setChannel(mConnection.getUUID(), mChannelName);
-        mConnection.getNotificationManager().removeUnreadMessageCountCallback(this);
+        if (mConnection != null) {
+            if (getUserVisibleHint() && (activity == null || !activity.isAppExiting()))
+                mConnection.getNotificationManager().getChannelManager(mChannelName, true).setOpened(getContext(), false);
+            if (getUserVisibleHint() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                IRCChooserTargetService.setChannel(mConnection.getUUID(), mChannelName);
+            mConnection.getNotificationManager().removeUnreadMessageCountCallback(this);
+        }
         mUnreadCtr.setVisibility(View.GONE);
     }
 
@@ -518,6 +522,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             ChatSettings.PREF_FONT,
             ChatSettings.PREF_FONT_SIZE,
             ChatSettings.PREF_HIDE_JOIN_PART_MESSAGES,
+            AppSettings.PREF_STORAGE_LIMIT_GLOBAL,
             // it's enough to only register to the last format preference, as all preferences are always rewritten
             MessageFormatSettings.PREF_MESSAGE_FORMAT_EVENT_HOSTNAME
     })
@@ -530,20 +535,22 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mStatusAdapter.setMessageFont(ChatSettings.getFont(), ChatSettings.getFontSize());
             mStatusAdapter.notifyDataSetChanged();
         }
-        if (ChatSettings.shouldHideJoinPartMessages() != (mMessageFilterOptions != null) &&
-                mChannelName != null) {
+        boolean hideJoinPart = ChatSettings.shouldHideJoinPartMessages();
+        boolean isFiltering = mMessageFilterOptions != null;
+        if (hideJoinPart != isFiltering && mChannelName != null) {
             reloadMessages(null);
         }
     }
 
     private void updateParentCurrentChannel() {
-        Activity activity = getActivity();
-        if (activity == null)
-            return;
-        activity.runOnUiThread(() -> ((ChatFragment) getParentFragment())
-                .setCurrentChannelInfo(mChannelTopic,
-                        mChannelTopicSetBy != null ? mChannelTopicSetBy.getNick() : null,
-                        mChannelTopicSetOn, mMembers));
+        requireActivity().runOnUiThread(() -> {
+            if (isAdded()) {
+                ((ChatFragment) requireParentFragment())
+                        .setCurrentChannelInfo(mChannelTopic,
+                                mChannelTopicSetBy != null ? mChannelTopicSetBy.getNick() : null,
+                                mChannelTopicSetOn, mMembers);
+            }
+        });
     }
 
     private void updateMessageList(Runnable r) {
@@ -577,6 +584,8 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
     @Override
     public void onMessage(String channel, MessageInfo messageInfo, MessageId messageId) {
+        if (mChannelName == null || channel == null || !mChannelName.equalsIgnoreCase(channel))
+            return;
         updateMessageList(() -> {
             if (mLoadNewerIdentifier != null)
                 return;
@@ -643,7 +652,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         if (mMessagesActionModeCallback == null)
             mMessagesActionModeCallback = new MessagesActionModeCallback();
         if (mMessagesActionModeCallback.mActionMode == null)
-            mMessagesActionModeCallback.mActionMode = ((MainActivity) getActivity()).startSupportActionMode(mMessagesActionModeCallback);
+            mMessagesActionModeCallback.mActionMode = ((MainActivity) requireActivity()).startSupportActionMode(mMessagesActionModeCallback);
     }
 
     public void hideMessagesActionMenu() {
@@ -655,7 +664,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
     public void copySelectedMessages() {
         CharSequence messages = mAdapter.getSelectedMessages();
-        ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText("IRC Messages", messages));
     }
 
@@ -671,13 +680,29 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     public void deleteSelectedMessages() {
         List<MessageId> msgIds = mAdapter.getSelectedMessageIds();
         for (Long l : mAdapter.getSelectedItems()) {
-            ChatMessagesAdapter.Item i = mAdapter.getMessage(mAdapter.getItemPosition(l));
-            if (i instanceof ChatMessagesAdapter.MessageItem)
+            int pos = mAdapter.getItemPosition(l);
+            ChatMessagesAdapter.Item i = mAdapter.getMessage(pos);
+            if (i instanceof ChatMessagesAdapter.MessageItem) {
                 ((ChatMessagesAdapter.MessageItem) i).mHidden = true;
+                mAdapter.notifyItemChanged(pos);
+            }
         }
-        mAdapter.notifyDataSetChanged();
         mConnection.getApiInstance().getMessageStorageApi().deleteMessages(mChannelName, msgIds,
                 null, null);
+    }
+
+    public void clearHistory() {
+        if (mAdapter != null) {
+            List<MessageId> msgIds = mAdapter.getAllMessageIds();
+            mAdapter.clearMessages();
+            mConnection.getApiInstance().getMessageStorageApi().deleteMessages(mChannelName, msgIds,
+                    null, null);
+            mLoadOlderIdentifier = null;
+            mLoadNewerIdentifier = null;
+        } else if (mStatusAdapter != null) {
+            mStatusMessages.clear();
+            mStatusAdapter.setMessages(new StatusMessageList(mStatusMessages));
+        }
     }
 
 
@@ -691,7 +716,9 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         public boolean onCreateActionMode(ActionMode mode, Menu menu) {
             MenuInflater inflater = mode.getMenuInflater();
             inflater.inflate(R.menu.menu_context_messages_full, menu);
-            ((ChatFragment) getParentFragment()).setTabsHidden(true);
+            if (isAdded() && getParentFragment() instanceof ChatFragment) {
+                ((ChatFragment) getParentFragment()).setTabsHidden(true);
+            }
             mActionMode = mode;
             return true;
         }
@@ -703,40 +730,40 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
         @Override
         public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
-            switch (item.getItemId()) {
-                case R.id.action_copy:
-                    copySelectedMessages();
-                    mode.finish();
-                    return true;
-                case R.id.action_share:
-                    shareSelectedMessages();
-                    mode.finish();
-                    return true;
-                case R.id.action_delete: {
-                    int cnt = mAdapter.getSelectedItems().size();
-                    new AlertDialog.Builder(getContext())
-                            .setTitle(R.string.action_delete_confirm_title)
-                            .setMessage(getResources().getQuantityString(R.plurals.message_delete_confirm, cnt, cnt) + "\n\n" + getResources().getString(R.string.message_delete_confirm_note))
-                            .setPositiveButton(R.string.action_delete, (di, w) -> {
-                                deleteSelectedMessages();
-                                mode.finish();
-                            })
-                            .setNegativeButton(R.string.action_cancel, null)
-                            .show();
-                    return true;
-                }
-                default:
-                    return false;
+            int id = item.getItemId();
+            if (id == R.id.action_copy) {
+                copySelectedMessages();
+                mode.finish();
+                return true;
+            } else if (id == R.id.action_share) {
+                shareSelectedMessages();
+                mode.finish();
+                return true;
+            } else if (id == R.id.action_delete) {
+                int cnt = mAdapter.getSelectedItems().size();
+                new AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.action_delete_confirm_title)
+                        .setMessage(getResources().getQuantityString(R.plurals.message_delete_confirm, cnt, cnt) + "\n\n" + getResources().getString(R.string.message_delete_confirm_note))
+                        .setPositiveButton(R.string.action_delete, (di, w) -> {
+                            deleteSelectedMessages();
+                            mode.finish();
+                        })
+                        .setNegativeButton(R.string.action_cancel, null)
+                        .show();
+                return true;
             }
+            return false;
         }
 
         @Override
         public void onDestroyActionMode(ActionMode mode) {
+            if (isAdded() && getParentFragment() instanceof ChatFragment) {
             ((ChatFragment) getParentFragment()).setTabsHidden(false);
-            mAdapter.clearSelection();
-            mActionMode = null;
+        }
+        mAdapter.clearSelection();
+        mActionMode = null;
         }
 
-    };
+    }
 
 }

@@ -107,7 +107,7 @@ public class ListSearchView extends FrameLayout {
             mSearchText.requestFocus();
         else
             hideKeyboard();
-        if (Build.VERSION.SDK_INT >= 23 & isLightColor(mStatusBarColor)) {
+        if (Build.VERSION.SDK_INT >= 23 && isLightColor(mStatusBarColor)) {
             View decorView = mDialog.getWindow().getDecorView();
             if (mDialog != null)
                 decorView = mDialog.getWindow().getDecorView();
@@ -118,7 +118,7 @@ public class ListSearchView extends FrameLayout {
                 vis = vis & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
             decorView.setSystemUiVisibility(vis);
         }
-        if (mDialog != null && Build.VERSION.SDK_INT >= 21)
+        if (mDialog != null)
             mDialog.getWindow().setStatusBarColor(isVisible ? mStatusBarColor : 0);
     }
 

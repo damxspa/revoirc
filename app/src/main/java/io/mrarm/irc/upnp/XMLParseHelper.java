@@ -10,8 +10,16 @@ public class XMLParseHelper {
             return null;
         for (int i = element.getChildNodes().getLength() - 1; i >= 0; --i) {
             Node child = element.getChildNodes().item(i);
-            if (child instanceof Element && child.getLocalName().equalsIgnoreCase(name))
-                return ((Element) child);
+            if (child instanceof Element) {
+                String nodeName = child.getLocalName();
+                if (nodeName == null) {
+                    nodeName = child.getNodeName();
+                    if (nodeName != null && nodeName.contains(":"))
+                        nodeName = nodeName.substring(nodeName.indexOf(':') + 1);
+                }
+                if (nodeName != null && nodeName.equalsIgnoreCase(name))
+                    return ((Element) child);
+            }
         }
         return null;
     }

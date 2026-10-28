@@ -1,0 +1,60 @@
+<resources>
+    <string name="app_name">RevoIRC</string>
+
+    <!-- Chat -->
+
+    <string name="navigation_drawer_open">Åpne navigeringsskuffen</string>
+    <string name="navigation_drawer_close">Lukk navigeringsskuffen</string>
+
+    <string name="tab_server">Server</string>
+    <string name="message_hint">Send en melding</string>
+    <string name="message_disconnected">Frakoblet</string>
+    <string name="message_join" formatted="false">%s har blitt med</string>
+    <string name="message_kick" formatted="false">%s har kastet ut %s (%s)</string>
+    <string name="message_part" formatted="false">%s har forlatt (%s)</string>
+    <string name="message_part_no_message" formatted="false">%s har forlatt</string>
+    <string name="message_quit" formatted="false">%s har koblet fra (%s)</string>
+    <string name="message_nick_change" formatted="false">%s er nå kjent som %s</string>
+    <string name="message_topic" formatted="false">Emne: %s</string>
+    <string name="message_topic_whotime" formatted="false">Emne ble satt av %s på %s</string>
+    <string name="message_topic_by" formatted="false">Emne: %s, satt av %s</string>
+    <string name="message_topic_none">Ingen emne er satt</string>
+
+    <string name="message_host_info" formatted="false">Servernavn er %s, kjører %s. Støttede brukermoduser: %s, støttede kanalmoduser: %s</string>
+    <string name="message_motd">Dagens melding</string>
+    <string name="message_whois" formatted="false">%ss brukerinformasjon</string>
+
+    <string name="message_mode" formatted="false">%s %s</string>
+    <string name="message_mode_set" formatted="false">satte %s</string>
+    <string name="message_mode_unset" formatted="false">fjernet %s</string>
+    <string name="message_mode_gave" formatted="false">ga %s</string>
+    <string name="message_mode_removed" formatted="false">fjernet %s</string>
+
+    <string name="message_mode_gave_to" formatted="false">%s til %s</string>
+    <string name="message_mode_removed_from" formatted="false">%s fra %s</string>
+
+    <plurals name="message_mode_channel">
+        <item quantity="one">kanalmodus \'%s\'</item>
+        <item quantity="other">kanalmoduser \'%s\'</item>
+    </plurals>
+    <string name="message_mode_channel_value" formatted="false">kanalmodus \'%s\' til %s</string>
+    <string name="message_mode_channel_ban" formatted="false">et utestengelse på %s</string>
+    <string name="message_mode_nick_owner">kanaleierstatus</string>
+    <string name="message_mode_nick_admin">kanaladministratorstatus</string>
+    <string name="message_mode_nick_op">kanaloperatørstatus</string>
+    <string name="message_mode_nick_half_op">kanalhalvoperatørstatus</string>
+    <string name="message_mode_nick_voice">tale (voice)</string>
+
+    <string name="message_ctcp_ping">Mottok en CTCP-ping</string>
+    <string name="message_ctcp_version">Mottok en CTCP-versjon</string>
+
+    <string name="pref_title_night_mode">Mørk modus</string>
+    <string-array name="pref_entries_night_mode">
+        <item>Systemstandard</item>
+        <item>Alltid av</item>
+        <item>Alltid på</item>
+    </string-array>
+
+    <string name="action_mark_as_read">Marker som lest</string>
+    <string name="pref_title_close_private_quit">Lukk PM-er automatisk ved brukerutgang</string>
+</resources>

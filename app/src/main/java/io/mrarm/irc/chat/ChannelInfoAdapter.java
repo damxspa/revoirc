@@ -112,11 +112,11 @@ public class ChannelInfoAdapter extends RecyclerView.Adapter {
         }
 
         public void bind(String title) {
-            if (title != null) {
-                textView.setText(title);
-            } else {
-                textView.setText(null);
-            }
+        if (title != null) {
+            textView.setText(title);
+        } else {
+            textView.setText(null);
+        }
         }
 
     }
@@ -190,11 +190,11 @@ public class ChannelInfoAdapter extends RecyclerView.Adapter {
 
         public void bind(ServerConnectionInfo connection, NickWithPrefix nickWithPrefix) {
             mConnection = connection;
-            bindText(mText, nickWithPrefix);
+            bindText(mText, connection, nickWithPrefix);
             mText.setTag(nickWithPrefix.getNick());
         }
 
-        public static void bindText(TextView text, NickWithPrefix nickWithPrefix) {
+        public static void bindText(TextView text, ServerConnectionInfo connection, NickWithPrefix nickWithPrefix) {
             char prefix = ' ';
             if (nickWithPrefix.getNickPrefixes() != null &&
                     nickWithPrefix.getNickPrefixes().length() > 0)
@@ -211,10 +211,12 @@ public class ChannelInfoAdapter extends RecyclerView.Adapter {
             else if (prefix == '+')
                 colorId = IRCColorUtils.COLOR_MEMBER_VOICE;
             text.setTextColor(IRCColorUtils.getColorById(text.getContext(), colorId));
-            if (prefix != ' ')
-                text.setText(prefix + nickWithPrefix.getNick());
-            else
-                text.setText(nickWithPrefix.getNick());
+            String nick = nickWithPrefix.getNick();
+            if (prefix != ' ') {
+                text.setText(SpannableStringHelper.format("%s%s", String.valueOf(prefix), nick));
+            } else {
+                text.setText(nick);
+            }
         }
 
     }

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Revolution IRC</string>
+    <string name="app_name">Revo IRC</string>
 
     <!-- Chat -->
 
@@ -62,6 +62,8 @@
 
     <string name="message_share_title">Share the chat messages</string>
 
+    <string name="message_clear_history_confirm">Are you sure you want to clear the history of this chat?</string>
+
     <string name="message_new_messages">New messages</string>
 
     <plurals name="unread_message_counter">
@@ -121,6 +123,14 @@
     <string name="action_rename">Rename</string>
     <string name="action_export">Export</string>
     <string name="action_import_theme">Import theme</string>
+    <string name="action_check_connection">User info</string>
+    <string name="action_clear_history">Clear history</string>
+    <string name="action_configure">Configure</string>
+    <string name="action_export_logs">Export logs</string>
+    <string name="action_export_logs_html">Export logs (HTML)</string>
+    <string name="action_export_logs_txt">Export logs (TXT)</string>
+    <string name="action_mark_as_read">Mark as read</string>
+    <string name="action_view_avatar">View avatar</string>
 
     <string name="action_delete_confirm_title">Are you sure?</string>
     <string name="action_delete_confirm_body">Are you sure you want to delete %s? This cannot be undone.</string>
@@ -177,9 +187,13 @@
 
     <string name="server_list_header_active">Active</string>
     <string name="server_list_header_inactive">Inactive</string>
-    <plurals name="server_list_connected">
+    <plurals name="server_list_connected_channels">
         <item quantity="one">Connected, %d channel</item>
         <item quantity="other">Connected, %d channels</item>
+    </plurals>
+    <plurals name="server_list_connected_privates">
+        <item quantity="one">%d private</item>
+        <item quantity="other">%d privates</item>
     </plurals>
     <string name="server_list_connecting">Connecting…</string>
     <string name="server_list_disconnected">Disconnected</string>
@@ -223,6 +237,7 @@
         <item>Username with password (SASL)</item>
         <item>Client certificate (CertFP)</item>
     </string-array>
+    <string name="server_avatar_url">Avatar URL</string>
     <string name="server_password">Server password</string>
 
     <!-- Certificate manager -->
@@ -276,6 +291,23 @@
 
     <string name="error_generic">An error has occurred.</string>
     <string name="error_file_open">Failed to open the file.</string>
+    <string name="image_load_failed">Failed to load the image.</string>
+
+    <!-- Chat export -->
+
+    <string name="chat_export_file_name">revoirc-chat-export.zip</string>
+    <string name="chat_export_progress">Exporting chat logs…</string>
+    <string name="chat_export_success">Chat logs exported successfully</string>
+    <string name="chat_export_error">Error exporting chat logs</string>
+    <string name="export_completed">Export completed: %s</string>
+    <string name="export_failed">Export failed: %s</string>
+
+    <!-- Battery optimization -->
+
+    <string name="battery_optimization_title">Allow background running</string>
+    <string name="battery_optimization_message">To ensure RevoIRC doesn\'t disconnect, you must allow it to always run in the background.\n\nTap Configure -> Allow background usage -> Select No restrictions.</string>
+    <string name="pref_title_check_battery_optimization">Check background running status</string>
+    <string name="pref_summary_check_battery_optimization">Verify if the app has permission to run in the background without restrictions.</string>
 
     <!-- Time -->
 
@@ -332,6 +364,17 @@
     <string name="pref_header_misc">Miscellaneous</string>
     <string name="pref_title_drawer_always_show_server">Show Server in drawer</string>
     <string name="pref_summary_drawer_always_show_server">Always show the Server tab in the drawer</string>
+    <string name="pref_title_close_private_quit">Auto-close PMs on user quit</string>
+    <string name="pref_summary_close_private_quit">Automatically close private message tabs when the user quits the network</string>
+    <string name="pref_title_notify_private_quit">Notify on PM disconnects</string>
+    <string name="pref_summary_notify_private_quit">Show notifications when a user in a private message conversation disconnects</string>
+
+    <string name="pref_title_private_message_delay">Private message delay</string>
+    <string name="pref_value_delay_disabled">0 seconds (disabled)</string>
+    <string name="pref_value_delay_5s">5 seconds</string>
+    <string name="pref_value_delay_10s">10 seconds</string>
+    <string name="pref_value_delay_30s">30 seconds</string>
+    <string name="pref_value_delay_60s">60 seconds</string>
     <string name="pref_title_chat_show_dcc_send">Show DCC send button</string>
     <string name="pref_summary_chat_show_dcc_send">Show a button to send a file using DCC in private chats</string>
 
@@ -412,6 +455,9 @@
     <!-- Theme settings -->
 
     <string name="pref_header_theme">Theme</string>
+    <string name="pref_title_status_bar_style">Upper area style</string>
+    <string name="pref_value_status_bar_dark">Dark/blue upper area</string>
+    <string name="pref_value_status_bar_light">Light upper area</string>
 
     <string name="theme_create_new">Create a new theme</string>
     <string name="theme_custom_default_name">@string/value_custom</string>
@@ -464,6 +510,13 @@
     <string name="theme_color_member_voice">Voiced members</string>
     <string name="theme_color_member_normal">Normal members</string>
 
+    <string name="pref_title_night_mode">Night mode</string>
+    <string-array name="pref_entries_night_mode">
+        <item>System default</item>
+        <item>Always off</item>
+        <item>Always on</item>
+    </string-array>
+
     <string name="theme_default_dark">Default (dark)</string>
 
     <!-- Notification settings -->
@@ -481,6 +534,11 @@
     <string name="notification_rule_direct">Private messages</string>
     <string name="notification_rule_notice">Private notices</string>
     <string name="notification_rule_chan_notice">Channel notices</string>
+    <string name="notification_light_on_duration">Light on duration (ms)</string>
+    <string name="notification_light_off_duration">Light off duration (ms)</string>
+    <string name="notification_vibration_duration_hint">Vibration duration (ms)</string>
+    <string name="notification_vibration_test">Test</string>
+    <string name="notification_reply_header">%1$s (%2$s)</string>
     <string name="notification_rule_zncplayback">Disable ZNC playback notifications</string>
 
     <string name="title_activity_edit_notification_settings">Notification settings</string>
@@ -530,6 +588,8 @@
 
     <!-- Reconnect settings -->
 
+    <string name="pref_header_language">Language</string>
+
     <string name="pref_header_reconnect">Reconnection</string>
     <string name="pref_title_start_on_boot">Start on boot</string>
     <string name="pref_description_start_on_boot">Automatically start the application after a system restart</string>
@@ -561,6 +621,7 @@
     <string name="pref_title_ping_wifi">Only send a heartbeat on WiFi</string>
     <string name="pref_description_ping_wifi">Only send a heartbeat when using a WiFi connection</string>
     <string name="pref_title_ping_interval">Heartbeat interval</string>
+    <string name="pref_title_ping_interval_mobile">Heartbeat interval (mobile data)</string>
 
     <!-- Command aliases settings -->
 
@@ -602,6 +663,16 @@
     <string name="pref_storage_limit_def_server_title">Per-server chat history storage limit</string>
     <string name="pref_storage_no_limit">No limit</string>
     <string name="pref_storage_limit_notice">Please note that those are soft limits and sometimes might be exceeded.</string>
+    <string name="pref_storage_app_cache_title">App cache</string>
+    <string name="pref_storage_clear_app_cache">Clear cache</string>
+    <string name="pref_storage_clear_app_cache_confirm">Are you sure you want to clear the app cache?</string>
+    <string name="pref_storage_app_data_title">App data</string>
+    <string name="pref_storage_clear_app_data">Clear data</string>
+    <string name="pref_storage_clear_app_data_confirm">Are you sure you want to delete all app data? This will delete all servers, chat history and settings.</string>
+    <string name="pref_storage_export_logs_txt">Export chat logs as TXT</string>
+    <string name="pref_storage_export_logs_html">Export chat logs as HTML</string>
+    <string name="pref_title_clear_all_data">Clear all data</string>
+    <string name="pref_clear_all_data_confirm">Are you sure you want to clear all app data? This will delete all servers, chat history and settings.</string>
 
     <string name="pref_storage_set_server_limit">Set server limit</string>
     <string name="pref_storage_change_server_limit">Change server limit</string>
@@ -660,6 +731,10 @@
     <string name="user_secure_desc">This user is using a secure connection</string>
     <string name="user_account">Account</string>
     <string name="user_away">Away message</string>
+
+    <string name="user_connected">Connected</string>
+    <string name="user_disconnected">Disconnected</string>
+    <string name="user_no_avatar">User has no account or avatar</string>
 
     <string name="user_info_copied">Copied %s to clipboard.</string>
 

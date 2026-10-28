@@ -177,19 +177,18 @@ public class DCCNotificationManager implements DCCServerManager.UploadListener,
         if (mOpenTransfersIntent == null) {
             Intent intent = new Intent(mContext, DCCActivity.class);
             mOpenTransfersIntent = PendingIntent.getActivity(mContext, DCC_SUMMARY_NOTIFICATION_ID,
-                    intent, 0);
+                    intent, IRCService.getPendingIntentFlagsMutable());
         }
         return mOpenTransfersIntent;
     }
 
     private NotificationCompat.Action createCancelAction(int notId) {
-        int cancelIcon = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP ?
-                R.drawable.ic_close : R.drawable.ic_notification_close;
+        int cancelIcon = R.drawable.ic_close;
         return new NotificationCompat.Action.Builder(cancelIcon,
                 mContext.getString(R.string.action_cancel),
                 PendingIntent.getBroadcast(mContext, notId,
                         ActionReceiver.getCancelIntent(mContext, notId),
-                        PendingIntent.FLAG_UPDATE_CURRENT))
+                        PendingIntent.FLAG_UPDATE_CURRENT | IRCService.getPendingIntentFlagsMutable()))
                 .build();
     }
 
@@ -306,19 +305,17 @@ public class DCCNotificationManager implements DCCServerManager.UploadListener,
         if (download.isPending()) {
             builder.setContentText(mContext.getString(R.string.dcc_approve_notification_body,
                     download.getSender(), download.getServerName()));
-            int acceptIcon = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP ?
-                    R.drawable.ic_done_white : R.drawable.ic_notification_done;
+            int acceptIcon = R.drawable.ic_done_white;
             builder.addAction(acceptIcon, mContext.getString(R.string.action_accept),
                     PendingIntent.getBroadcast(mContext, id,
                             ActionReceiver.getApproveIntent(mContext, id, true),
-                            PendingIntent.FLAG_CANCEL_CURRENT));
-            int cancelIcon = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP ?
-                    R.drawable.ic_close : R.drawable.ic_notification_close;
+                            PendingIntent.FLAG_CANCEL_CURRENT | IRCService.getPendingIntentFlagsMutable()));
+            int cancelIcon = R.drawable.ic_close;
             builder.addAction(cancelIcon, mContext.getString(R.string.action_reject),
                     PendingIntent.getBroadcast(mContext,
                             DCC_SECOND_INTENT_ID_START - DCC_NOTIFICATION_ID_START + id,
                             ActionReceiver.getApproveIntent(mContext, id, false),
-                            PendingIntent.FLAG_CANCEL_CURRENT));
+                            PendingIntent.FLAG_CANCEL_CURRENT | IRCService.getPendingIntentFlagsMutable()));
         } else if (download.getClient() != null) {
             DCCClient client = download.getClient();
             int unit = FormatUtils.getByteFormatUnit(client.getExpectedSize());

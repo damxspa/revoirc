@@ -427,7 +427,7 @@ public class DCCTransferListAdapter extends RecyclerView.Adapter implements
         }
 
         public void open() {
-            if (mFileUri != null && mFileUri.length() > 0) {
+            if (mFileUri != null && !mFileUri.isEmpty()) {
                 Uri uri = Uri.parse("content://io.mrarm.irc.dccfileprovider/" + mEntryId);
                 String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(
                         MimeTypeMap.getFileExtensionFromUrl(mFileUri));
@@ -447,7 +447,7 @@ public class DCCTransferListAdapter extends RecyclerView.Adapter implements
 
         public void openMenu() {
             MenuBottomSheetDialog dialog = new MenuBottomSheetDialog(itemView.getContext());
-            if (mFileUri != null && mFileUri.length() > 0) {
+            if (mFileUri != null && !mFileUri.isEmpty()) {
                 dialog.addItem(R.string.action_open, R.drawable.ic_open_in_new,
                         (MenuBottomSheetDialog.Item item) -> {
                             open();
@@ -463,14 +463,18 @@ public class DCCTransferListAdapter extends RecyclerView.Adapter implements
         }
 
         private void delete() {
-            if (mFileUri != null && mFileUri.length() > 0) {
+            if (mFileUri != null && !mFileUri.isEmpty()) {
                 Uri uri = Uri.parse(mFileUri);
-                DocumentFile file;
-                if (uri.getScheme().equals("file"))
-                    file = DocumentFile.fromFile(new File(uri.getPath()));
-                else
+                DocumentFile file = null;
+                if (uri.getScheme() != null && uri.getScheme().equals("file")) {
+                    String path = uri.getPath();
+                    if (path != null) {
+                        file = DocumentFile.fromFile(new File(path));
+                    }
+                } else {
                     file = DocumentFile.fromSingleUri(itemView.getContext(), uri);
-                if (file.exists())
+                }
+                if (file != null && file.exists())
                     file.delete();
             }
             DCCManager.getInstance(itemView.getContext()).getHistory().removeEntry(mEntryId);

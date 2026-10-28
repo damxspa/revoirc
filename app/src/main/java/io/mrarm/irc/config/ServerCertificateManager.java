@@ -13,7 +13,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.ref.WeakReference;
+import java.lang.ref.PhantomReference;
+import java.lang.ref.Reference;
+import java.lang.ref.ReferenceQueue;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.MessageDigest;
@@ -30,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -41,18 +44,32 @@ public class ServerCertificateManager {
 
     private static final String TAG = "CertificateManager";
 
-    private static final Map<String, WeakReference<ServerCertificateManager>> mInstances = new HashMap<>();
+    // Use ConcurrentHashMap for thread-safe access
+    private static final Map<String, ServerCertificateManager> sInstances = new ConcurrentHashMap<>();
+    // ReferenceQueue for deterministic cleanup of garbage-collected instances
+    private static final ReferenceQueue<ServerCertificateManager> sReferenceQueue = new ReferenceQueue<>();
+    // PhantomReferences to track GC'd instances
+    private static final Map<PhantomReference<ServerCertificateManager>, String> sPhantomRefs = new ConcurrentHashMap<>();
 
     public static ServerCertificateManager get(File file) {
-        synchronized (mInstances) {
-            WeakReference<ServerCertificateManager> instance = mInstances.get(file.getAbsolutePath());
+        // Clean up any GC'd instances first
+        cleanupStaleReferences();
+        
+        String path = file.getAbsolutePath();
+        ServerCertificateManager instance = sInstances.get(path);
+        if (instance != null) {
+            return instance;
+        }
+        
+        ServerCertificateManager ret = new ServerCertificateManager(file);
+        // Manual putIfAbsent for API 21 compatibility
+        synchronized (sInstances) {
+            instance = sInstances.get(path);
             if (instance != null) {
-                ServerCertificateManager helper = instance.get();
-                if (helper != null)
-                    return helper;
+                ret.close();
+                return instance;
             }
-            ServerCertificateManager ret = new ServerCertificateManager(file);
-            mInstances.put(file.getAbsolutePath(), new WeakReference<>(ret));
+            sInstances.put(path, ret);
             return ret;
         }
     }
@@ -61,39 +78,107 @@ public class ServerCertificateManager {
         return get(ServerConfigManager.getInstance(context).getServerSSLCertsFile(serverUUID));
     }
 
-    private File mKeyStoreFile;
+    /**
+     * Explicitly releases a certificate manager instance.
+     * Should be called when the manager is no longer needed.
+     */
+    public static void release(File file) {
+        String path = file.getAbsolutePath();
+        ServerCertificateManager instance = sInstances.remove(path);
+        if (instance != null) {
+            instance.close();
+            // Remove phantom reference - manual iteration for API 21 compatibility
+            for (Map.Entry<PhantomReference<ServerCertificateManager>, String> entry : sPhantomRefs.entrySet()) {
+                if (path.equals(entry.getValue())) {
+                    sPhantomRefs.remove(entry.getKey());
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
+     * Releases all certificate manager instances and clears the cache.
+     * Should be called on application shutdown.
+     */
+    public static void shutdownAll() {
+        for (ServerCertificateManager instance : sInstances.values()) {
+            instance.close();
+        }
+        sInstances.clear();
+        sPhantomRefs.clear();
+        // Drain reference queue
+        Reference<?> ref;
+        while ((ref = sReferenceQueue.poll()) != null) {
+            ref.clear();
+        }
+    }
+
+    /**
+     * Cleans up stale references from the cache.
+     * Call periodically or before get() to prevent memory leaks.
+     */
+    @SuppressWarnings("unchecked")
+    private static void cleanupStaleReferences() {
+        Reference<? extends ServerCertificateManager> ref;
+        while ((ref = sReferenceQueue.poll()) != null) {
+            PhantomReference<ServerCertificateManager> phantomRef = (PhantomReference<ServerCertificateManager>) ref;
+            String path = sPhantomRefs.remove(phantomRef);
+            if (path != null) {
+                ServerCertificateManager instance = sInstances.remove(path);
+                if (instance != null) {
+                    instance.close();
+                }
+            }
+            phantomRef.clear();
+        }
+    }
+
+    private final File mKeyStoreFile;
     private KeyStore mKeyStore;
     private X509TrustManager mKeyStoreTrustManager;
+    // PhantomReference to this instance for cleanup when GC'd
+    private final PhantomReference<ServerCertificateManager> mPhantomRef;
 
     private ServerCertificateManager(File keyStoreFile) {
         mKeyStoreFile = keyStoreFile;
-        if (keyStoreFile != null && keyStoreFile.exists()) {
+        // Create phantom reference for GC tracking
+        mPhantomRef = new PhantomReference<>(this, sReferenceQueue);
+        sPhantomRefs.put(mPhantomRef, keyStoreFile.getAbsolutePath());
+        
+        if (keyStoreFile != null && keyStoreFile.exists()) { // keyStoreFile is never null in practice, but defensive check
             try {
                 loadKeyStore(new FileInputStream(mKeyStoreFile));
             } catch (Exception e) {
-                Log.w(TAG, "Failed to load keystore");
+                Log.w(TAG, "Failed to load keystore", e);
                 mKeyStore = null;
             }
         }
     }
 
-    @Override
-    protected void finalize() throws Throwable {
-        synchronized (mInstances) {
-            String path = mKeyStoreFile.getAbsolutePath();
-            if (mInstances.containsKey(path)) {
-                if (mInstances.get(path).get() == this)
-                    mInstances.remove(path);
-            }
+    /**
+     * Explicitly closes this certificate manager and releases resources.
+     */
+    public void close() {
+        synchronized (this) {
+            mKeyStore = null;
+            mKeyStoreTrustManager = null;
         }
-        super.finalize();
+        // Clear phantom reference
+        mPhantomRef.clear();
+        sPhantomRefs.remove(mPhantomRef);
     }
 
     public void loadKeyStore(InputStream stream) throws KeyStoreException, IOException,
             CertificateException, NoSuchAlgorithmException {
+        if (stream == null) {
+            throw new IllegalArgumentException("Input stream cannot be null");
+        }
         synchronized (this) {
             mKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             mKeyStore.load(stream, null);
+            // Invalidate cached trust manager since keystore changed
+            mKeyStoreTrustManager = null;
         }
     }
 
@@ -103,6 +188,7 @@ public class ServerCertificateManager {
             if (mKeyStore == null) {
                 mKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
                 mKeyStore.load(null, null);
+                mKeyStoreTrustManager = null;
             }
         }
     }
@@ -128,8 +214,7 @@ public class ServerCertificateManager {
                 if (mKeyStoreFile != null)
                     saveKeyStore();
             } catch (Exception e) {
-                Log.e(TAG, "Failed to add certificate exception");
-                e.printStackTrace();
+                Log.e(TAG, "Failed to add certificate exception", e);
             }
         }
     }
@@ -143,8 +228,7 @@ public class ServerCertificateManager {
                 if (mKeyStoreFile != null)
                     saveKeyStore();
             } catch (Exception e) {
-                Log.e(TAG, "Failed to remove certificate");
-                e.printStackTrace();
+                Log.e(TAG, "Failed to remove certificate", e);
             }
         }
     }
@@ -173,6 +257,7 @@ public class ServerCertificateManager {
 
     public boolean hasCertificate(Certificate certificate) throws KeyStoreException {
         synchronized (this) {
+            if (mKeyStore == null) return false;
             return mKeyStore.getCertificateAlias(certificate) != null;
         }
     }
@@ -228,7 +313,7 @@ public class ServerCertificateManager {
         } catch (CertificateParsingException ignored) {
         }
 
-        if (elements.size() == 0)
+        if (elements.isEmpty())
             return "none";
         return TextUtils.join(",", elements.toArray());
     }
@@ -247,5 +332,4 @@ public class ServerCertificateManager {
         }
         return null;
     }
-
 }

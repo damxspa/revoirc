@@ -1,8 +1,6 @@
 package io.mrarm.irc;
 
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.os.Build;
 import android.os.StatFs;
 import androidx.annotation.NonNull;
 
@@ -11,14 +9,15 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ServerConfigData;
@@ -35,26 +34,49 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     private static final int GLOBAL_DELETION_CANDIDATES = 1024;
     private static final int CONNECTION_DELETION_CANDIDATES = 32;
 
-    private static final SimpleDateFormat sFileNameFormat = new SimpleDateFormat("'messages-'yyyy-MM-dd'.db'", Locale.getDefault());
+    private static final SimpleDateFormat sFileNameFormat = new SimpleDateFormat("'messages-'yyyy-MM-dd'.db'", Locale.US);
 
-    private static ChatLogStorageManager sInstance;
+    private static String formatFileName(Date date) {
+        synchronized (sFileNameFormat) {
+            return sFileNameFormat.format(date);
+        }
+    }
+
+    private static String formatFileName(long time) {
+        synchronized (sFileNameFormat) {
+            return sFileNameFormat.format(time);
+        }
+    }
+
+    private static Date parseFileName(String name) throws ParseException {
+        synchronized (sFileNameFormat) {
+            return sFileNameFormat.parse(name);
+        }
+    }
+
+    private static volatile ChatLogStorageManager sInstance;
 
     public static ChatLogStorageManager getInstance(Context context) {
-        if (sInstance == null)
-            sInstance = new ChatLogStorageManager(context);
+        if (sInstance == null) {
+            synchronized (ChatLogStorageManager.class) {
+                if (sInstance == null) {
+                    sInstance = new ChatLogStorageManager(context.getApplicationContext());
+                }
+            }
+        }
         return sInstance;
     }
 
-    private ServerConnectionManager mConnectionManager;
-    private ServerConfigManager mServerConfigManager;
+    private final ServerConnectionManager mConnectionManager;
+    private final ServerConfigManager mServerConfigManager;
     private long mBlockSize = 0L;
-    private Map<UUID, ServerManager> mServerManagers = new HashMap<>();
-    private int mGlobalMessageCounter = 0;
-    private TreeSet<DeletionCandidate> mGlobalDeletionCandidates = new TreeSet<>();
+    private final Map<UUID, ServerManager> mServerManagers = new ConcurrentHashMap<>();
+    private final AtomicInteger mGlobalMessageCounter = new AtomicInteger(0);
+    private final TreeSet<DeletionCandidate> mGlobalDeletionCandidates = new TreeSet<>();
     private long mGlobalTotalSize = 0L;
     private long mGlobalLimit;
     private long mDefaultServerLimit;
-    private Executor mExecutor;
+    private final Executor mExecutor;
 
     public ChatLogStorageManager(Context context) {
         mConnectionManager = ServerConnectionManager.getInstance(context);
@@ -107,8 +129,10 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
             if (manager != null)
                 manager.update(currentYear, currentMonth, currentDay);
         }
-        if (mGlobalLimit != -1L && mGlobalTotalSize > mGlobalLimit)
-            performGlobalDeletion(mGlobalTotalSize - mGlobalLimit);
+        synchronized (mGlobalDeletionCandidates) {
+            if (mGlobalLimit != -1L && mGlobalTotalSize > mGlobalLimit)
+                performGlobalDeletion(mGlobalTotalSize - mGlobalLimit);
+        }
     }
 
     private void performGlobalDeletion(long size) {
@@ -117,13 +141,13 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
             for (Iterator<DeletionCandidate> iterator = mGlobalDeletionCandidates.iterator(); iterator.hasNext(); ) {
                 DeletionCandidate candidate = iterator.next();
                 mGlobalTotalSize -= candidate.size;
-                File file = new File(candidate.server.mLogsDir, sFileNameFormat.format(candidate.dateMs));
+                File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
                 size -= getFileSize(file);
                 SettingsHelper.deleteSQLiteDatabase(file);
                 deletedAnyFile = true;
                 iterator.remove();
                 if (size <= 0L) {
-                    if (mGlobalDeletionCandidates.size() == 0) {
+                    if (mGlobalDeletionCandidates.isEmpty()) {
                         // If there are no deletion candidates left, refresh the list so they are
                         // available during the next performGlobalDeletion call.
                         for (ServerManager manager : mServerManagers.values())
@@ -141,11 +165,11 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     }
 
     public void onMessage(ServerConnectionInfo connection) {
-        if (++mGlobalMessageCounter >= MIN_GLOBAL_MESSAGES_UPDATE) {
+        if (mGlobalMessageCounter.incrementAndGet() >= MIN_GLOBAL_MESSAGES_UPDATE) {
             requestUpdate(null);
             for (ServerConnectionInfo info : mConnectionManager.getConnections())
                 info.mChatLogStorageUpdateCounter = 0;
-            mGlobalMessageCounter = 0;
+            mGlobalMessageCounter.set(0);
             return;
         }
         if (++connection.mChatLogStorageUpdateCounter >= MIN_SERVER_MESSAGES_UPDATE) {
@@ -155,11 +179,13 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     }
 
     private void addGlobalDeletionCandidate(DeletionCandidate candidate) {
-        if (mGlobalDeletionCandidates.size() < GLOBAL_DELETION_CANDIDATES) {
-            mGlobalDeletionCandidates.add(candidate);
-        } else if (mGlobalDeletionCandidates.lower(candidate) != null) {
-            mGlobalDeletionCandidates.add(candidate);
-            mGlobalDeletionCandidates.remove(mGlobalDeletionCandidates.last());
+        synchronized (mGlobalDeletionCandidates) {
+            if (mGlobalDeletionCandidates.size() < GLOBAL_DELETION_CANDIDATES) {
+                mGlobalDeletionCandidates.add(candidate);
+            } else if (mGlobalDeletionCandidates.lower(candidate) != null) {
+                mGlobalDeletionCandidates.add(candidate);
+                mGlobalDeletionCandidates.remove(mGlobalDeletionCandidates.last());
+            }
         }
     }
 
@@ -169,10 +195,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
             if (!chatLogDir.exists())
                 return 0L;
             StatFs statFs = new StatFs(chatLogDir.getAbsolutePath());
-            if (Build.VERSION.SDK_INT >= 18)
-                mBlockSize = statFs.getBlockSizeLong();
-            else
-                mBlockSize = statFs.getBlockSize();
+            mBlockSize = statFs.getBlockSizeLong();
         }
         return mBlockSize;
     }
@@ -192,7 +215,10 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     @Override
     public void onConnectionRemoved(ServerConfigData data) {
         mExecutor.execute(() -> {
-            mServerManagers.get(data.uuid).remove();
+            ServerManager manager = mServerManagers.get(data.uuid);
+            if (manager != null) {
+                manager.remove();
+            }
             mServerManagers.remove(data.uuid);
         });
     }
@@ -204,13 +230,13 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
 
     public class ServerManager {
 
-        private ServerConfigData mServerConfig;
-        private File mLogsDir;
+        private final ServerConfigData mServerConfig;
+        private final File mLogsDir;
         private long mTotalSize = 0L;
-        private Calendar mCurrentLogTime;
+        private final Calendar mCurrentLogTime;
         private File mCurrentLogFile;
         private long mCurrentLogSize = 0L;
-        private TreeSet<DeletionCandidate> mDeletionCandidates = new TreeSet<>();
+        private final TreeSet<DeletionCandidate> mDeletionCandidates = new TreeSet<>();
 
         public ServerManager(ServerConfigData config) {
             mServerConfig = config;
@@ -224,76 +250,84 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
             File[] files = mLogsDir.listFiles();
             if (files == null)
                 return;
-            mTotalSize = getBlockSize();
-            int currentYear = mCurrentLogTime.get(Calendar.YEAR);
-            int currentMonth = mCurrentLogTime.get(Calendar.MONTH);
-            int currentDay = mCurrentLogTime.get(Calendar.DAY_OF_MONTH);
-            Calendar calendar = Calendar.getInstance();
-            for (File file : files) {
-                long fileSize = getFileSize(file);
-                mTotalSize += fileSize;
-                Date date;
-                try {
-                    date = sFileNameFormat.parse(file.getName());
-                } catch (ParseException ignored) {
-                    continue;
-                }
-                calendar.setTime(date);
-                if (calendar.get(Calendar.YEAR) == currentYear &&
-                        calendar.get(Calendar.MONTH) == currentMonth &&
-                        calendar.get(Calendar.DAY_OF_MONTH) == currentDay) {
-                    mCurrentLogFile = file;
-                    mCurrentLogSize = fileSize;
-                    continue;
-                }
-                DeletionCandidate candidate = new DeletionCandidate(this, fileSize, date.getTime());
-                addDeletionCandidate(candidate);
-                addGlobalDeletionCandidate(candidate);
-            }
-            mGlobalTotalSize += mTotalSize;
-        }
-
-        public void remove() {
-            mGlobalTotalSize -= mTotalSize;
-            mDeletionCandidates.clear();
-            for (Iterator<DeletionCandidate> iterator = mGlobalDeletionCandidates.iterator(); iterator.hasNext(); ) {
-                DeletionCandidate candidate = iterator.next();
-                if (candidate.server == this)
-                    iterator.remove();
-            }
-            mTotalSize = 0L;
-            mCurrentLogFile = null;
-            mCurrentLogSize = 0L;
-        }
-
-        public void update(int currentYear, int currentMonth, int currentDay) {
-            mTotalSize -= mCurrentLogSize;
-            mGlobalTotalSize -= mCurrentLogSize;
-            mCurrentLogSize = mCurrentLogFile == null ? 0L : getFileSize(mCurrentLogFile);
-            mTotalSize += mCurrentLogSize;
-            mGlobalTotalSize += mCurrentLogSize;
-
-            long blockSize = getBlockSize();
-            while (currentYear > mCurrentLogTime.get(Calendar.YEAR) || (currentYear == mCurrentLogTime.get(Calendar.YEAR) &&
-                    (currentMonth > mCurrentLogTime.get(Calendar.MONTH) || (currentMonth == mCurrentLogTime.get(Calendar.MONTH) &&
-                            currentDay > mCurrentLogTime.get(Calendar.DAY_OF_MONTH))))) {
-                if (mCurrentLogFile != null && mCurrentLogFile.exists()) {
-                    DeletionCandidate candidate = new DeletionCandidate(this, mCurrentLogSize,
-                            mCurrentLogTime.getTimeInMillis());
+            synchronized (mGlobalDeletionCandidates) {
+                mTotalSize = 0L;
+                int currentYear = mCurrentLogTime.get(Calendar.YEAR);
+                int currentMonth = mCurrentLogTime.get(Calendar.MONTH);
+                int currentDay = mCurrentLogTime.get(Calendar.DAY_OF_MONTH);
+                Calendar calendar = Calendar.getInstance();
+                for (File file : files) {
+                    long fileSize = getFileSize(file);
+                    mTotalSize += fileSize;
+                    Date date;
+                    try {
+                        date = parseFileName(file.getName());
+                    } catch (ParseException ignored) {
+                        continue;
+                    }
+                    if (date == null)
+                        continue;
+                    calendar.setTime(date);
+                    if (calendar.get(Calendar.YEAR) == currentYear &&
+                            calendar.get(Calendar.MONTH) == currentMonth &&
+                            calendar.get(Calendar.DAY_OF_MONTH) == currentDay) {
+                        mCurrentLogFile = file;
+                        mCurrentLogSize = fileSize;
+                        continue;
+                    }
+                    DeletionCandidate candidate = new DeletionCandidate(this, fileSize, date.getTime());
                     addDeletionCandidate(candidate);
                     addGlobalDeletionCandidate(candidate);
                 }
+                mGlobalTotalSize += mTotalSize;
+            }
+        }
 
-                mCurrentLogTime.add(Calendar.DAY_OF_MONTH, 1);
-                mCurrentLogFile = new File(mLogsDir, sFileNameFormat.format(mCurrentLogTime.getTime()));
-                mCurrentLogSize = (mCurrentLogFile.length() + blockSize - 1) / blockSize * blockSize;
+        public void remove() {
+            synchronized (mGlobalDeletionCandidates) {
+                mGlobalTotalSize -= mTotalSize;
+                mDeletionCandidates.clear();
+                for (Iterator<DeletionCandidate> iterator = mGlobalDeletionCandidates.iterator(); iterator.hasNext(); ) {
+                    DeletionCandidate candidate = iterator.next();
+                    if (candidate.server == this)
+                        iterator.remove();
+                }
+                mTotalSize = 0L;
+                mCurrentLogFile = null;
+                mCurrentLogSize = 0L;
+            }
+        }
+
+        public void update(int currentYear, int currentMonth, int currentDay) {
+            synchronized (mGlobalDeletionCandidates) {
+                mTotalSize -= mCurrentLogSize;
+                mGlobalTotalSize -= mCurrentLogSize;
+                mCurrentLogSize = mCurrentLogFile == null ? 0L : getFileSize(mCurrentLogFile);
                 mTotalSize += mCurrentLogSize;
                 mGlobalTotalSize += mCurrentLogSize;
-            }
 
-            long limit = mServerConfig.storageLimit != 0L ? mServerConfig.storageLimit : mDefaultServerLimit;
-            if (limit != -1L && mTotalSize >= limit)
-                performDeletion(mTotalSize - limit);
+                long blockSize = getBlockSize();
+                while (currentYear > mCurrentLogTime.get(Calendar.YEAR) || (currentYear == mCurrentLogTime.get(Calendar.YEAR) &&
+                        (currentMonth > mCurrentLogTime.get(Calendar.MONTH) || (currentMonth == mCurrentLogTime.get(Calendar.MONTH) &&
+                                currentDay > mCurrentLogTime.get(Calendar.DAY_OF_MONTH))))) {
+                    if (mCurrentLogFile != null && mCurrentLogFile.exists()) {
+                        DeletionCandidate candidate = new DeletionCandidate(this, mCurrentLogSize,
+                                mCurrentLogTime.getTimeInMillis());
+                        addDeletionCandidate(candidate);
+                        addGlobalDeletionCandidate(candidate);
+                    }
+
+                    mCurrentLogTime.add(Calendar.DAY_OF_MONTH, 1);
+                    mCurrentLogFile = new File(mLogsDir, formatFileName(mCurrentLogTime.getTime()));
+                    mCurrentLogSize = (mCurrentLogFile.length() + blockSize - 1) / blockSize * blockSize;
+                    mTotalSize += mCurrentLogSize;
+                    mGlobalTotalSize += mCurrentLogSize;
+                }
+
+                long limit = mServerConfig.storageLimit != 0L ? mServerConfig.storageLimit : mDefaultServerLimit;
+                if (limit != -1L && mTotalSize >= limit)
+                    performDeletion(mTotalSize - limit);
+            }
         }
 
         private void performDeletion(long size) {
@@ -302,13 +336,13 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
                 for (Iterator<DeletionCandidate> iterator = mDeletionCandidates.iterator(); iterator.hasNext(); ) {
                     DeletionCandidate candidate = iterator.next();
                     mGlobalTotalSize -= candidate.size;
-                    File file = new File(candidate.server.mLogsDir, sFileNameFormat.format(candidate.dateMs));
+                    File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
                     size -= getFileSize(file);
                     SettingsHelper.deleteSQLiteDatabase(file);
                     deletedAnyFile = true;
                     iterator.remove();
                     if (size <= 0L) {
-                        if (mGlobalDeletionCandidates.size() == 0)
+                        if (mGlobalDeletionCandidates.isEmpty())
                             reload();
                         return;
                     }
@@ -346,10 +380,10 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         @Override
         public int compareTo(@NonNull DeletionCandidate o) {
             if (dateMs != o.dateMs)
-                return Long.compare(o.dateMs, dateMs);
+                return Long.compare(dateMs, o.dateMs);
             if (size != o.size)
                 return Long.compare(size, o.size);
-            return 0;
+            return server.mServerConfig.uuid.compareTo(o.server.mServerConfig.uuid);
         }
 
     }

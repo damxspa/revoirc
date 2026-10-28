@@ -29,14 +29,13 @@ public class DrawerHelper implements ServerConnectionManager.ConnectionsListener
         NotificationManager.UnreadMessageCountCallback,
         SharedPreferences.OnSharedPreferenceChangeListener {
 
-    private Activity mActivity;
-    private LockableDrawerLayout mDrawerLayout;
-    private RecyclerView mRecyclerView;
-    private LinearLayoutManager mLayoutManager;
-    private DrawerMenuListAdapter mAdapter;
-    private DrawerMenuItem mSearchItem;
-    private DrawerMenuItem mManageServersItem;
-    private DrawerMenuItem mSettingsItem;
+    private final Activity mActivity;
+    private final LockableDrawerLayout mDrawerLayout;
+    private final RecyclerView mRecyclerView;
+    private final LinearLayoutManager mLayoutManager;
+    private final DrawerMenuListAdapter mAdapter;
+    private final DrawerMenuItem mManageServersItem;
+    private final DrawerMenuItem mSettingsItem;
     private boolean mHasRegisteredListeners = false;
 
     public DrawerHelper(Activity activity) {
@@ -51,14 +50,14 @@ public class DrawerHelper implements ServerConnectionManager.ConnectionsListener
         mAdapter = new DrawerMenuListAdapter(activity, mDrawerLayout,
                 AppSettings.shouldDrawerAlwaysShowServer());
 
-        mSearchItem = new DrawerMenuItem(r.getString(R.string.action_search), R.drawable.ic_search_white);
-        mSearchItem.setOnClickListener((View view) -> {
+        DrawerMenuItem searchItem = new DrawerMenuItem(r.getString(R.string.action_search), R.drawable.ic_search_white);
+        searchItem.setOnClickListener((View view) -> {
             ChannelSearchDialog dialog = new ChannelSearchDialog(activity,
                     ((MainActivity) activity)::openServer);
             dialog.show();
             mDrawerLayout.closeDrawers();
         });
-        mAdapter.addTopMenuItem(mSearchItem);
+        mAdapter.addTopMenuItem(searchItem);
         mManageServersItem = new DrawerMenuItem(r.getString(R.string.action_servers), R.drawable.ic_edit);
         mAdapter.addMenuItem(mManageServersItem);
         mSettingsItem = new DrawerMenuItem(r.getString(R.string.action_settings), R.drawable.ic_settings);

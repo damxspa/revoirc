@@ -3,7 +3,7 @@ package io.mrarm.irc.util;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
-import android.preference.PreferenceManager;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.appcompat.content.res.AppCompatResources;
 import android.text.Spannable;
@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import io.mrarm.chatlib.dto.ChannelModeMessageInfo;
@@ -58,7 +59,7 @@ public class MessageBuilder {
         return sInstance;
     }
 
-    private Context mContext;
+    private final Context mContext;
     private SimpleDateFormat mMessageTimeFormat;
     private boolean mMessageTimeFixedWidth = true;
     private CharSequence mMessageFormat;
@@ -144,16 +145,17 @@ public class MessageBuilder {
 
     public static Object spanFromJson(Context context, JsonObject obj) {
         String type = obj.get("type").getAsString();
-        if (type.equals(SPAN_TYPE_META_FOREGROUND))
+        if (Objects.equals(type, SPAN_TYPE_META_FOREGROUND))
             return new MetaForegroundColorSpan(context, obj.get("colorId").getAsInt());
-        if (type.equals(SPAN_TYPE_META_CHIP))
+        if (Objects.equals(type, SPAN_TYPE_META_CHIP))
             return new MetaChipSpan(context, obj.get("chipType").getAsInt());
         return SpannableStringHelper.spanFromJson(obj);
     }
 
     public MessageBuilder(Context context) {
         mContext = context;
-        SharedPreferences mgr = PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences mgr = context.getSharedPreferences(
+                context.getPackageName() + "_preferences", Context.MODE_PRIVATE);
         try {
             mMessageTimeFormat = new SimpleDateFormat(mgr.getString(
                     MessageFormatSettings.PREF_MESSAGE_TIME_FORMAT, DEFAULT_TIME_FORMAT), Locale.getDefault());
@@ -182,7 +184,8 @@ public class MessageBuilder {
     }
 
     public void saveFormats() {
-        SharedPreferences.Editor mgr = PreferenceManager.getDefaultSharedPreferences(mContext).edit();
+        SharedPreferences.Editor mgr = mContext.getSharedPreferences(
+                mContext.getPackageName() + "_preferences", Context.MODE_PRIVATE).edit();
         mgr.putString(MessageFormatSettings.PREF_MESSAGE_TIME_FORMAT, mMessageTimeFormat.toPattern());
         mgr.putBoolean(MessageFormatSettings.PREF_MESSAGE_TIME_FIXED_WIDTH, mMessageTimeFixedWidth);
         mgr.putString(MessageFormatSettings.PREF_MESSAGE_FORMAT, SettingsHelper.getGson().toJson(spannableToJson(mMessageFormat)));
@@ -287,14 +290,14 @@ public class MessageBuilder {
         if (mMessageTimeFixedWidth)
             ret.setSpan(new FixedWidthTimestampSpan(ds.length()), ds.length(), ret.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         if (addDefaultColorSpan)
-            ret.setSpan(new ForegroundColorSpan(mContext.getResources().getColor(R.color.messageTimestamp)), 0, ret.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            ret.setSpan(new ForegroundColorSpan(ContextCompat.getColor(mContext, R.color.messageTimestamp)), 0, ret.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return ret;
     }
 
     public CharSequence buildDisconnectWarning(Date date) {
         ColoredTextBuilder builder = new ColoredTextBuilder();
         builder.append(createTimestamp(date, true));
-        builder.append(" Disconnected", new ForegroundColorSpan(mContext.getResources().getColor(R.color.messageDisconnected)));
+        builder.append(" Disconnected", new ForegroundColorSpan(ContextCompat.getColor(mContext, R.color.messageDisconnected)));
         return builder.getSpannable();
     }
 
@@ -306,7 +309,11 @@ public class MessageBuilder {
     }
 
     private CharSequence buildColoredNick(String nick) {
-        return buildColoredMessage(nick, IRCColorUtils.getNickColor(mContext, nick), false);
+        if (nick == null)
+            return null;
+        SpannableString spannable = (SpannableString) buildColoredMessage(nick, IRCColorUtils.getNickColor(mContext, nick), false);
+        spannable.setSpan(new NickSpan(nick), 0, nick.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return spannable;
     }
 
     private CharSequence buildColoredNickWithHostname(MessageSenderInfo sender) {
@@ -315,11 +322,13 @@ public class MessageBuilder {
 
         String nick = sender.getNick();
         int color = IRCColorUtils.getNickColor(mContext, nick);
-        SpannableString spannable = new SpannableString(nick +
-                (sender.getUser() != null ? "!" + sender.getUser() : 0) +
-                (sender.getHost() != null ? "@" + sender.getHost() : 0));
+        String fullHost = nick +
+                (sender.getUser() != null ? "!" + sender.getUser() : "") +
+                (sender.getHost() != null ? "@" + sender.getHost() : "");
+        SpannableString spannable = new SpannableString(fullHost);
         spannable.setSpan(new ForegroundColorSpan(color), 0, nick.length(),
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        spannable.setSpan(new NickSpan(nick), 0, nick.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return spannable;
     }
 
@@ -422,12 +431,12 @@ public class MessageBuilder {
             text = str;
         } else if (message.getType() == StatusMessageInfo.MessageType.UNHANDLED_MESSAGE) {
             String msg = message.getMessage();
-            if (msg.length() >= 1 && msg.charAt(0) == '@') {
+            if (msg != null && !msg.isEmpty() && msg.charAt(0) == '@') {
                 int i = msg.indexOf(' ');
                 if (i != -1)
                     msg = msg.substring(i + 1);
             }
-            if (msg.length() >= 1 && msg.charAt(0) == ':') {
+            if (msg != null && !msg.isEmpty() && msg.charAt(0) == ':') {
                 int i = msg.indexOf(' ');
                 if (i != -1) {
                     sender = msg.substring(0, i);
@@ -437,8 +446,7 @@ public class MessageBuilder {
             text = IRCColorUtils.getFormattedString(mContext, msg);
         } else if (message.getType() == StatusMessageInfo.MessageType.MOTD) {
             SpannableString str = new SpannableString(mContext.getString(R.string.message_motd));
-            str.setSpan(new ForegroundColorSpan(mContext.getResources().getColor(
-                    R.color.motdColor)), 0, str.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+            str.setSpan(new ForegroundColorSpan(ContextCompat.getColor(mContext, R.color.motdColor)), 0, str.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
             text = str;
         } else if (message.getType() == StatusMessageInfo.MessageType.CTCP_PING) {
             text = mContext.getString(R.string.message_ctcp_ping);
@@ -447,8 +455,7 @@ public class MessageBuilder {
         } else if (message.getType() == StatusMessageInfo.MessageType.WHOIS) {
             SpannableString str = new SpannableString(mContext.getString(R.string.message_whois,
                     ((WhoisStatusMessageInfo) message).getWhoisInfo().getNick()));
-            str.setSpan(new ForegroundColorSpan(mContext.getResources().getColor(
-                    R.color.motdColor)), 0, str.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+            str.setSpan(new ForegroundColorSpan(ContextCompat.getColor(mContext, R.color.motdColor)), 0, str.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
             text = str;
         } else {
             text = IRCColorUtils.getFormattedString(mContext, message.getMessage());
@@ -501,9 +508,14 @@ public class MessageBuilder {
                             entry.getType() == ChannelModeMessageInfo.EntryType.LIST) {
                         if (!removeValueModes.containsKey(entry.getMode()))
                             removeValueModes.put(entry.getMode(), new HashSet<>());
-                        removeValueModes.get(entry.getMode()).add(entry.getParam());
-                        if (valueModes.containsKey(entry.getMode()))
-                            valueModes.get(entry.getMode()).remove(entry.getParam());
+                        Set<String> s = removeValueModes.get(entry.getMode());
+                        if (s != null)
+                            s.add(entry.getParam());
+                        if (valueModes.containsKey(entry.getMode())) {
+                            Set<String> vs = valueModes.get(entry.getMode());
+                            if (vs != null)
+                                vs.remove(entry.getParam());
+                        }
                     } else {
                         unsetModes.add(entry.getMode());
                         valueModes.remove(entry.getMode());
@@ -511,7 +523,9 @@ public class MessageBuilder {
                 } else {
                     if (!valueModes.containsKey(entry.getMode()))
                         valueModes.put(entry.getMode(), new HashSet<>());
-                    valueModes.get(entry.getMode()).add(entry.getParam());
+                    Set<String> s = valueModes.get(entry.getMode());
+                    if (s != null)
+                        s.add(entry.getParam());
                     unsetModes.remove(entry.getMode());
                     removeValueModes.remove(entry.getMode());
                 }
@@ -519,35 +533,35 @@ public class MessageBuilder {
         }
 
         SpannableStringBuilder msg = new SpannableStringBuilder();
-        if (flagModes.size() > 0 || valueModes.size() > 0) {
+        if (!flagModes.isEmpty() || !valueModes.isEmpty()) {
             SpannableStringBuilder setBuilder = new SpannableStringBuilder();
-            if (flagModes.size() > 0)
+            if (!flagModes.isEmpty())
                 setBuilder.append(SpannableStringHelper.format(mContext.getResources().getQuantityString(R.plurals.message_mode_channel, flagModes.size()), setToString(flagModes)));
             buildValueModeList(setBuilder, valueModes);
             if (setBuilder.length() > 0)
                 appendDelim(msg, SpannableStringHelper.getText(mContext, R.string.message_mode_set, setBuilder));
         }
-        if (unsetModes.size() > 0 || removeValueModes.size() > 0) {
+        if (!unsetModes.isEmpty() || !removeValueModes.isEmpty()) {
             SpannableStringBuilder setBuilder = new SpannableStringBuilder();
-            if (unsetModes.size() > 0)
+            if (!unsetModes.isEmpty())
                 setBuilder.append(SpannableStringHelper.format(mContext.getResources().getQuantityString(R.plurals.message_mode_channel, unsetModes.size()), setToString(unsetModes)));
             buildValueModeList(setBuilder, removeValueModes);
             if (setBuilder.length() > 0)
                 appendDelim(msg, SpannableStringHelper.getText(mContext, R.string.message_mode_unset, setBuilder));
         }
-        if (addNickModes.size() > 0) {
+        if (!addNickModes.isEmpty()) {
             SpannableStringBuilder setBuilder = new SpannableStringBuilder();
             for (Map.Entry<String, Set<Character>> entry : addNickModes.entrySet()) {
-                if (entry.getValue().size() > 0)
+                if (!entry.getValue().isEmpty())
                     appendDelim(setBuilder, SpannableStringHelper.getText(mContext, R.string.message_mode_gave_to, buildNickModeList(entry.getValue()), buildColoredNick(entry.getKey())));
             }
             if (setBuilder.length() > 0)
                 appendDelim(msg, SpannableStringHelper.getText(mContext, R.string.message_mode_gave, setBuilder));
         }
-        if (removeNickModes.size() > 0) {
+        if (!removeNickModes.isEmpty()) {
             SpannableStringBuilder setBuilder = new SpannableStringBuilder();
             for (Map.Entry<String, Set<Character>> entry : removeNickModes.entrySet()) {
-                if (entry.getValue().size() > 0)
+                if (!entry.getValue().isEmpty())
                     appendDelim(setBuilder, SpannableStringHelper.getText(mContext, R.string.message_mode_removed_from, buildNickModeList(entry.getValue()), buildColoredNick(entry.getKey())));
             }
             if (setBuilder.length() > 0)
@@ -569,7 +583,7 @@ public class MessageBuilder {
                 if (mode.getKey() == 'b')
                     appendDelim(builder, SpannableStringHelper.getText(mContext, R.string.message_mode_channel_ban, buildColoredMessage(val, IRCColorUtils.getBanMaskColor(mContext), false)));
                 else
-                    appendDelim(builder, SpannableStringHelper.getText(mContext, R.string.message_mode_channel_value, String.valueOf(mode.getKey()), val));
+                    appendDelim(builder, SpannableStringHelper.getText(mContext, R.string.message_mode_channel_value, "" + mode.getKey(), val));
             }
         }
     }
@@ -626,7 +640,14 @@ public class MessageBuilder {
         for (MetaChipSpan span : builder.getSpans(0, builder.length(), MetaChipSpan.class)) {
             CharSequence replacement = null;
             if (span.mType == MetaChipSpan.TYPE_SENDER) {
-                replacement = (sender != null && sender.getNick() != null ? sender.getNick() : "");
+                String nick = (sender != null && sender.getNick() != null ? sender.getNick() : "");
+                if (!nick.isEmpty()) {
+                    SpannableString s = new SpannableString(nick);
+                    s.setSpan(new NickSpan(nick), 0, nick.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    replacement = s;
+                } else {
+                    replacement = "";
+                }
             } else if (span.mType == MetaChipSpan.TYPE_SENDER_PREFIX) {
                 replacement = (sender != null && sender.getNickPrefixes() != null ?
                         String.valueOf(sender.getNickPrefixes().get(0)) : "");
@@ -686,7 +707,7 @@ public class MessageBuilder {
             return drawable;
         }
 
-        private int mType;
+        private final int mType;
 
         public MetaChipSpan(Context context, int type) {
             super(context, getTextFor(context, type), getDrawableFor(context, type), true);
@@ -705,7 +726,7 @@ public class MessageBuilder {
         public static final int COLOR_TIMESTAMP = -2;
         public static final int COLOR_STATUS = -3;
 
-        private int mColorId;
+        private final int mColorId;
 
         public static int resolveColor(Context context, int colorId) {
             if (colorId == COLOR_SENDER)

@@ -11,6 +11,8 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import com.google.android.material.snackbar.Snackbar;
+import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.ColorUtils;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.appcompat.content.res.AppCompatResources;
@@ -86,8 +88,9 @@ public class NotificationRulesAdapter extends RecyclerView.Adapter<RecyclerView.
         mItemTouchHelper.attachToRecyclerView(recyclerView);
     }
 
+    @NonNull
     @Override
-    public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup viewGroup, int type) {
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup viewGroup, int type) {
         if (type == TYPE_DEFAULT_RULE) {
             View view = LayoutInflater.from(viewGroup.getContext())
                     .inflate(R.layout.settings_notifications_rule_default, viewGroup, false);
@@ -105,41 +108,26 @@ public class NotificationRulesAdapter extends RecyclerView.Adapter<RecyclerView.
                     .inflate(R.layout.settings_list_tip, viewGroup, false);
             return new TipHolder(view);
         }
-        return null;
+        throw new IllegalArgumentException("Unknown type: " + type);
     }
 
     @Override
-    public void onBindViewHolder(RecyclerView.ViewHolder viewHolder, int i) {
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder viewHolder, int i) {
         int defRulesI = getDefaultRulesStartIndex();
-        int userRulesI = getUserRulesStartIndex();
-        if (i >= userRulesI && i - userRulesI < mRules.size())
-            ((RuleHolder) viewHolder).bind(mRules.get(i - userRulesI));
-        else if (i >= defRulesI && i - defRulesI < mDefaultRules.size())
+        if (i >= defRulesI && i - defRulesI < mDefaultRules.size())
             ((RuleHolder) viewHolder).bind(mDefaultRules.get(i - defRulesI));
-        else if (i == userRulesI - 1)
-            ((HeaderHolder) viewHolder).bind(R.string.notification_custom_rules);
-        else if (mRules.size() == 0 && i == userRulesI)
-            ((TipHolder) viewHolder).bind(R.string.notification_tip_no_custom_rules);
     }
 
     @Override
     public int getItemCount() {
-        int rulesCount = mRules.size();
-        return mDefaultRules.size() + 1 + (rulesCount == 0 ? 1 : rulesCount);
+        return mDefaultRules.size();
     }
 
     @Override
     public int getItemViewType(int i) {
-        int userRulesI = getUserRulesStartIndex();
         int defRulesI = getDefaultRulesStartIndex();
-        if (i >= userRulesI && i - userRulesI < mRules.size())
-            return TYPE_USER_RULE;
         if (i >= defRulesI && i - defRulesI < mDefaultRules.size())
             return TYPE_DEFAULT_RULE;
-        if (i == userRulesI - 1)
-            return TYPE_HEADER;
-        if (mRules.size() == 0 && i == userRulesI)
-            return TYPE_TIP;
         return -1;
     }
 
@@ -210,12 +198,14 @@ public class NotificationRulesAdapter extends RecyclerView.Adapter<RecyclerView.
             super(adapter, itemView);
             itemView.setOnClickListener((View view) -> {
                 Intent intent = new Intent(view.getContext(), EditNotificationSettingsActivity.class);
-                intent.putExtra(EditNotificationSettingsActivity.ARG_USER_RULE_INDEX, getAdapterPosition() - adapter.getUserRulesStartIndex());
+                intent.putExtra(EditNotificationSettingsActivity.ARG_USER_RULE_INDEX, getBindingAdapterPosition() - adapter.getUserRulesStartIndex());
                 view.getContext().startActivity(intent);
             });
             itemView.findViewById(R.id.reorder).setOnTouchListener((View v, MotionEvent e) -> {
-                if (e.getActionMasked() == MotionEvent.ACTION_DOWN)
+                if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    v.performClick();
                     adapter.mItemTouchHelper.startDrag(UserRuleHolder.this);
+                }
                 return false;
             });
         }
@@ -284,10 +274,13 @@ public class NotificationRulesAdapter extends RecyclerView.Adapter<RecyclerView.
 
         MyItemTouchHelperCallback(Context context) {
             mSwipePaint = new Paint();
-            mSwipePaint.setColor(context.getResources().getColor(R.color.colorSwipeDeleteBackground));
-            mDeleteIcon = AppCompatResources.getDrawable(context, R.drawable.ic_delete).mutate();
-            int iconColor = context.getResources().getColor(R.color.colorSwipeIconColor);
-            DrawableCompat.setTint(mDeleteIcon, iconColor);
+            mSwipePaint.setColor(ContextCompat.getColor(context, R.color.colorSwipeDeleteBackground));
+            mDeleteIcon = AppCompatResources.getDrawable(context, R.drawable.ic_delete);
+            if (mDeleteIcon != null) {
+                mDeleteIcon = mDeleteIcon.mutate();
+                int iconColor = ContextCompat.getColor(context, R.color.colorSwipeIconColor);
+                DrawableCompat.setTint(mDeleteIcon, iconColor);
+            }
             mIconPadding = context.getResources().getDimensionPixelSize(R.dimen.item_swipe_icon_padding);
         }
 
@@ -310,11 +303,11 @@ public class NotificationRulesAdapter extends RecyclerView.Adapter<RecyclerView.
         }
 
         @Override
-        public boolean onMove(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder,
-                RecyclerView.ViewHolder target) {
+        public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder,
+                @NonNull RecyclerView.ViewHolder target) {
             int userRulesI = getUserRulesStartIndex();
-            int fromPosition = viewHolder.getAdapterPosition() - userRulesI;
-            int toPosition = Math.max(Math.min(target.getAdapterPosition() - userRulesI, mRules.size() - 1), 0);
+            int fromPosition = viewHolder.getBindingAdapterPosition() - userRulesI;
+            int toPosition = Math.max(Math.min(target.getBindingAdapterPosition() - userRulesI, mRules.size() - 1), 0);
             if (fromPosition < toPosition) {
                 for (int i = fromPosition; i < toPosition; i++)
                     Collections.swap(mRules, i, i + 1);
@@ -364,18 +357,17 @@ public class NotificationRulesAdapter extends RecyclerView.Adapter<RecyclerView.
                     return;
                 }
                 holder.mIsDragged = dragged;
-                if (Build.VERSION.SDK_INT >= 21 && dragged)
-                    viewHolder.itemView.setElevation(2.f);
+                viewHolder.itemView.setElevation(dragged ? 2.f : 0.f);
 
                 if (holder.mDragAnimator == null) {
                     holder.mDragAnimator = ValueAnimator.ofFloat(0.f, 1.f);
                     holder.mDragAnimator.addUpdateListener((ValueAnimator animation) -> {
                         float f = (Float) animation.getAnimatedValue();
-                        if (Build.VERSION.SDK_INT >= 21 && !holder.mIsDragged)
+                        if (!holder.mIsDragged)
                             viewHolder.itemView.setElevation(2.f);
                         if (f == 0.f) {
-                            viewHolder.itemView.setBackgroundDrawable(null);
-                            if (Build.VERSION.SDK_INT >= 21 && !holder.mIsDragged)
+                            viewHolder.itemView.setBackground(null);
+                            if (!holder.mIsDragged)
                                 viewHolder.itemView.setElevation(0.f);
                         } else if (f == 1.f) {
                             viewHolder.itemView.setBackgroundColor(mDragItemBgColor);
@@ -396,8 +388,8 @@ public class NotificationRulesAdapter extends RecyclerView.Adapter<RecyclerView.
         }
 
         @Override
-        public void onSwiped(RecyclerView.ViewHolder viewHolder, int i) {
-            int position = viewHolder.getAdapterPosition();
+        public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int i) {
+            int position = viewHolder.getBindingAdapterPosition();
             int index = position - getUserRulesStartIndex();
             NotificationRule rule = mRules.remove(index);
             notifyItemRemoved(position);
@@ -406,7 +398,7 @@ public class NotificationRulesAdapter extends RecyclerView.Adapter<RecyclerView.
                         .getSystemService(Context.NOTIFICATION_SERVICE);
                 mgr.deleteNotificationChannel(rule.settings.notificationChannelId);
             }
-            if (mRules.size() == 0)
+            if (mRules.isEmpty())
                 notifyItemInserted(getUserRulesStartIndex() + 1); // the tip
             Snackbar.make(viewHolder.itemView, R.string.notification_custom_rule_deleted, Snackbar.LENGTH_SHORT)
                     .setAction(R.string.action_undo, (View v) -> {

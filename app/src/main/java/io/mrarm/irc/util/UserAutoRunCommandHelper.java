@@ -67,9 +67,12 @@ public class UserAutoRunCommandHelper implements ServerConnectionInfo.ChannelLis
                             continue;
                         synchronized (mChannelRunnables) {
                             int execStartI = i + 1;
-                            if (!mChannelRunnables.containsKey(chan))
-                                mChannelRunnables.put(chan, new ArrayList<>());
-                            mChannelRunnables.get(chan).add(() -> {
+                            List<Runnable> runnables = mChannelRunnables.get(chan);
+                            if (runnables == null) {
+                                runnables = new ArrayList<>();
+                                mChannelRunnables.put(chan, runnables);
+                            }
+                            runnables.add(() -> {
                                 executeUserCommands(cmds.subList(execStartI, cmds.size()));
                             });
                             if (!mRegisteredChannelListener) {
@@ -131,9 +134,10 @@ public class UserAutoRunCommandHelper implements ServerConnectionInfo.ChannelLis
         synchronized (mChannelRunnables) {
             for (String channel : newChannels) {
                 String lowercase = channel.toLowerCase();
-                if (!mChannelRunnables.containsKey(lowercase))
+                List<Runnable> runnables = mChannelRunnables.remove(lowercase);
+                if (runnables == null)
                     continue;
-                for (Runnable r : mChannelRunnables.remove(lowercase))
+                for (Runnable r : runnables)
                     r.run();
             }
             if (mChannelRunnables.size() == 0) {
@@ -196,7 +200,7 @@ public class UserAutoRunCommandHelper implements ServerConnectionInfo.ChannelLis
             notification.setPriority(NotificationCompat.PRIORITY_DEFAULT);
             notification.setContentTitle(context.getString(R.string.connection_error_command_title));
             notification.setContentText(context.getString(R.string.connection_error_command_notification_desc));
-            notification.setContentIntent(PendingIntent.getActivity(context, notificationId, MainActivity.getLaunchIntent(context, null, null), PendingIntent.FLAG_CANCEL_CURRENT));
+            notification.setContentIntent(PendingIntent.getActivity(context, notificationId, MainActivity.getLaunchIntent(context, null, null), PendingIntent.FLAG_CANCEL_CURRENT | io.mrarm.irc.IRCService.getPendingIntentFlagsMutable()));
         }
 
     }

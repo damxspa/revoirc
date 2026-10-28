@@ -1,17 +1,21 @@
 package io.mrarm.irc;
 
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.app.RemoteInput;
+import androidx.core.content.ContextCompat;
 import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
 import android.view.View;
@@ -157,15 +161,15 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
     void showNotification(Context context, NotificationRule rule) {
         NotificationMessage lastMessage;
         synchronized (this) {
-            if (mMessages.size() == 0)
+            if (mMessages.isEmpty())
                 return;
             lastMessage = mMessages.get(mMessages.size() - 1);
         }
 
-        if (rule.settings.notificationChannelId == null)
-            createChannel(context, rule);
+        createChannel(context, rule);
 
-        String title = getChannel() + " (" + mConnection.getName() + ")"; // TODO: Move to strings.xml
+        String title = context.getString(R.string.notification_reply_header, getChannel(),
+                mConnection.getName());
         RemoteViews notificationsView = createCollapsedMessagesView(context, title, lastMessage);
         RemoteViews notificationsViewBig = createMessagesView(context, title);
         NotificationCompat.Builder notification = new NotificationCompat.Builder(context,
@@ -173,24 +177,25 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
         PendingIntent intent = PendingIntent.getActivity(context, mNotificationId,
                 MainActivity.getLaunchIntent(context, mConnection, mChannel,
                         lastMessage.mMessageId.toString()),
-                PendingIntent.FLAG_CANCEL_CURRENT);
+                PendingIntent.FLAG_CANCEL_CURRENT | IRCService.getPendingIntentFlagsMutable());
         PendingIntent dismissIntent = PendingIntent.getBroadcast(context,
                 CHAT_DISMISS_INTENT_ID_START + mNotificationId,
                 NotificationActionReceiver.getDismissIntent(context, mConnection, mChannel),
-                PendingIntent.FLAG_CANCEL_CURRENT);
+                PendingIntent.FLAG_CANCEL_CURRENT | IRCService.getPendingIntentFlagsMutable());
         PendingIntent replyIntent = PendingIntent.getBroadcast(context,
                 CHAT_REPLY_INTENT_ID_START + mNotificationId,
                 NotificationActionReceiver.getReplyIntent(context, mConnection, mChannel,
                         mNotificationId),
-                PendingIntent.FLAG_UPDATE_CURRENT);
-        int replyIcon = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP ?
-                R.drawable.ic_reply : R.drawable.ic_notification_reply;
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+
+        int replyIcon = R.drawable.ic_reply;
         NotificationCompat.Action replyAction = new NotificationCompat.Action.Builder(
                 replyIcon, context.getString(R.string.action_reply), replyIntent)
                 .addRemoteInput(new RemoteInput.Builder(NotificationActionReceiver.KEY_REPLY_TEXT)
                         .setLabel(context.getString(R.string.action_reply))
                         .build())
                 .build();
+
         notification
                 .setContentTitle(title)
                 .setContentText(lastMessage.getNotificationText(context))
@@ -201,7 +206,7 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
                 .setCustomContentView(notificationsView)
                 .setCustomBigContentView(notificationsViewBig)
                 .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
-                .setColor(context.getResources().getColor(R.color.colorNotificationMention))
+                .setColor(ContextCompat.getColor(context, R.color.colorNotificationMention))
                 .addAction(replyAction)
                 .setDeleteIntent(dismissIntent);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -209,6 +214,7 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
                     .setGroup(NotificationManager.NOTIFICATION_GROUP_CHAT)
                     .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN);
         }
+
         int defaults = 0;
         if (rule.settings.soundEnabled) {
             if (rule.settings.soundUri != null)
@@ -216,23 +222,23 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
             else
                 defaults |= NotificationCompat.DEFAULT_SOUND;
         }
-        if (rule.settings.vibrationEnabled) {
-            if (rule.settings.vibrationDuration != 0)
-                notification.setVibrate(new long[]{0, rule.settings.vibrationDuration});
-            else
-                defaults |= NotificationCompat.DEFAULT_VIBRATE;
-        }
+
         if (rule.settings.lightEnabled) {
             if (rule.settings.light != 0)
-                notification.setLights(rule.settings.light, 500, 2000); // TODO: Make those on/off values customizable?
+                notification.setLights(rule.settings.light, rule.settings.lightOnDuration, rule.settings.lightOffDuration);
             else
                 defaults |= NotificationCompat.DEFAULT_LIGHTS;
         }
-        if (!rule.settings.soundEnabled && !rule.settings.vibrationEnabled) {
-            notification.setVibrate(new long[]{0}); // a hack to get a headsup to show
-        }
+
         notification.setDefaults(defaults);
+        if (rule.settings.vibrationEnabled && rule.settings.vibrationDuration > 0) {
+            notification.setVibrate(new long[]{0, rule.settings.vibrationDuration});
+        }
         synchronized (this) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
             NotificationManagerCompat.from(context).notify(mNotificationId, notification.build());
             mShowingNotification = true;
         }
@@ -267,9 +273,13 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
             channel.setSound(null, null);
         }
         if (rule.settings.vibrationEnabled) {
-            channel.enableVibration(true);
-            if (rule.settings.vibrationDuration != 0)
+            if (rule.settings.vibrationDuration != 0) {
                 channel.setVibrationPattern(new long[]{0, rule.settings.vibrationDuration});
+            }
+            channel.enableVibration(true);
+        } else {
+            channel.enableVibration(false);
+            channel.setVibrationPattern(null);
         }
         if (rule.settings.lightEnabled) {
             channel.enableLights(true);
@@ -278,7 +288,9 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
         }
         android.app.NotificationManager mgr = (android.app.NotificationManager)
                 context.getSystemService(Context.NOTIFICATION_SERVICE);
-        mgr.createNotificationChannel(channel);
+        if (mgr.getNotificationChannel(id) == null) {
+            mgr.createNotificationChannel(channel);
+        }
     }
 
     public void cancelNotification(Context context) {
@@ -417,15 +429,20 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
             return ret;
         }
 
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent.getBooleanExtra(ARG_SERVER_ALL, false)) {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        if (intent == null)
+            return;
+        if (intent.getBooleanExtra(ARG_SERVER_ALL, false)) {
                 ServerConnectionManager mgr = ServerConnectionManager.getInstance(context);
                 for (ServerConnectionInfo conn : mgr.getConnections())
                     NotificationManager.getInstance().clearAllNotifications(context, conn);
                 return;
             }
-            UUID uuid = UUID.fromString(intent.getStringExtra(ARG_SERVER_UUID));
+            String serverUuidStr = intent.getStringExtra(ARG_SERVER_UUID);
+            if (serverUuidStr == null)
+                return;
+            UUID uuid = UUID.fromString(serverUuidStr);
             ServerConnectionInfo conn = ServerConnectionManager.getInstance(context).getConnection(uuid);
             if (conn == null)
                 return;
@@ -471,6 +488,11 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
             NotificationManager.getInstance().onNotificationDismissed(mContext, mConnection,
                     mChannel);
             NotificationManager.getInstance().updateSummaryNotification(mContext, null);
+        }
+
+        @Override
+        public void onClearHistoryRequested() {
+            onMessageSent();
         }
 
         @Override

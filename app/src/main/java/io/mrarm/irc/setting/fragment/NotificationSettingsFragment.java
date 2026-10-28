@@ -1,6 +1,5 @@
 package io.mrarm.irc.setting.fragment;
 
-import android.content.Intent;
 import android.os.Bundle;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -10,7 +9,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import io.mrarm.irc.EditNotificationSettingsActivity;
 import io.mrarm.irc.NotificationRulesAdapter;
 import io.mrarm.irc.R;
 import io.mrarm.irc.config.NotificationRuleManager;
@@ -29,16 +27,14 @@ public class NotificationSettingsFragment extends Fragment implements NamedSetti
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.simple_list_with_fab, container, false);
         RecyclerView recyclerView = view.findViewById(R.id.items);
-        recyclerView.setLayoutManager(new LinearLayoutManager(getActivity()));
-        mAdapter = new NotificationRulesAdapter(getActivity());
+        recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+        mAdapter = new NotificationRulesAdapter(requireContext());
         recyclerView.setAdapter(mAdapter);
-        recyclerView.addItemDecoration(mAdapter.createItemDecoration(getActivity()));
+        recyclerView.addItemDecoration(mAdapter.createItemDecoration(requireContext()));
         mAdapter.enableDragDrop(recyclerView);
 
         View addButton = view.findViewById(R.id.add);
-        addButton.setOnClickListener((View v) -> {
-            startActivity(new Intent(getActivity(), EditNotificationSettingsActivity.class));
-        });
+        addButton.setVisibility(View.GONE);
 
         return view;
     }
@@ -52,7 +48,7 @@ public class NotificationSettingsFragment extends Fragment implements NamedSetti
     @Override
     public void onDestroyView() {
         if (mAdapter != null && mAdapter.hasUnsavedChanges()) {
-            NotificationRuleManager.saveUserRuleSettings(getActivity());
+            NotificationRuleManager.saveUserRuleSettings(requireContext());
         }
         mAdapter = null;
         super.onDestroyView();

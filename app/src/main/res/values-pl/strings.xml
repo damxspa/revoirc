@@ -1,0 +1,62 @@
+<resources>
+    <string name="app_name">RevoIRC</string>
+
+    <!-- Chat -->
+
+    <string name="navigation_drawer_open">Otwórz panel nawigacyjny</string>
+    <string name="navigation_drawer_close">Zamknij panel nawigacyjny</string>
+
+    <string name="tab_server">Serwer</string>
+    <string name="message_hint">Wyślij wiadomość</string>
+    <string name="message_disconnected">Rozłączono</string>
+    <string name="message_join" formatted="false">%s dołączył(a)</string>
+    <string name="message_kick" formatted="false">%s wyrzucił(a) %s (%s)</string>
+    <string name="message_part" formatted="false">%s opuścił(a) (%s)</string>
+    <string name="message_part_no_message" formatted="false">%s opuścił(a)</string>
+    <string name="message_quit" formatted="false">%s rozłączył(a) się (%s)</string>
+    <string name="message_nick_change" formatted="false">%s jest teraz znany jako %s</string>
+    <string name="message_topic" formatted="false">Temat: %s</string>
+    <string name="message_topic_whotime" formatted="false">Temat został ustawiony przez %s dnia %s</string>
+    <string name="message_topic_by" formatted="false">Temat: %s, ustawiony przez %s</string>
+    <string name="message_topic_none">Temat nie został ustawiony</string>
+
+    <string name="message_host_info" formatted="false">Nazwa serwera to %s, uruchomiony na %s. Obsługiwane tryby użytkownika: %s, obsługiwane tryby kanału: %s</string>
+    <string name="message_motd">Wiadomość dnia</string>
+    <string name="message_whois" formatted="false">Informacje o użytkowniku %s</string>
+
+    <string name="message_mode" formatted="false">%s %s</string>
+    <string name="message_mode_set" formatted="false">ustawił(a) %s</string>
+    <string name="message_mode_unset" formatted="false">usunął(ęła) %s</string>
+    <string name="message_mode_gave" formatted="false">nadał(a) %s</string>
+    <string name="message_mode_removed" formatted="false">odebrał(a) %s</string>
+
+    <string name="message_mode_gave_to" formatted="false">%s dla %s</string>
+    <string name="message_mode_removed_from" formatted="false">%s od %s</string>
+
+    <plurals name="message_mode_channel">
+        <item quantity="one">tryb kanału \'%s\'</item>
+        <item quantity="few">tryby kanału \'%s\'</item>
+        <item quantity="many">trybów kanału \'%s\'</item>
+        <item quantity="other">trybów kanału \'%s\'</item>
+    </plurals>
+    <string name="message_mode_channel_value" formatted="false">tryb kanału \'%s\' dla %s</string>
+    <string name="message_mode_channel_ban" formatted="false">ban na %s</string>
+    <string name="message_mode_nick_owner">status właściciela kanału</string>
+    <string name="message_mode_nick_admin">status administratora kanału</string>
+    <string name="message_mode_nick_op">status operatora kanału</string>
+    <string name="message_mode_nick_half_op">status półoperatora kanału</string>
+    <string name="message_mode_nick_voice">głos (voice)</string>
+
+    <string name="message_ctcp_ping">Otrzymano CTCP ping</string>
+    <string name="message_ctcp_version">Otrzymano CTCP version</string>
+
+    <string name="pref_title_night_mode">Tryb ciemny</string>
+    <string-array name="pref_entries_night_mode">
+        <item>Domyślny systemu</item>
+        <item>Zawsze wyłączony</item>
+        <item>Zawsze włączony</item>
+    </string-array>
+
+    <string name="action_mark_as_read">Oznacz jako przeczytane</string>
+    <string name="pref_title_close_private_quit">Automatycznie zamykaj prywatne wiadomości przy wyjściu użytkownika</string>
+</resources>

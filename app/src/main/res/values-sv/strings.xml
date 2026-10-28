@@ -1,0 +1,61 @@
+<resources>
+    <string name="app_name">RevoIRC</string>
+
+    <!-- Chat -->
+
+    <string name="navigation_drawer_open">Öppna navigeringspanelen</string>
+    <string name="navigation_drawer_close">Stäng navigeringspanelen</string>
+
+    <string name="tab_server">Server</string>
+    <string name="message_hint">Skicka ett meddelande</string>
+    <string name="message_disconnected">Frånkopplad</string>
+    <string name="message_join" formatted="false">%s har anslutit</string>
+    <string name="message_kick" formatted="false">%s har sparkat %s (%s)</string>
+    <string name="message_part" formatted="false">%s har lämnat (%s)</string>
+    <string name="message_part_no_message" formatted="false">%s har lämnat</string>
+    <string name="message_quit" formatted="false">%s har kopplat från (%s)</string>
+    <string name="message_nick_change" formatted="false">%s är nu känd som %s</string>
+    <string name="message_topic" formatted="false">Ämne: %s</string>
+    <string name="message_topic_whotime" formatted="false">Ämnet sattes av %s den %s</string>
+    <string name="message_topic_by" formatted="false">Ämne: %s, satt av %s</string>
+    <string name="message_topic_none">Inget ämne har angetts</string>
+
+    <string name="message_host_info" formatted="false">Servernamnet är %s, kör %s. Användarlägen som stöds: %s, kanallägen som stöds: %s</string>
+    <string name="message_motd">Dagens meddelande</string>
+    <string name="message_whois" formatted="false">%ss användarinformation</string>
+
+    <string name="message_mode" formatted="false">%s %s</string>
+    <string name="message_mode_set" formatted="false">satte %s</string>
+    <string name="message_mode_unset" formatted="false">tog bort %s</string>
+    <string name="message_mode_gave" formatted="false">gav %s</string>
+    <string name="message_mode_removed" formatted="false">tog bort %s</string>
+
+    <string name="message_mode_gave_to" formatted="false">%s till %s</string>
+    <string name="message_mode_removed_from" formatted="false">%s från %s</string>
+
+    <plurals name="message_mode_channel">
+        <item quantity="one">kanalläge \'%s\'</item>
+        <item quantity="other">kanallägen \'%s\'</item>
+    </plurals>
+    <string name="message_mode_channel_value" formatted="false">kanalläge \'%s\' till %s</string>
+    <string name="message_mode_channel_ban" formatted="false">en avstängning av %s</string>
+    <string name="message_mode_nick_owner">kanalägarens status</string>
+    <string name="message_mode_nick_admin">kanaladministratörsstatus</string>
+    <string name="message_mode_nick_op">kanaloperatörsstatus</string>
+    <string name="message_mode_nick_half_op">kanalhalvoperatörsstatus</string>
+    <string name="message_mode_nick_voice">röst (voice)</string>
+
+    <string name="message_ctcp_ping">Tog emot en CTCP-ping</string>
+    <string name="message_ctcp_version">Tog emot en CTCP-version</string>
+
+    <string name="pref_title_night_mode">Mörkt läge</string>
+    <string-array name="pref_entries_night_mode">
+        <item>Systemstandard</item>
+        <item>Alltid av</item>
+        <item>Alltid på</item>
+    </string-array>
+
+    <string name="pref_title_close_private_quit">Stäng PM automatiskt när användaren lämnar</string>
+    <string name="action_mark_as_read">Markera som läst</string>
+
+</resources>

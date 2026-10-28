@@ -7,28 +7,43 @@ import android.graphics.drawable.Drawable;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
+import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.format.DateUtils;
-import android.text.method.LinkMovementMethod;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.text.style.ClickableSpan;
+import android.text.Spanned;
 
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
+import android.content.Intent;
+import android.net.Uri;
+import coil.Coil;
+import coil.request.ImageRequest;
 import io.mrarm.chatlib.dto.MessageId;
 import io.mrarm.chatlib.dto.MessageInfo;
+import io.mrarm.irc.ImageActivity;
 import io.mrarm.irc.NotificationManager;
 import io.mrarm.irc.R;
 import io.mrarm.irc.util.AlignToPointSpan;
+import io.mrarm.irc.util.IRCUtils;
+import io.mrarm.irc.util.ImageUtils;
+import io.mrarm.irc.util.LinkMovementMethodEx;
 import io.mrarm.irc.util.LongPressSelectTouchListener;
 import io.mrarm.irc.util.MessageBuilder;
 import io.mrarm.irc.util.StyledAttributesHelper;
@@ -64,10 +79,9 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
         mFragment = fragment;
         StyledAttributesHelper ta = StyledAttributesHelper.obtainStyledAttributes(fragment.getContext(),
                 new int[] { R.attr.selectableItemBackground, R.attr.colorControlHighlight });
-        // mItemBackground = ta.getDrawable(R.attr.selectableItemBackground);
         int color = ta.getColor(R.attr.colorControlHighlight, 0);
-        //color = ColorUtils.setAlphaComponent(color, Color.alpha(color) / 2);
         mSelectedItemBackground = new ColorDrawable(color);
+        mItemBackground = ta.getDrawable(R.attr.selectableItemBackground);
         ta.recycle();
 
         setMessages(messages, messageIds);
@@ -107,12 +121,12 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
             return -1;
         for (int i = mPrependedMessages.size() - 1; i >= 0; --i) {
             Item it = mPrependedMessages.get(i);
-            if (it instanceof MessageItem && ((MessageItem) it).mMessageId.equals(id))
+            if (it instanceof MessageItem && Objects.equals(((MessageItem) it).mMessageId, id))
                 return mPrependedMessages.size() - 1 - i;
         }
         for (int i = mMessages.size() - 1; i >= 0; --i) {
             Item it = mMessages.get(i);
-            if (it instanceof MessageItem && ((MessageItem) it).mMessageId.equals(id))
+            if (it instanceof MessageItem && Objects.equals(((MessageItem) it).mMessageId, id))
                 return mPrependedMessages.size() + i;
         }
         return -1;
@@ -176,9 +190,10 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     }
 
     public void addMessagesToTop(List<MessageInfo> messages, List<MessageId> messageIds) {
-        if (messages.size() == 0)
+        if (messages.isEmpty())
             return;
-        if (getMessage(0) instanceof DayMarkerItem) {
+        Item item0 = getMessage(0);
+        if (item0 instanceof DayMarkerItem) {
             deleteMessageInternal(0);
             notifyItemRangeRemoved(0, 1);
             mItemIdOffset -= 1;
@@ -193,7 +208,7 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     }
 
     public void addMessagesToBottom(List<MessageInfo> messages, List<MessageId> messageIds) {
-        if (messages.size() == 0)
+        if (messages.isEmpty())
             return;
         int appendAt = getItemCount();
         int cnt = 0;
@@ -230,6 +245,27 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
                 ret.add(((MessageItem) item).mMessageId);
         }
         return ret;
+    }
+
+    public List<MessageId> getAllMessageIds() {
+        List<MessageId> ret = new ArrayList<>();
+        for (Item item : mPrependedMessages) {
+            if (item instanceof MessageItem)
+                ret.add(((MessageItem) item).mMessageId);
+        }
+        for (Item item : mMessages) {
+            if (item instanceof MessageItem)
+                ret.add(((MessageItem) item).mMessageId);
+        }
+        return ret;
+    }
+
+    public void clearMessages() {
+        mMessages.clear();
+        mPrependedMessages.clear();
+        mFirstMessageDay = -1;
+        mLastMessageDay = -1;
+        notifyDataSetChanged();
     }
 
     public CharSequence getSelectedMessages() {
@@ -308,7 +344,7 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     public int getItemViewType(int position) {
         Object m = getMessage(position);
         if (m instanceof MessageItem) {
-            if (((MessageItem) m).mMessageId.equals(mNewMessagesStart))
+            if (Objects.equals(((MessageItem) m).mMessageId, mNewMessagesStart))
                 return TYPE_MESSAGE_WITH_NEW_MESSAGE_MARKER;
             return TYPE_MESSAGE;
         }
@@ -329,7 +365,7 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
 
     @Override
     public void onElementSelected(RecyclerView recyclerView, long itemId) {
-        if (mSelectedItems.size() == 0)
+        if (mSelectedItems.isEmpty())
             mFragment.showMessagesActionMenu();
         mSelectedItems.add(itemId);
         onElementHighlighted(recyclerView, itemId, true);
@@ -370,10 +406,18 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
                 else
                     mSelectedItems.remove(getItemId());
             }
-            itemView.setBackground(selected
-                    ? mSelectedItemBackground.getConstantState().newDrawable()
-                    : (mItemBackground != null ? mItemBackground.getConstantState().newDrawable() : null));
-            if (mSelectedItems.size() == 0)
+            Drawable bg = null;
+            if (selected && mSelectedItemBackground != null) {
+                Drawable.ConstantState state = mSelectedItemBackground.getConstantState();
+                if (state != null)
+                    bg = state.newDrawable();
+            } else if (!selected && mItemBackground != null) {
+                Drawable.ConstantState state = mItemBackground.getConstantState();
+                if (state != null)
+                    bg = state.newDrawable();
+            }
+            itemView.setBackground(bg);
+            if (mSelectedItems.isEmpty())
                 mFragment.hideMessagesActionMenu();
         }
 
@@ -390,12 +434,79 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
     public class MessageHolder extends BaseHolder {
 
         private TextView mText;
+        private ImageView mPreview;
         private ViewGroup.LayoutParams mDefaultLayoutParams;
+        private GestureDetector mGestureDetector;
 
         public MessageHolder(View v) {
             super(v);
             mDefaultLayoutParams = v.getLayoutParams();
             mText = v.findViewById(R.id.chat_message);
+            mPreview = v.findViewById(R.id.image_preview);
+            
+            mGestureDetector = new GestureDetector(v.getContext(), new GestureDetector.SimpleOnGestureListener() {
+                @Override
+                public boolean onDown(MotionEvent e) {
+                    int x = (int) e.getX() - mText.getTotalPaddingLeft();
+                    int y = (int) e.getY() - mText.getTotalPaddingTop();
+                    x += mText.getScrollX();
+                    y += mText.getScrollY();
+                    if (!(mText.getText() instanceof Spanned))
+                        return false;
+                    Spanned buffer = (Spanned) mText.getText();
+                    Layout layout = mText.getLayout();
+                    if (layout != null) {
+                        int off = layout.getOffsetForHorizontal(layout.getLineForVertical(y), x);
+                        ClickableSpan[] link = buffer.getSpans(off, off, ClickableSpan.class);
+                        if (link.length != 0) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
+                @Override
+                public boolean onSingleTapUp(MotionEvent e) {
+                    if (mSelectedItems.size() > 0) {
+                        setSelected(!isSelected(), true);
+                        return true;
+                    }
+                    int x = (int) e.getX() - mText.getTotalPaddingLeft();
+                    int y = (int) e.getY() - mText.getTotalPaddingTop();
+                    x += mText.getScrollX();
+                    y += mText.getScrollY();
+                    if (!(mText.getText() instanceof Spanned))
+                        return false;
+                    Spanned buffer = (Spanned) mText.getText();
+                    Layout layout = mText.getLayout();
+                    if (layout != null) {
+                        int off = layout.getOffsetForHorizontal(layout.getLineForVertical(y), x);
+                        ClickableSpan[] link = buffer.getSpans(off, off, ClickableSpan.class);
+                        if (link.length != 0) {
+                            link[0].onClick(mText);
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+                
+                @Override
+                public void onLongPress(MotionEvent e) {
+                    if (mSelectListener != null && mSelectedItems.size() == 0) {
+                        mSelectListener.startLongPressSelect();
+                    } else {
+                        mMultiSelectListener.startSelectMode(getItemId());
+                    }
+                }
+
+                @Override
+                public boolean onDoubleTap(MotionEvent e) {
+                    return true;
+                }
+            });
+
+            mText.setOnTouchListener((view, event) -> mGestureDetector.onTouchEvent(event));
+
             mText.setOnClickListener((View view) -> {
                 if (mSelectedItems.size() > 0)
                     setSelected(!isSelected(), true);
@@ -408,11 +519,14 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
                 }
                 return true;
             });
-            if (mItemBackground != null)
+            if (mItemBackground != null && mItemBackground.getConstantState() != null)
                 mText.setBackground(mItemBackground.getConstantState().newDrawable());
+            else if (mItemBackground != null)
+                mText.setBackground(mItemBackground.mutate());
             else
                 mText.setBackground(null);
-            mText.setMovementMethod(LinkMovementMethod.getInstance());
+            mText.setMovementMethod(LinkMovementMethodEx.getInstance());
+            mText.setHighlightColor(0);
         }
 
         public void bind(MessageItem item) {
@@ -435,6 +549,31 @@ public class ChatMessagesAdapter extends RecyclerView.Adapter<RecyclerView.ViewH
                 mText.setText(AlignToPointSpan.apply(mText, MessageBuilder.getInstance(mText.getContext()).buildMessageWithMention(message)));
             else
                 mText.setText(AlignToPointSpan.apply(mText, MessageBuilder.getInstance(mText.getContext()).buildMessage(message)));
+
+            String imageUrl = ImageUtils.getImageUrl(message.getMessage());
+            if (imageUrl != null) {
+                mPreview.setVisibility(View.VISIBLE);
+                ImageRequest request = new ImageRequest.Builder(mPreview.getContext())
+                        .data(imageUrl)
+                        .target(mPreview)
+                        .build();
+                Coil.imageLoader(mPreview.getContext()).enqueue(request);
+                mPreview.setOnClickListener(v -> {
+                    String channelName = mFragment.getChannelName();
+                    boolean isPrivate = !IRCUtils.isChannel(channelName);
+                    if (isPrivate) {
+                        Intent intent = new Intent(v.getContext(), ImageActivity.class);
+                        intent.putExtra(ImageActivity.EXTRA_URL, imageUrl);
+                        v.getContext().startActivity(intent);
+                    } else {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(imageUrl));
+                        v.getContext().startActivity(intent);
+                    }
+                });
+            } else {
+                mPreview.setVisibility(View.GONE);
+                mPreview.setImageDrawable(null);
+            }
 
             if (mSelectListener != null)
                 mSelectListener.applySelectionTo(itemView, getAdapterPosition());

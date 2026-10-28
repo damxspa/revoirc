@@ -8,12 +8,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
+import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
-
-import android.os.Message;
 import android.util.Log;
 
 import java.util.HashMap;
@@ -35,11 +34,11 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
     private static final String IDLE_NOTIFICATION_CHANNEL = "IdleNotification";
 
-    private ConnectivityChangeReceiver mConnectivityReceiver = new ConnectivityChangeReceiver();
+    private final ConnectivityChangeReceiver mConnectivityReceiver = new ConnectivityChangeReceiver();
 
     private boolean mCreatedChannel = false;
 
-    private Map<ServerConnectionInfo, MessageListener> messageListeners = new HashMap<>();
+    private final Map<ServerConnectionInfo, MessageListener> messageListeners = new HashMap<>();
 
     public static void start(Context context) {
         Intent intent = new Intent(context, IRCService.class);
@@ -51,6 +50,13 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     }
     public static void stop(Context context) {
         context.stopService(new Intent(context, IRCService.class));
+    }
+
+    /** Returns PendingIntent flags compatible with the current API level (FLAG_IMMUTABLE requires API 23+). */
+    public static int getPendingIntentFlagsMutable() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+            return PendingIntent.FLAG_IMMUTABLE;
+        return 0;
     }
 
     public static void createNotificationChannel(Context ctx) {
@@ -66,9 +72,19 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         mgr.createNotificationChannel(channel);
     }
 
+    private static IRCService sInstance;
+
+    public static void onStorageApiChanged(ServerConnectionInfo connection) {
+        if (sInstance != null) {
+            sInstance.onConnectionAdded(connection);
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+
+        sInstance = this;
 
         WarningHelper.setAppContext(getApplicationContext());
 
@@ -78,7 +94,12 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
             onConnectionAdded(connection);
         ServerConnectionManager.getInstance(this).addListener(this);
 
-        registerReceiver(mConnectivityReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(mConnectivityReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION),
+                    Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(mConnectivityReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+        }
 
         ServerPingScheduler.getInstance(this).startIfEnabled();
     }
@@ -86,6 +107,8 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     @Override
     public void onDestroy() {
         super.onDestroy();
+
+        sInstance = null;
 
         if (ServerConnectionManager.hasInstance()) {
             for (ServerConnectionInfo connection : ServerConnectionManager.getInstance(this)
@@ -102,16 +125,15 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent != null ? intent.getAction() : null;
-        if (action == null)
-            return START_STICKY;
-        if (action.equals(ACTION_START_FOREGROUND)) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !mCreatedChannel) {
-                createNotificationChannel(this);
-                mCreatedChannel = true;
-            }
-
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !mCreatedChannel) {
+            createNotificationChannel(this);
+            mCreatedChannel = true;
+        }
+        if (action == null || ACTION_START_FOREGROUND.equals(action)) {
             StringBuilder b = new StringBuilder();
-            int connectedCount = 0, connectingCount = 0, disconnectedCount = 0;
+            int connectedCount = 0;
+        int connectingCount = 0;
+        int disconnectedCount = 0;
             for (ServerConnectionInfo connectionInfo :
                     ServerConnectionManager.getInstance(this).getConnections()) {
                 if (connectionInfo.isConnected())
@@ -134,19 +156,20 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
             Intent mainIntent = MainActivity.getLaunchIntent(this, null, null);
             PendingIntent exitIntent = PendingIntent.getBroadcast(this, EXIT_ACTION_ID,
                     ExitActionReceiver.getIntent(this),
-                    PendingIntent.FLAG_CANCEL_CURRENT);
+                    PendingIntent.FLAG_CANCEL_CURRENT | getPendingIntentFlagsMutable());
             NotificationCompat.Builder notification = new NotificationCompat.Builder(this, IDLE_NOTIFICATION_CHANNEL)
                     .setContentTitle(getString(R.string.service_title))
                     .setContentText(b.toString())
                     .setPriority(NotificationCompat.PRIORITY_MIN)
                     .setOnlyAlertOnce(true)
-                    .setContentIntent(PendingIntent.getActivity(this, IDLE_NOTIFICATION_ID, mainIntent, PendingIntent.FLAG_CANCEL_CURRENT))
-                    .addAction(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP ? R.drawable.ic_close : R.drawable.ic_notification_close, getString(R.string.action_exit), exitIntent);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-                notification.setSmallIcon(R.drawable.ic_server_connected);
-            else
-                notification.setSmallIcon(R.drawable.ic_notification_connected);
-            startForeground(IDLE_NOTIFICATION_ID, notification.build());
+                    .setContentIntent(PendingIntent.getActivity(this, IDLE_NOTIFICATION_ID, mainIntent, PendingIntent.FLAG_CANCEL_CURRENT | getPendingIntentFlagsMutable()))
+                    .addAction(R.drawable.ic_close, getString(R.string.action_exit), exitIntent)
+                    .setSmallIcon(R.drawable.ic_server_connected);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(IDLE_NOTIFICATION_ID, notification.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
+            } else {
+                startForeground(IDLE_NOTIFICATION_ID, notification.build());
+            }
         }
         return START_STICKY;
     }
@@ -155,20 +178,26 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
                            MessageId messageId) {
         NotificationManager.getInstance().processMessage(this, connection, channel, info, messageId);
         ChatLogStorageManager.getInstance(this).onMessage(connection);
+        if (channel != null) {
+            connection.addChannelIfAbsent(channel);
+        }
     }
+
+
 
     @Override
     public void onConnectionAdded(ServerConnectionInfo connection) {
-        MessageListener listener =  (String channel, MessageInfo info, MessageId id) -> {
-            onMessage(connection, channel, info, id);
-        };
+        if (messageListeners.containsKey(connection)) {
+            onConnectionRemoved(connection);
+        }
+        MessageListener listener = (channel, info, id) -> onMessage(connection, channel, info, id);
         messageListeners.put(connection, listener);
         connection.getApiInstance().getMessageStorageApi().subscribeChannelMessages(null, listener, null, null);
     }
 
     @Override
     public void onConnectionRemoved(ServerConnectionInfo connection) {
-        MessageListener listener = messageListeners.get(connection);
+        MessageListener listener = messageListeners.remove(connection);
         if (listener != null)
             connection.getApiInstance().getMessageStorageApi().unsubscribeChannelMessages(null, listener, null, null);
     }
@@ -183,6 +212,8 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (intent == null || !Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction()))
+                return;
             Log.i("IRCService", "Device booted");
             IRCService.start(context);
         }
@@ -191,26 +222,31 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
     public static class ExitActionReceiver extends BroadcastReceiver {
 
+        public static final String ACTION_EXIT = "io.mrarm.irc.ACTION_EXIT";
+
         public static Intent getIntent(Context context) {
-            return new Intent(context, ExitActionReceiver.class);
+            return new Intent(context, ExitActionReceiver.class).setAction(ACTION_EXIT);
         }
 
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (intent == null || !ACTION_EXIT.equals(intent.getAction()))
+                return;
             ((IRCApplication) context.getApplicationContext()).requestExit();
         }
 
     }
 
-    public class ConnectivityChangeReceiver extends BroadcastReceiver {
+    public static class ConnectivityChangeReceiver extends BroadcastReceiver {
 
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (intent == null || !ConnectivityManager.CONNECTIVITY_ACTION.equals(intent.getAction()))
+                return;
             Log.i(TAG, "Connectivity changed");
             ServerConnectionManager.getInstance(context).notifyConnectivityChanged(!intent
                     .getBooleanExtra(ConnectivityManager.EXTRA_NO_CONNECTIVITY, Boolean.FALSE));
-            ServerPingScheduler.getInstance(context).onWifiStateChanged(
-                    ServerConnectionManager.isWifiConnected(context));
+            ServerPingScheduler.getInstance(context).onSettingChanged();
         }
 
     }

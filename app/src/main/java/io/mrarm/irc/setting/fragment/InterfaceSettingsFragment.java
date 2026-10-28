@@ -1,28 +1,35 @@
 package io.mrarm.irc.setting.fragment;
 
-import android.content.DialogInterface;
+import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
-import android.preference.PreferenceManager;
-
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.graphics.ColorUtils;
+import androidx.core.view.MenuProvider;
 import androidx.core.widget.CompoundButtonCompat;
 import androidx.appcompat.app.AlertDialog;
+import androidx.lifecycle.Lifecycle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
 
 import io.mrarm.chatlib.dto.MessageInfo;
 import io.mrarm.chatlib.dto.MessageSenderInfo;
@@ -34,7 +41,6 @@ import io.mrarm.irc.ThemedActivity;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ChatSettings;
 import io.mrarm.irc.config.NickAutocompleteSettings;
-import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.dialog.MenuBottomSheetDialog;
 import io.mrarm.irc.setting.CheckBoxSetting;
 import io.mrarm.irc.setting.ClickableSetting;
@@ -49,6 +55,7 @@ import io.mrarm.irc.util.MessageBuilder;
 import io.mrarm.irc.util.StyledAttributesHelper;
 import io.mrarm.irc.util.theme.ThemeInfo;
 import io.mrarm.irc.util.theme.ThemeManager;
+import io.mrarm.irc.util.BatteryOptimizationHelper;
 
 public class InterfaceSettingsFragment extends SettingsListFragment
         implements NamedSettingsFragment {
@@ -56,13 +63,67 @@ public class InterfaceSettingsFragment extends SettingsListFragment
     private ClickableSetting mMessageFormatItem;
     private MessageInfo mSampleMessage;
     private ClickableSetting mAutocompleteItem;
-    private int mThemeEditorRequestId;
-    private int mImportThemeRequestId;
+
+    private final ActivityResultLauncher<Intent> mThemeEditorLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                // Theme editor doesn't return anything specific, just update UI
+                recreateAdapter();
+            }
+    );
+
+    private final ActivityResultLauncher<Intent> mImportThemeLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null)
+                    return;
+                Uri uri = result.getData().getData();
+                Activity activity = getActivity();
+                if (activity == null)
+                    return;
+                new Thread(() -> {
+                    try (ParcelFileDescriptor desc = activity.getContentResolver().openFileDescriptor(uri, "r")) {
+                        if (desc != null) {
+                            try (BufferedReader re = new BufferedReader(new FileReader(desc.getFileDescriptor()))) {
+                                ThemeManager.getInstance(activity).importTheme(re);
+                                activity.runOnUiThread(this::recreateAdapter);
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.w("InterfaceSettings", "Failed to import theme", e);
+                        activity.runOnUiThread(() ->
+                                Toast.makeText(activity, R.string.error_generic, Toast.LENGTH_SHORT).show());
+                    }
+                }).start();
+            }
+    );
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setHasOptionsMenu(true);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        requireActivity().addMenuProvider(new MenuProvider() {
+            @Override
+            public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {
+                menuInflater.inflate(R.menu.menu_settings_interface, menu);
+            }
+
+            @Override
+            public boolean onMenuItemSelected(@NonNull MenuItem menuItem) {
+                if (menuItem.getItemId() == R.id.action_import_theme) {
+                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+                    mImportThemeLauncher.launch(intent);
+                    return true;
+                }
+                return false;
+            }
+        }, getViewLifecycleOwner(), Lifecycle.State.RESUMED);
     }
 
     @Override
@@ -73,18 +134,23 @@ public class InterfaceSettingsFragment extends SettingsListFragment
     @Override
     public SettingsListAdapter createAdapter() {
         SettingsListAdapter a = new SettingsListAdapter(this);
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
-        a.setRequestCodeCounter(((SettingsActivity) getActivity()).getRequestCodeCounter());
-        mThemeEditorRequestId = ((SettingsActivity) getActivity()).getRequestCodeCounter().next();
-        mImportThemeRequestId = ((SettingsActivity) getActivity()).getRequestCodeCounter().next();
+        SharedPreferences prefs = requireContext().getSharedPreferences(
+                requireContext().getPackageName() + "_preferences", Context.MODE_PRIVATE);
         a.add(new SettingsHeader(getString(R.string.pref_header_theme)));
-        createThemeList(a);
-        a.add(new ClickableSetting(getString(R.string.theme_create_new), null)
-                .setOnClickListener((View v) -> {
-                    ThemeInfo newTheme = createNewTheme();
-                    ThemeManager.getInstance(getContext()).setTheme(newTheme);
-                    openThemeEditor(newTheme);
-                    getActivity().recreate();
+        a.add(new ListSetting(getString(R.string.pref_title_status_bar_style),
+                new String[] {
+                        getString(R.string.pref_value_status_bar_dark),
+                        getString(R.string.pref_value_status_bar_light)
+                },
+                new String[] {
+                        "dark",
+                        "light"
+                })
+                .linkSetting(prefs, AppSettings.PREF_STATUS_BAR_STYLE)
+                .addListener((EntryRecyclerViewAdapter.Entry entry) -> {
+                    Activity activity = getActivity();
+                    if (activity instanceof ThemedActivity)
+                        ((ThemedActivity) activity).updateStatusBarStyle();
                 }));
         a.add(new SettingsHeader(getString(R.string.pref_header_chat)));
         a.add(new ListWithCustomSetting(a, getString(R.string.pref_title_font),
@@ -105,12 +171,13 @@ public class InterfaceSettingsFragment extends SettingsListFragment
                 getResources().getStringArray(R.array.pref_entry_values_appbar_compact_mode))
                 .linkSetting(prefs, ChatSettings.PREF_APPBAR_COMPACT_MODE));
         mMessageFormatItem = new ClickableSetting(getString(R.string.pref_title_message_format), null)
-                .setIntent(new Intent(getActivity(), MessageFormatSettingsActivity.class));
+                .setIntent(new Intent(requireActivity(), MessageFormatSettingsActivity.class));
         a.add(mMessageFormatItem);
         mAutocompleteItem = new ClickableSetting(getString(R.string.pref_title_nick_autocomplete), null)
                 .setOnClickListener((View v) -> {
-                    ((SettingsActivity) getActivity()).setFragment(
-                            new AutocompletePreferenceFragment());
+                    if (requireActivity() instanceof SettingsActivity) {
+                        ((SettingsActivity) requireActivity()).setFragment(new AutocompletePreferenceFragment());
+                    }
                 });
         a.add(mAutocompleteItem);
         a.add(new CheckBoxSetting(getString(R.string.pref_title_chat_box_always_multiline),
@@ -128,6 +195,32 @@ public class InterfaceSettingsFragment extends SettingsListFragment
         a.add(new CheckBoxSetting(getString(R.string.pref_title_drawer_always_show_server),
                 getString(R.string.pref_summary_drawer_always_show_server))
                 .linkSetting(prefs, AppSettings.PREF_DRAWER_ALWAYS_SHOW_SERVER));
+        a.add(new CheckBoxSetting(getString(R.string.pref_title_close_private_quit),
+                getString(R.string.pref_summary_close_private_quit))
+                .linkSetting(prefs, AppSettings.PREF_CLOSE_PRIVATE_QUIT));
+        a.add(new CheckBoxSetting(getString(R.string.pref_title_notify_private_quit),
+                getString(R.string.pref_summary_notify_private_quit))
+                .linkSetting(prefs, AppSettings.PREF_NOTIFY_PRIVATE_QUIT));
+        try {
+            a.add(new ListSetting(getString(R.string.pref_title_private_message_delay),
+                    new String[]{
+                            getString(R.string.pref_value_delay_disabled),
+                            getString(R.string.pref_value_delay_5s),
+                            getString(R.string.pref_value_delay_10s),
+                            getString(R.string.pref_value_delay_30s),
+                            getString(R.string.pref_value_delay_60s)
+                    },
+                    new String[]{
+                            "0",
+                            "5",
+                            "10",
+                            "30",
+                            "60"
+                    })
+                    .linkSetting(prefs, AppSettings.PREF_PRIVATE_MESSAGE_DELAY));
+        } catch (Exception e) {
+            Log.e("InterfaceSettings", "Error adding message delay setting", e);
+        }
         a.add(new CheckBoxSetting(getString(R.string.pref_title_chat_show_dcc_send),
                 getString(R.string.pref_summary_chat_show_dcc_send))
                 .linkSetting(prefs, ChatSettings.PREF_SHOW_DCC_SEND)
@@ -136,6 +229,9 @@ public class InterfaceSettingsFragment extends SettingsListFragment
                     if (checked)
                         showDCCWarning((CheckBoxSetting) entry);
                 }));
+        a.add(new ClickableSetting(getString(R.string.pref_title_check_battery_optimization),
+                getString(R.string.pref_summary_check_battery_optimization))
+                .setOnClickListener((View v) -> BatteryOptimizationHelper.checkAndRequestBatteryOptimizations(requireContext())));
 
         MessageSenderInfo testSender = new MessageSenderInfo(
                 getString(R.string.message_example_sender), "", "", null, null);
@@ -149,14 +245,19 @@ public class InterfaceSettingsFragment extends SettingsListFragment
     @Override
     public void onStart() {
         super.onStart();
-        if (((ThemedActivity) getActivity()).hasThemeChanged()) {
-            getActivity().recreate();
+        try {
+            Activity activity = requireActivity();
+            if (activity instanceof ThemedActivity && ((ThemedActivity) activity).hasThemeChanged()) {
+                activity.recreate();
+            }
+        } catch (Exception e) {
+            Log.w("InterfaceSettings", "Error checking theme change", e);
         }
     }
 
     private int[] getBaseThemeColors(int resId) {
         int[] colors = new int[3];
-        StyledAttributesHelper attrs = StyledAttributesHelper.obtainStyledAttributes(getContext(),
+        StyledAttributesHelper attrs = StyledAttributesHelper.obtainStyledAttributes(requireContext(),
                 resId, new int[] { R.attr.colorPrimary, R.attr.colorPrimaryDark,
                         R.attr.colorAccent });
         colors[0] = attrs.getColor(R.attr.colorPrimary, 0);
@@ -167,10 +268,13 @@ public class InterfaceSettingsFragment extends SettingsListFragment
     }
 
     private void createThemeList(SettingsListAdapter a) {
-        ThemeManager themeManager = ThemeManager.getInstance(getContext());
+        ThemeManager themeManager = ThemeManager.getInstance(requireContext());
         RadioButtonSetting.Group themeGroup = new RadioButtonSetting.Group();
         SettingsListAdapter.SettingChangedListener recreateCb =
-                (EntryRecyclerViewAdapter.Entry e) -> getActivity().recreate();
+                (EntryRecyclerViewAdapter.Entry e) -> {
+                    if (getActivity() != null && ((CheckBoxSetting) e).isChecked())
+                        getActivity().recreate();
+                };
         for (ThemeManager.BaseTheme theme : themeManager.getBaseThemes()) {
             int themeResId = theme.getThemeResId();
             a.add(new ThemeOptionSetting(getString(theme.getNameResId()),
@@ -179,46 +283,44 @@ public class InterfaceSettingsFragment extends SettingsListFragment
         }
         for (ThemeInfo theme : themeManager.getCustomThemes()) {
             int[] colors = getBaseThemeColors(theme.baseThemeInfo.getThemeResId());
-            Integer c = theme.colors.get(ThemeInfo.COLOR_PRIMARY);
-            if (c != null)
-                colors[0] = c;
-            c = theme.colors.get(ThemeInfo.COLOR_PRIMARY_DARK);
-            if (c != null)
-                colors[1] = c;
-            c = theme.colors.get(ThemeInfo.COLOR_ACCENT);
-            if (c != null)
-                colors[2] = c;
+            Integer primaryColor = theme.colors.get(ThemeInfo.COLOR_PRIMARY);
+            if (primaryColor != null)
+                colors[0] = primaryColor;
+            Integer primaryDarkColor = theme.colors.get(ThemeInfo.COLOR_PRIMARY_DARK);
+            if (primaryDarkColor != null)
+                colors[1] = primaryDarkColor;
+            Integer accentColor = theme.colors.get(ThemeInfo.COLOR_ACCENT);
+            if (accentColor != null)
+                colors[2] = accentColor;
             a.add(new ThemeOptionSetting(theme.name, themeGroup, colors)
                     .linkCustomTheme(this, theme).addListener(recreateCb));
         }
     }
 
     private void openThemeEditor(ThemeInfo theme) {
-        Intent intent = new Intent(getContext(), ThemeEditorActivity.class);
+        Intent intent = new Intent(requireContext(), ThemeEditorActivity.class);
         intent.putExtra(ThemeEditorActivity.ARG_THEME_UUID, theme.uuid.toString());
-        getActivity().startActivityForResult(intent, mThemeEditorRequestId);
+        mThemeEditorLauncher.launch(intent);
     }
 
     private ThemeInfo createNewTheme() {
-        ThemeManager themeManager = ThemeManager.getInstance(getContext());
+        ThemeManager themeManager = ThemeManager.getInstance(requireContext());
         ThemeInfo currentCustomTheme = themeManager.getCurrentCustomTheme();
         if (currentCustomTheme != null) {
             return createNewTheme(currentCustomTheme);
         } else {
-            ThemeManager.ThemeResInfo currentTheme = themeManager.getCurrentTheme();
-            if (!(currentTheme instanceof ThemeManager.BaseTheme))
-                currentTheme = themeManager.getFallbackTheme();
-            return createNewTheme((ThemeManager.BaseTheme) currentTheme);
+            ThemeManager.ThemeResInfo themeRes = themeManager.getCurrentTheme();
+            ThemeInfo newTheme = new ThemeInfo();
+            if (themeRes instanceof ThemeManager.BaseTheme) {
+                ThemeManager.BaseTheme baseTheme = (ThemeManager.BaseTheme) themeRes;
+                newTheme.base = baseTheme.getId();
+            } else {
+                newTheme.base = themeManager.getFallbackTheme().getId();
+            }
+            newTheme.name = getString(R.string.theme_custom_default_name);
+            initNewTheme(newTheme);
+            return newTheme;
         }
-    }
-
-    private ThemeInfo createNewTheme(ThemeManager.BaseTheme theme) {
-        ThemeInfo newTheme = new ThemeInfo();
-        newTheme.base = theme.getId();
-        newTheme.baseThemeInfo = theme;
-        newTheme.name = getString(R.string.theme_custom_default_name);
-        initNewTheme(newTheme);
-        return newTheme;
     }
 
     private ThemeInfo createNewTheme(ThemeInfo theme) {
@@ -229,20 +331,45 @@ public class InterfaceSettingsFragment extends SettingsListFragment
         return newTheme;
     }
 
+    private ThemeInfo createNewTheme(ThemeManager.BaseTheme baseTheme) {
+        ThemeInfo newTheme = new ThemeInfo();
+        newTheme.base = baseTheme.getId();
+        newTheme.name = getString(R.string.theme_custom_default_name);
+        initNewTheme(newTheme);
+        return newTheme;
+    }
+
     private void initNewTheme(ThemeInfo newTheme) {
-        ThemeManager themeManager = ThemeManager.getInstance(getContext());
-        try {
-            themeManager.saveTheme(newTheme);
-        } catch (IOException e) {
-            Log.w("InterfaceSettings", "Failed to save new theme");
-        }
+        Context context = requireContext().getApplicationContext();
+        new Thread(() -> {
+            try {
+                // Create a deep copy of the theme to avoid modifying the original
+                // which might be in use as the current theme
+                ThemeInfo themeToSave = new ThemeInfo();
+                themeToSave.copyFrom(newTheme);
+                // Deep copy the colors map to prevent shared mutable state
+                // Ensure colors map is never null
+                if (newTheme.colors != null) {
+                    themeToSave.colors = new HashMap<>(newTheme.colors);
+                } else {
+                    themeToSave.colors = new HashMap<>();
+                }
+                ThemeManager.getInstance(context).saveTheme(themeToSave);
+            } catch (IOException e) {
+                Log.w("InterfaceSettings", "Failed to save new theme", e);
+            } catch (NullPointerException e) {
+                Log.w("InterfaceSettings", "Failed to save new theme due to null context", e);
+            }
+        }).start();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        mMessageFormatItem.setDescription(MessageBuilder.getInstance(getActivity())
-                .buildMessage(mSampleMessage));
+        if (mMessageFormatItem != null) {
+            mMessageFormatItem.setDescription(MessageBuilder.getInstance(requireActivity())
+                    .buildMessage(mSampleMessage));
+        }
 
         StringBuilder builder = new StringBuilder();
         if (NickAutocompleteSettings.isButtonVisible())
@@ -255,13 +382,18 @@ public class InterfaceSettingsFragment extends SettingsListFragment
             appendString(builder, getString(R.string.pref_title_nick_autocomplete_at_suggestions));
         if (NickAutocompleteSettings.areChannelSuggestionsEnabled())
             appendString(builder, getString(R.string.pref_title_channel_autocomplete_suggestions));
-        mAutocompleteItem.setDescription(builder.toString());
+
+        if (mAutocompleteItem != null) {
+            mAutocompleteItem.setDescription(builder.toString());
+        }
     }
 
     private void appendString(StringBuilder builder, String str) {
+        if (str == null || str.isEmpty())
+            return;
         if (builder.length() > 0) {
             builder.append(getString(R.string.text_comma));
-            builder.append(str.substring(0, 1).toLowerCase() + str.substring(1));
+            builder.append(str);
         } else {
             builder.append(str);
         }
@@ -269,52 +401,13 @@ public class InterfaceSettingsFragment extends SettingsListFragment
 
 
     private void showDCCWarning(CheckBoxSetting setting) {
-        new AlertDialog.Builder(getContext())
+        new AlertDialog.Builder(requireContext())
                 .setTitle(R.string.dcc_enable_send_warning_title)
                 .setMessage(R.string.dcc_enable_send_warning_body)
                 .setPositiveButton(R.string.dcc_approve_download_enable_anyway, null)
-                .setNegativeButton(R.string.action_cancel, (DialogInterface di, int w) -> {
-                    setting.setChecked(false);
-                })
-                .setOnCancelListener((DialogInterface di) -> {
-                    setting.setChecked(false);
-                })
+                .setNegativeButton(R.string.action_cancel, (di, w) -> setting.setChecked(false))
+                .setOnCancelListener(di -> setting.setChecked(false))
                 .show();
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == mImportThemeRequestId) {
-            if (data == null || data.getData() == null)
-                return;
-            try {
-                Uri uri = data.getData();
-                ParcelFileDescriptor desc = getActivity().getContentResolver().openFileDescriptor(uri, "r");
-                BufferedReader re = new BufferedReader(new FileReader(desc.getFileDescriptor()));
-                ThemeManager.getInstance(getContext()).importTheme(re);
-                re.close();
-                desc.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-                Toast.makeText(getContext(), R.string.error_generic, Toast.LENGTH_SHORT).show();
-            }
-            recreateAdapter();
-            return;
-        }
-        super.onActivityResult(requestCode, resultCode, data);
-    }
-
-    @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        super.onCreateOptionsMenu(menu, inflater);
-        inflater.inflate(R.menu.menu_settings_interface, menu);
-        menu.findItem(R.id.action_import_theme).setOnMenuItemClickListener((i) -> {
-            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("*/*");
-            startActivityForResult(intent, mImportThemeRequestId);
-            return true;
-        });
     }
 
     public static final class ThemeOptionSetting extends RadioButtonSetting {
@@ -323,11 +416,11 @@ public class InterfaceSettingsFragment extends SettingsListFragment
                 R.layout.settings_theme_option);
 
         private InterfaceSettingsFragment fragment;
-        private int[] overrideColors;
+        private final int[] overrideColors;
         private ThemeManager.BaseTheme linkedBaseTheme;
         private ThemeInfo linkedCustomTheme;
 
-        public ThemeOptionSetting(String name, RadioButtonSetting.Group group,
+        public ThemeOptionSetting(String name, Group group,
                                   int[] overrideColors) {
             super(name, group);
             this.overrideColors = overrideColors;
@@ -338,28 +431,28 @@ public class InterfaceSettingsFragment extends SettingsListFragment
             super.setChecked(checked);
             if (checked) {
                 if (linkedBaseTheme != null)
-                    ThemeManager.getInstance(null).setTheme(linkedBaseTheme);
+                    ThemeManager.getInstance(fragment.requireContext()).setTheme(linkedBaseTheme);
                 if (linkedCustomTheme != null)
-                    ThemeManager.getInstance(null).setTheme(linkedCustomTheme);
+                    ThemeManager.getInstance(fragment.requireContext()).setTheme(linkedCustomTheme);
             }
         }
 
         public ThemeOptionSetting linkBaseTheme(InterfaceSettingsFragment fragment,
                                                 ThemeManager.BaseTheme theme) {
             this.fragment = fragment;
-            ThemeManager themeManager = ThemeManager.getInstance(null);
+            this.linkedBaseTheme = theme;
+            ThemeManager themeManager = ThemeManager.getInstance(fragment.requireContext());
             setChecked(themeManager.getCurrentTheme() == theme ||
                     (themeManager.getCurrentTheme() == null &&
                             themeManager.getFallbackTheme() == theme));
-            linkedBaseTheme = theme;
             return this;
         }
 
         public ThemeOptionSetting linkCustomTheme(InterfaceSettingsFragment fragment,
                                                   ThemeInfo theme) {
             this.fragment = fragment;
-            setChecked(ThemeManager.getInstance(null).getCurrentCustomTheme() == theme);
-            linkedCustomTheme = theme;
+            this.linkedCustomTheme = theme;
+            setChecked(ThemeManager.getInstance(fragment.requireContext()).getCurrentCustomTheme() == theme);
             return this;
         }
 
@@ -371,7 +464,7 @@ public class InterfaceSettingsFragment extends SettingsListFragment
         public static class Holder extends RadioButtonSetting.Holder
                 implements View.OnLongClickListener {
 
-            private ColorStateList mDefaultButtonTintList;
+            private final ColorStateList mDefaultButtonTintList;
 
             public Holder(View itemView, SettingsListAdapter adapter) {
                 super(itemView, adapter);
@@ -386,19 +479,22 @@ public class InterfaceSettingsFragment extends SettingsListFragment
                 int bgColor = StyledAttributesHelper.getColor(mCheckBox.getContext(),
                         android.R.attr.colorBackground, 0);
                 boolean darkBg = ColorUtils.calculateLuminance(bgColor) < 0.4;
-                int overrideColor = overrideColors[0];
-                for (int c : overrideColors) {
-                    if ((!darkBg && ColorUtils.calculateLuminance(c) < 0.75)
-                            || (darkBg && ColorUtils.calculateLuminance(c) > 0.25)) {
-                        overrideColor = c;
-                        break;
-                    }
-                }
+                int overrideColor = getOverrideColor(overrideColors, darkBg);
                 if (overrideColor != 0)
                     CompoundButtonCompat.setButtonTintList(mCheckBox,
                             ColorStateList.valueOf(overrideColor));
                 else
                     CompoundButtonCompat.setButtonTintList(mCheckBox, mDefaultButtonTintList);
+            }
+
+            private int getOverrideColor(int[] colors, boolean darkBg) {
+                for (int c : colors) {
+                    if ((!darkBg && ColorUtils.calculateLuminance(c) < 0.75)
+                            || (darkBg && ColorUtils.calculateLuminance(c) > 0.25)) {
+                        return c;
+                    }
+                }
+                return colors[0];
             }
 
             @Override
@@ -415,9 +511,13 @@ public class InterfaceSettingsFragment extends SettingsListFragment
             @Override
             public boolean onLongClick(View v) {
                 ThemeOptionSetting themeEntry = (ThemeOptionSetting) getEntry();
+                if (themeEntry.fragment.getActivity() == null)
+                    return false;
                 MenuBottomSheetDialog menu = new MenuBottomSheetDialog(v.getContext());
                 menu.addItem(R.string.action_copy, R.drawable.ic_content_copy,
                         (MenuBottomSheetDialog.Item i) -> {
+                            if (themeEntry.fragment.getActivity() == null)
+                                return false;
                             ThemeInfo newTheme;
                             if (themeEntry.linkedCustomTheme != null)
                                 newTheme = themeEntry.fragment.createNewTheme(
@@ -425,9 +525,8 @@ public class InterfaceSettingsFragment extends SettingsListFragment
                             else
                                 newTheme = themeEntry.fragment.createNewTheme(
                                         themeEntry.linkedBaseTheme);
-                            ThemeManager.getInstance(null).setTheme(newTheme);
+                            ThemeManager.getInstance(themeEntry.fragment.requireContext()).setTheme(newTheme);
                             themeEntry.fragment.openThemeEditor(newTheme);
-                            themeEntry.fragment.getActivity().recreate();
                             return true;
                         });
                 if (themeEntry.linkedCustomTheme != null) {
@@ -438,10 +537,12 @@ public class InterfaceSettingsFragment extends SettingsListFragment
                             });
                     menu.addItem(R.string.action_delete, R.drawable.ic_delete,
                             (MenuBottomSheetDialog.Item i) -> {
-                                ThemeManager.getInstance(null)
+                                if (themeEntry.fragment.getActivity() == null)
+                                    return false;
+                                ThemeManager.getInstance(themeEntry.fragment.requireContext())
                                         .deleteTheme(themeEntry.linkedCustomTheme);
                                 getEntry().getOwner().remove(getEntry().getIndex());
-                                themeEntry.fragment.getActivity().recreate();
+                                themeEntry.fragment.requireActivity().recreate();
                                 return true;
                             });
                 }

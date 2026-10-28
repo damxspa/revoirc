@@ -1,9 +1,9 @@
 package io.mrarm.irc.setting.fragment;
 
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.preference.PreferenceManager;
 
 import io.mrarm.irc.IRCService;
 import io.mrarm.irc.R;
@@ -24,7 +24,8 @@ public class ReconnectSettingsFragment extends SettingsListFragment
     @Override
     public SettingsListAdapter createAdapter() {
         SettingsListAdapter a = new SettingsListAdapter(this);
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        SharedPreferences prefs = requireContext().getSharedPreferences(
+                requireContext().getPackageName() + "_preferences", Context.MODE_PRIVATE);
         CheckBoxSetting mainSetting = new CheckBoxSetting(
                 getString(R.string.pref_title_auto_reconnect),
                 getString(R.string.pref_description_auto_reconnect));
@@ -34,10 +35,6 @@ public class ReconnectSettingsFragment extends SettingsListFragment
                 getString(R.string.pref_description_reconnect_connchg))
                 .linkSetting(prefs, AppSettings.PREF_RECONNECT_ON_CONNECTIVITY_CHANGE_ENABLED)
                 .requires(mainSetting));
-        a.add(new CheckBoxSetting(getString(R.string.pref_title_reconnect_wifi),
-                getString(R.string.pref_description_reconnect_wifi))
-                .linkSetting(prefs, AppSettings.PREF_RECONNECT_WI_FI_ONLY)
-                .requires(mainSetting));
         a.add(new ReconnectIntervalSetting(getString(R.string.pref_title_reconnect_pattern))
                 .linkPreference(prefs, AppSettings.PREF_RECONNECT_INTERVAL)
                 .requires(mainSetting));
@@ -45,13 +42,11 @@ public class ReconnectSettingsFragment extends SettingsListFragment
                 getString(R.string.pref_description_ping_enabled));
         pingSetting.linkSetting(prefs, AppSettings.PREF_PING_ENABLED);
         a.add(pingSetting);
-        a.add(new CheckBoxSetting(getString(R.string.pref_title_ping_wifi),
-                getString(R.string.pref_description_ping_wifi), true)
-                .linkSetting(prefs, AppSettings.PREF_PING_WI_FI_ONLY)
-                .requires(pingSetting));
         a.add(new IntervalSetting(getString(R.string.pref_title_ping_interval))
-                .setMinDuration(15 * 60 * 1000)
                 .linkSetting(prefs, AppSettings.PREF_PING_INTERVAL)
+                .requires(pingSetting));
+        a.add(new IntervalSetting(getString(R.string.pref_title_ping_interval_mobile))
+                .linkSetting(prefs, AppSettings.PREF_PING_INTERVAL_MOBILE)
                 .requires(pingSetting));
         CheckBoxSetting bootSetting = new CheckBoxSetting(
                 getString(R.string.pref_title_start_on_boot),
@@ -63,14 +58,14 @@ public class ReconnectSettingsFragment extends SettingsListFragment
     }
 
     private boolean isStartOnBootEnabled() {
-        return getContext().getPackageManager().getComponentEnabledSetting(
-                new ComponentName(getContext(), IRCService.BootReceiver.class))
+        return requireContext().getPackageManager().getComponentEnabledSetting(
+                new ComponentName(requireContext(), IRCService.BootReceiver.class))
                 == PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
     }
 
     private void setStartOnBootEnabled(boolean enabled) {
-        getContext().getPackageManager().setComponentEnabledSetting(
-                new ComponentName(getContext(), IRCService.BootReceiver.class),
+        requireContext().getPackageManager().setComponentEnabledSetting(
+                new ComponentName(requireContext(), IRCService.BootReceiver.class),
                 enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED :
                         PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP);

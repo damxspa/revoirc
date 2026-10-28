@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -86,6 +87,8 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
     public void checkServerTrusted(X509Certificate[] chain, String authType)
             throws CertificateException {
         try {
+            if (sDefaultTrustManager == null)
+                throw new CertificateException("No default trust manager");
             sDefaultTrustManager.checkServerTrusted(chain, authType);
         } catch (Exception e) {
             try {
@@ -100,10 +103,20 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
                 Log.i(TAG, "Unrecognized certificate");
                 try {
                     X509Certificate cert = chain[0];
-                    if (!askUser(cert, R.string.certificate_bad_cert).get())
+                    Boolean result;
+                    try {
+                        result = askUser(cert, R.string.certificate_bad_cert).get(120, TimeUnit.SECONDS);
+                    } catch (java.util.concurrent.TimeoutException e4) {
+                        Log.w(TAG, "User did not respond to certificate prompt in time");
+                        result = false;
+                    }
+                    if (result == null || !result)
                         throw new UserRejectedCertificateException();
-                } catch (InterruptedException | ExecutionException e3) {
-                    throw new CertificateException("Asking user about the certificate failed");
+                } catch (InterruptedException e3) {
+                    Thread.currentThread().interrupt();
+                    throw new CertificateException("Asking user about the certificate failed - interrupted", e3);
+                } catch (ExecutionException e3) {
+                    throw new CertificateException("Asking user about the certificate failed", e3);
                 }
             }
         }
@@ -111,6 +124,8 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
 
     @Override
     public X509Certificate[] getAcceptedIssuers() {
+        if (sDefaultTrustManager == null)
+            return new X509Certificate[0];
         return sDefaultTrustManager.getAcceptedIssuers();
     }
 
@@ -141,19 +156,26 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
         }
         Log.i(TAG, "Failed to verify hostname, asking user");
         try {
-            return askUser(cert, R.string.certificate_bad_hostname, ServerCertificateManager.buildCertAppliesToString(cert), hostname).get();
-        } catch (InterruptedException | ExecutionException e) {
-            Log.e(TAG, "Error while trying to show a dialog");
+            return askUser(cert, R.string.certificate_bad_hostname, ServerCertificateManager.buildCertAppliesToString(cert), hostname).get(120, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            Log.w(TAG, "User did not respond to hostname verification prompt in time");
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Log.e(TAG, "Interrupted while waiting for hostname verification prompt", e);
+            return false;
+        } catch (ExecutionException e) {
+            Log.e(TAG, "Error while trying to show a dialog", e);
             return false;
         }
     }
 
     private class SSLCertWarning extends WarningHelper.Warning {
 
-        private X509Certificate mCertificate;
-        private SettableFuture<Boolean> mReturnValue;
-        private int mStringId;
-        private Object[] mStringArgs;
+        private final X509Certificate mCertificate;
+        private final SettableFuture<Boolean> mReturnValue;
+        private final int mStringId;
+        private final Object[] mStringArgs;
         private WeakReference<AlertDialog> mLastDialog;
 
         public SSLCertWarning(X509Certificate certificate, int stringId, Object[] stringArgs) {
@@ -169,7 +191,7 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
             notification.setContentText(context.getString(R.string.certificate_error, getServerName()));
             Intent notificationIntent = new Intent(context, MainActivity.class);
             notificationIntent.putExtra(MainActivity.ARG_SERVER_UUID, mServerUUID.toString());
-            notification.setContentIntent(PendingIntent.getActivity(context, notificationId, notificationIntent, PendingIntent.FLAG_CANCEL_CURRENT));
+            notification.setContentIntent(PendingIntent.getActivity(context, notificationId, notificationIntent, PendingIntent.FLAG_CANCEL_CURRENT | IRCService.getPendingIntentFlagsMutable()));
         }
 
         @Override

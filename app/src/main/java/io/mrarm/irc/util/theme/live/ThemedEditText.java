@@ -16,8 +16,8 @@ import android.widget.TextView;
 
 import java.lang.reflect.Field;
 
+import androidx.core.graphics.drawable.DrawableCompat;
 import io.mrarm.irc.R;
-import io.mrarm.irc.util.ColorFilterWorkaroundDrawable;
 import io.mrarm.irc.util.StyledAttributesHelper;
 
 public class ThemedEditText extends AppCompatEditText {
@@ -94,7 +94,8 @@ public class ThemedEditText extends AppCompatEditText {
                 accentColor
         };
         ColorStateList list = new ColorStateList(states, colors);
-        editText.setBackground(new ColorFilterWorkaroundDrawable(editText.getBackground()));
+        Drawable background = DrawableCompat.wrap(editText.getBackground());
+        editText.setBackground(background);
         ViewCompat.setBackgroundTintList(editText, list);
     }
 

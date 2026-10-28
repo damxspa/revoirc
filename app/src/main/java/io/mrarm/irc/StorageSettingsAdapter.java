@@ -3,10 +3,13 @@ package io.mrarm.irc;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Color;
-import android.os.AsyncTask;
-import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.StatFs;
+import android.util.Log;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import android.text.style.ForegroundColorSpan;
 import android.view.LayoutInflater;
@@ -19,10 +22,15 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 
+import io.mrarm.chatlib.ChatApi;
 import io.mrarm.chatlib.android.storage.SQLiteMessageStorageApi;
 import io.mrarm.chatlib.irc.ServerConnectionApi;
+import io.mrarm.chatlib.irc.ServerConnectionData;
+import io.mrarm.irc.config.ChatSettings;
 import io.mrarm.irc.config.CommandAliasManager;
 import io.mrarm.irc.config.NotificationCountStorage;
 import io.mrarm.irc.config.NotificationRuleManager;
@@ -32,20 +40,27 @@ import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.dialog.MenuBottomSheetDialog;
 import io.mrarm.irc.dialog.ServerStorageLimitDialog;
 import io.mrarm.irc.dialog.StorageLimitsDialog;
+import io.mrarm.irc.util.ChatExportManager;
 import io.mrarm.irc.util.ColoredTextBuilder;
+import io.mrarm.irc.util.PoolSerialExecutor;
 import io.mrarm.irc.util.StubMessageStorageApi;
 import io.mrarm.irc.util.StyledAttributesHelper;
 import io.mrarm.irc.view.SimpleBarChart;
 
-public class StorageSettingsAdapter extends RecyclerView.Adapter {
+public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     public static final int TYPE_SERVER_LOGS_SUMMARY = 0;
     public static final int TYPE_SERVER_LOGS = 1;
-    public static final int TYPE_CONFIGURATION_SUMMARY = 2;
+    public static final int TYPE_APP_DATA_SUMMARY = 2;
+    public static final int TYPE_APP_CACHE_SUMMARY = 3;
 
-    private List<ServerLogsEntry> mServerLogEntries = new ArrayList<>();
-    private SpaceCalculateTask mAsyncTask = null;
-    private long mConfigurationSize = 0L;
+    private final List<ServerLogsEntry> mServerLogEntries = new ArrayList<>();
+    private final ExecutorService mExecutor = new PoolSerialExecutor();
+    private final Handler mMainHandler = new Handler(Looper.getMainLooper());
+    private SpaceCalculateTask mCurrentSpaceTask = null;
+    private RemoveDataTask mCurrentRemoveTask = null;
+    private long mAppDataSize = 0L;
+    private long mCacheSize = 0L;
     private int mSecondaryTextColor;
 
     public StorageSettingsAdapter(Context context) {
@@ -55,11 +70,12 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
     }
 
     private void refreshServerLogs(Context context) {
-        if (mAsyncTask != null)
+        if (mCurrentSpaceTask != null)
             return;
         mServerLogEntries.clear();
-        mAsyncTask = new SpaceCalculateTask(context, this);
-        mAsyncTask.execute();
+        notifyDataSetChanged();
+        mCurrentSpaceTask = new SpaceCalculateTask(context, this);
+        mExecutor.execute(mCurrentSpaceTask);
     }
 
     private void addEntry(ServerLogsEntry entry) {
@@ -78,8 +94,9 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
         notifyItemChanged(0);
     }
 
+    @NonNull
     @Override
-    public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         if (viewType == TYPE_SERVER_LOGS_SUMMARY) {
             View view = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.settings_storage_chat_logs_summary, parent, false);
@@ -88,29 +105,35 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
             View view = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.settings_storage_chat_logs_entry, parent, false);
             return new ServerLogsHolder(view);
-        } else if (viewType == TYPE_CONFIGURATION_SUMMARY) {
+        } else if (viewType == TYPE_APP_DATA_SUMMARY) {
             View view = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.settings_storage_configuration_summary, parent, false);
-            return new ConfigurationSummaryHolder(view);
+                    .inflate(R.layout.settings_storage_app_data_summary, parent, false);
+            return new AppDataSummaryHolder(view);
+        } else if (viewType == TYPE_APP_CACHE_SUMMARY) {
+            View view = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.settings_storage_app_cache_summary, parent, false);
+            return new AppCacheSummaryHolder(view);
         }
-        return null;
+        throw new IllegalArgumentException("Unknown viewType: " + viewType);
     }
 
     @Override
-    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         int type = holder.getItemViewType();
         if (type == TYPE_SERVER_LOGS_SUMMARY) {
             ((ServerLogsSummaryHolder) holder).bind();
         } else if (type == TYPE_SERVER_LOGS) {
             ((ServerLogsHolder) holder).bind(mServerLogEntries.get(position - 1), position - 1);
-        } else if (type == TYPE_CONFIGURATION_SUMMARY) {
-            ((ConfigurationSummaryHolder) holder).bind();
+        } else if (type == TYPE_APP_DATA_SUMMARY) {
+            ((AppDataSummaryHolder) holder).bind();
+        } else if (type == TYPE_APP_CACHE_SUMMARY) {
+            ((AppCacheSummaryHolder) holder).bind();
         }
     }
 
     @Override
     public int getItemCount() {
-        return 1 + mServerLogEntries.size() + 1;
+        return 1 + mServerLogEntries.size() + 2;
     }
 
     @Override
@@ -120,7 +143,9 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
         if (position >= 1 && position < 1 + mServerLogEntries.size())
             return TYPE_SERVER_LOGS;
         if (position == 1 + mServerLogEntries.size())
-            return TYPE_CONFIGURATION_SUMMARY;
+            return TYPE_APP_DATA_SUMMARY;
+        if (position == 2 + mServerLogEntries.size())
+            return TYPE_APP_CACHE_SUMMARY;
         return -1;
     }
 
@@ -147,7 +172,7 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
                         .setTitle(R.string.pref_storage_clear_all_chat_logs)
                         .setMessage(R.string.pref_storage_clear_all_chat_logs_confirm)
                         .setPositiveButton(R.string.action_delete, (DialogInterface di, int i) -> {
-                            new RemoveDataTask(v.getContext(), false, null).execute();
+                            executeRemoveTask(v.getContext(), false, null);
                         })
                         .setNegativeButton(R.string.action_cancel, null)
                         .show();
@@ -160,13 +185,13 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
             if (count > 0) {
                 float[] values = new float[count];
                 int[] colors = new int[count];
-                colors[0] = mChart.getResources().getColor(R.color.storageSettingsChartFirst);
+                colors[0] = ContextCompat.getColor(mChart.getContext(), R.color.storageSettingsChartFirst);
                 if (count > 1)
-                    colors[1] = mChart.getResources().getColor(R.color.storageSettingsChartSecond);
+                    colors[1] = ContextCompat.getColor(mChart.getContext(), R.color.storageSettingsChartSecond);
                 if (count > 2)
-                    colors[2] = mChart.getResources().getColor(R.color.storageSettingsChartThird);
+                    colors[2] = ContextCompat.getColor(mChart.getContext(), R.color.storageSettingsChartThird);
                 if (count > 3)
-                    colors[3] = mChart.getResources().getColor(R.color.storageSettingsChartOthers);
+                    colors[3] = ContextCompat.getColor(mChart.getContext(), R.color.storageSettingsChartOthers);
                 for (int i = mServerLogEntries.size() - 1; i >= 0; --i) {
                     long val = mServerLogEntries.get(i).size;
                     total += val;
@@ -248,7 +273,14 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
                 }
             }
             menu.addItem(R.string.pref_storage_clear_server_chat_logs, R.drawable.ic_delete, (MenuBottomSheetDialog.Item it) -> {
-                new RemoveDataTask(itemView.getContext(), false, (UUID) mText.getTag()).execute();
+                new AlertDialog.Builder(itemView.getContext())
+                        .setTitle(R.string.pref_storage_clear_server_chat_logs)
+                        .setMessage(R.string.pref_storage_clear_all_chat_logs_confirm)
+                        .setPositiveButton(R.string.action_delete, (DialogInterface di, int i) -> {
+                            executeRemoveTask(itemView.getContext(), false, (UUID) mText.getTag());
+                        })
+                        .setNegativeButton(R.string.action_cancel, null)
+                        .show();
                 return true;
             });
             menu.show();
@@ -265,7 +297,7 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
                     colorId = R.color.storageSettingsChartThird;
             }
             ColoredTextBuilder builder = new ColoredTextBuilder();
-            builder.append(entry.name, new ForegroundColorSpan(mText.getResources().getColor(colorId)));
+            builder.append(entry.name, new ForegroundColorSpan(ContextCompat.getColor(mText.getContext(), colorId)));
             builder.append("  ");
             builder.append(formatFileSize(entry.size));
             mText.setText(builder.getSpannable());
@@ -274,19 +306,19 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
 
     }
 
-    public class ConfigurationSummaryHolder extends RecyclerView.ViewHolder {
+    public class AppDataSummaryHolder extends RecyclerView.ViewHolder {
 
         private TextView mTotal;
 
-        public ConfigurationSummaryHolder(View view) {
+        public AppDataSummaryHolder(View view) {
             super(view);
             mTotal = view.findViewById(R.id.total_value);
-            view.findViewById(R.id.reset).setOnClickListener((View v) -> {
+            view.findViewById(R.id.clear_app_data).setOnClickListener((View v) -> {
                 new AlertDialog.Builder(v.getContext())
-                        .setTitle(R.string.pref_storage_reset_configuration)
-                        .setMessage(R.string.pref_storage_reset_configuration_confirm)
-                        .setPositiveButton(R.string.action_reset, (DialogInterface di, int i) -> {
-                            new RemoveDataTask(v.getContext(), true, null).execute();
+                        .setTitle(R.string.pref_storage_clear_app_data)
+                        .setMessage(R.string.pref_storage_clear_app_data_confirm)
+                        .setPositiveButton(R.string.action_delete, (DialogInterface di, int i) -> {
+                            executeRemoveTask(v.getContext(), true, null);
                         })
                         .setNegativeButton(R.string.action_cancel, null)
                         .show();
@@ -294,89 +326,172 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
         }
 
         public void bind() {
-            mTotal.setText(formatFileSize(mConfigurationSize));
+            mTotal.setText(formatFileSize(mAppDataSize));
         }
 
     }
 
+    public class AppCacheSummaryHolder extends RecyclerView.ViewHolder {
 
-    private static class SpaceCalculateTask extends AsyncTask<Void, Object, Void> {
+        private TextView mTotal;
 
-        private WeakReference<StorageSettingsAdapter> mAdapter;
-        private ServerConfigManager mServerManager;
-        private File mDataDir;
-        private StatFs mStatFs;
+        public AppCacheSummaryHolder(View view) {
+            super(view);
+            mTotal = view.findViewById(R.id.total_value);
+            view.findViewById(R.id.clear_app_cache).setOnClickListener((View v) -> {
+                new AlertDialog.Builder(v.getContext())
+                        .setTitle(R.string.pref_storage_clear_app_cache)
+                        .setMessage(R.string.pref_storage_clear_app_cache_confirm)
+                        .setPositiveButton(R.string.action_delete, (DialogInterface di, int i) -> {
+                            File cacheDir = v.getContext().getCacheDir();
+                            if (cacheDir != null)
+                                deleteRecursive(cacheDir);
+                            refreshServerLogs(v.getContext().getApplicationContext());
+                        })
+                        .setNegativeButton(R.string.action_cancel, null)
+                        .show();
+            });
+        }
+
+        public void bind() {
+            mTotal.setText(formatFileSize(mCacheSize));
+        }
+
+        private void deleteRecursive(File file) {
+            if (file.isDirectory()) {
+                File[] files = file.listFiles();
+                if (files != null) {
+                    for (File subfile : files)
+                        deleteRecursive(subfile);
+                }
+            }
+            if (!file.delete()) {
+                Log.w("StorageSettingsAdapter", "Failed to delete file: " + file.getAbsolutePath());
+            }
+        }
+
+    }
+
+    private void executeRemoveTask(Context context, boolean deleteConfig, UUID deleteOnlyServerLogs) {
+        if (mCurrentRemoveTask != null)
+            return;
+        mCurrentRemoveTask = new RemoveDataTask(context, deleteConfig, deleteOnlyServerLogs, this);
+        mExecutor.execute(mCurrentRemoveTask);
+    }
+
+    private class SpaceCalculateTask implements Runnable {
+
+        private final WeakReference<StorageSettingsAdapter> mAdapterRef;
+        private final ServerConfigManager mServerManager;
+        private final File mDataDir;
+        private final File mCacheDir;
 
         public SpaceCalculateTask(Context context, StorageSettingsAdapter adapter) {
             mServerManager = ServerConfigManager.getInstance(context);
             mDataDir = new File(context.getApplicationInfo().dataDir);
-            mAdapter = new WeakReference<>(adapter);
+            mCacheDir = context.getCacheDir();
+            mAdapterRef = new WeakReference<>(adapter);
         }
 
         @Override
-        protected Void doInBackground(Void... voids) {
-            long dataBlockSize = getBlockSize(mDataDir);
-            long dataSize = 0L;
-            for (File file : mDataDir.listFiles()) {
-                if (file.getName().equals("cache") || file.getName().equals("lib"))
-                    continue;
-                dataSize += calculateDirectorySize(file, dataBlockSize);
+        public void run() {
+            final long dataBlockSize = getBlockSize(mDataDir);
+            final long[] dataSize = {0L};
+            File[] dataFiles = mDataDir.listFiles();
+            if (dataFiles != null) {
+                for (File file : dataFiles) {
+                    if (file.getName().equals("cache") || file.getName().equals("lib"))
+                        continue;
+                    dataSize[0] += calculateDirectorySize(file, dataBlockSize);
+                }
             }
-            publishProgress(dataSize);
+            final long cacheSize = calculateDirectorySize(mCacheDir, dataBlockSize);
+
+            // Post results to UI thread
+            mMainHandler.post(() -> {
+                StorageSettingsAdapter adapter = mAdapterRef.get();
+                if (adapter != null) {
+                    adapter.mAppDataSize = dataSize[0];
+                    adapter.mCacheSize = cacheSize;
+                    adapter.notifyDataSetChanged();
+                }
+            });
+
             List<File> processedDirs = new ArrayList<>();
             for (ServerConfigData data : mServerManager.getServers()) {
-                if (mAdapter.get() == null)
-                    return null;
+                StorageSettingsAdapter adapter = mAdapterRef.get();
+                if (adapter == null)
+                    return;
                 File file = mServerManager.getServerChatLogDir(data.uuid);
                 processedDirs.add(file);
                 if (!file.exists())
                     continue;
-                long size = calculateDirectorySize(file, getBlockSize(file));
+                long size = calculateChatLogDirectorySize(file, getBlockSize(file));
                 if (size == 0L)
                     continue;
-                publishProgress(new ServerLogsEntry(data.name, data.uuid, size));
-            }
-            File[] files = mServerManager.getChatLogDir().listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (processedDirs.contains(file))
-                        continue;
-                    long size = calculateDirectorySize(file, getBlockSize(file));
-                    if (size == 0L)
-                        continue;
-                    UUID uuid = null;
-                    try {
-                        uuid = UUID.fromString(file.getName());
-                    } catch (IllegalArgumentException ignored) {
+                final ServerLogsEntry entry = new ServerLogsEntry(data.name, data.uuid, size);
+
+                mMainHandler.post(() -> {
+                    StorageSettingsAdapter a = mAdapterRef.get();
+                    if (a != null) {
+                        a.addEntry(entry);
                     }
-                    publishProgress(new ServerLogsEntry(file.getName(), uuid, size));
+                });
+            }
+            File chatLogDir = mServerManager.getChatLogDir();
+            if (chatLogDir != null && chatLogDir.exists()) {
+                File[] files = chatLogDir.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (processedDirs.contains(file))
+                            continue;
+                        long size = calculateChatLogDirectorySize(file, getBlockSize(file));
+                        if (size == 0L)
+                            continue;
+                        UUID fileUuid = null;
+                        try {
+                            fileUuid = UUID.fromString(file.getName());
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                        final UUID finalFileUuid = fileUuid;
+                        final ServerLogsEntry entry = new ServerLogsEntry(file.getName(), finalFileUuid, size);
+
+                        mMainHandler.post(() -> {
+                            StorageSettingsAdapter a = mAdapterRef.get();
+                            if (a != null) {
+                                a.addEntry(entry);
+                            }
+                        });
+                    }
                 }
             }
-            return null;
-        }
 
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            StorageSettingsAdapter adapter = mAdapter.get();
-            if (adapter != null)
-                adapter.mAsyncTask = null;
+            // Clear current task reference
+            mMainHandler.post(() -> {
+                StorageSettingsAdapter adapter = mAdapterRef.get();
+                if (adapter != null) {
+                    adapter.mCurrentSpaceTask = null;
+                }
+            });
         }
 
         private long getBlockSize(File file) {
-            if (mStatFs != null)
-                mStatFs.restat(file.getAbsolutePath());
-            else
-                mStatFs = new StatFs(file.getAbsolutePath());
-            if (Build.VERSION.SDK_INT >= 18)
-                return mStatFs.getBlockSizeLong();
-            else
-                return mStatFs.getBlockSize();
+            if (file == null || !file.exists())
+                return 4096L;
+            try {
+                StatFs statFs = new StatFs(file.getAbsolutePath());
+                return statFs.getBlockSizeLong();
+            } catch (Exception e) {
+                return 4096L;
+            }
         }
 
         private long calculateDirectorySize(File file, long blockSize) {
+            if (file == null || !file.exists())
+                return 0L;
             File[] files = file.listFiles();
             if (files == null)
-                return 0L;
+                return blockSize;
             long ret = blockSize;
             for (File subfile : files) {
                 if (subfile.isDirectory())
@@ -387,34 +502,43 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
             return ret;
         }
 
-        @Override
-        protected void onProgressUpdate(Object... values) {
-            StorageSettingsAdapter adapter = mAdapter.get();
-            if (adapter == null)
-                return;
-            for (Object value : values) {
-                if (value instanceof ServerLogsEntry) {
-                    adapter.addEntry((ServerLogsEntry) value);
-                } else if (value instanceof Long) {
-                    adapter.mConfigurationSize = (Long) value;
-                    adapter.notifyItemChanged(adapter.getItemCount() - 1);
+        private long calculateChatLogDirectorySize(File file, long blockSize) {
+            if (file == null || !file.exists())
+                return 0L;
+            if (!file.isDirectory()) {
+                if (file.getName().startsWith("messages-"))
+                    return (file.length() + blockSize - 1) / blockSize * blockSize;
+                return 0L;
+            }
+            File[] files = file.listFiles();
+            if (files == null)
+                return 0L;
+            long ret = 0L;
+            for (File subfile : files) {
+                if (subfile.isDirectory()) {
+                    ret += calculateChatLogDirectorySize(subfile, blockSize);
+                } else if (subfile.getName().startsWith("messages-")) {
+                    ret += (subfile.length() + blockSize - 1) / blockSize * blockSize;
                 }
             }
+            return ret;
         }
-
     }
 
-    private class RemoveDataTask extends AsyncTask<Void, Void, Void> {
+    private class RemoveDataTask implements Runnable {
 
-        private Context mContext;
-        private AlertDialog mAlertDialog;
-        private boolean mDeleteConfig;
-        private UUID mDeleteServerLogs;
+        private final Context mContext;
+        private final AlertDialog mAlertDialog;
+        private final boolean mDeleteConfig;
+        private final UUID mDeleteServerLogs;
+        private final WeakReference<StorageSettingsAdapter> mAdapterRef;
 
-        public RemoveDataTask(Context context, boolean deleteConfig, UUID deleteOnlyServerLogs) {
+        public RemoveDataTask(Context context, boolean deleteConfig, UUID deleteOnlyServerLogs,
+                              StorageSettingsAdapter adapter) {
             mContext = context;
             mDeleteConfig = deleteConfig;
             mDeleteServerLogs = deleteOnlyServerLogs;
+            mAdapterRef = new WeakReference<>(adapter);
             mAlertDialog = new AlertDialog.Builder(context)
                     .setCancelable(false)
                     .setView(R.layout.dialog_please_wait)
@@ -422,10 +546,10 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
         }
 
         @Override
-        protected Void doInBackground(Void... voids) {
+        public void run() {
             Context ctx = mContext;
             if (mDeleteConfig) {
-                ServerConnectionManager mgr = ServerConnectionManager.getInstance(null);
+                ServerConnectionManager mgr = ServerConnectionManager.getInstance(ctx);
                 if (mgr != null)
                     mgr.disconnectAndRemoveAllConnections(true);
                 else
@@ -438,57 +562,152 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
                 NotificationCountStorage.getInstance(ctx).close();
 
                 File files = ctx.getFilesDir();
-                for (File file : files.listFiles()) {
-                    if (file.getName().equals("cache") || file.getName().equals("lib"))
-                        continue;
-                    deleteRecursive(file);
+                File[] filesList = files.listFiles();
+                if (filesList != null) {
+                    for (File file : filesList) {
+                        if (file.getName().equals("cache") || file.getName().equals("lib"))
+                            continue;
+                        deleteRecursive(file);
+                    }
                 }
 
                 NotificationCountStorage.getInstance(ctx).open();
             }
-            if (mDeleteServerLogs != null) {
-                deleteChatLogDir(mDeleteServerLogs);
-            } else {
-                File[] logFiles = ServerConfigManager.getInstance(mContext).getChatLogDir().listFiles();
-                if (logFiles == null)
-                    logFiles = new File[0];
-                for (File file : logFiles) {
-                    try {
-                        deleteChatLogDir(UUID.fromString(file.getName()));
-                    } catch (IllegalArgumentException ignored) {
-                        deleteRecursive(file);
+            try {
+                if (mDeleteServerLogs != null) {
+                    deleteChatLogDir(mDeleteServerLogs);
+                } else {
+                    java.util.Set<UUID> uuidsToDelete = new java.util.HashSet<>();
+                    File chatLogDir = ServerConfigManager.getInstance(mContext).getChatLogDir();
+                    File[] logFiles = chatLogDir != null ? chatLogDir.listFiles() : null;
+                    if (logFiles != null) {
+                        for (File file : logFiles) {
+                            try {
+                                uuidsToDelete.add(UUID.fromString(file.getName()));
+                            } catch (IllegalArgumentException ignored) {
+                                deleteChatLogsInDirectory(file);
+                            }
+                        }
+                    }
+                    ServerConnectionManager connectionManager = ServerConnectionManager.getInstance(mContext);
+                    if (connectionManager != null) {
+                        for (ServerConnectionInfo conn : connectionManager.getConnections()) {
+                            uuidsToDelete.add(conn.getUUID());
+                        }
+                    }
+                    for (UUID uuid : uuidsToDelete) {
+                        try {
+                            deleteChatLogDir(uuid);
+                        } catch (Exception e) {
+                            Log.e("StorageSettingsAdapter", "Failed to delete chat log dir for uuid: " + uuid, e);
+                        }
                     }
                 }
+            } catch (Exception e) {
+                Log.e("StorageSettingsAdapter", "Failed in RemoveDataTask", e);
             }
 
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            mAlertDialog.dismiss();
-            refreshServerLogs(mContext);
+            // Dismiss dialog and refresh on UI thread
+            mMainHandler.post(() -> {
+                try {
+                    mAlertDialog.dismiss();
+                } catch (Exception ignored) {
+                }
+                StorageSettingsAdapter adapter = mAdapterRef.get();
+                if (adapter != null) {
+                    adapter.mCurrentRemoveTask = null;
+                    adapter.refreshServerLogs(mContext.getApplicationContext());
+                }
+            });
         }
 
         private void deleteChatLogDir(UUID uuid) {
-            ServerConnectionManager connectionManager = ServerConnectionManager.getInstance(null);
-            if (connectionManager != null)
-                connectionManager.killDisconnectingConnection(uuid);
-            ServerConnectionInfo connection = connectionManager != null ? connectionManager.getConnection(uuid) : null;
-            SQLiteMessageStorageApi storageApi = null;
-            if (connection != null && connection.getApiInstance() != null &&
-                    connection.getApiInstance() instanceof ServerConnectionApi &&
-                    connection.getApiInstance().getMessageStorageApi() != null &&
-                    connection.getApiInstance().getMessageStorageApi() instanceof SQLiteMessageStorageApi) {
-                storageApi = (SQLiteMessageStorageApi) connection.getApiInstance().getMessageStorageApi();
-                storageApi.close();
-                ((ServerConnectionApi) connection.getApiInstance()).getServerConnectionData().setMessageStorageApi(new StubMessageStorageApi());
+            try {
+                ServerConnectionManager connectionManager = ServerConnectionManager.getInstance(mContext);
+                if (connectionManager != null)
+                    connectionManager.killDisconnectingConnection(uuid);
+                ServerConnectionInfo connection = connectionManager != null ? connectionManager.getConnection(uuid) : null;
+
+                SQLiteMessageStorageApi oldStorageApi = null;
+                if (connection != null) {
+                    try {
+                        synchronized (connection.getLock()) {
+                            Object api = connection.getApiInstance();
+                            if (api instanceof ServerConnectionApi) {
+                                ServerConnectionData connectionData = ((ServerConnectionApi) api).getServerConnectionData();
+                                if (connectionData.getMessageStorageApi() instanceof SQLiteMessageStorageApi) {
+                                    oldStorageApi = (SQLiteMessageStorageApi) connectionData.getMessageStorageApi();
+                                    connectionData.setMessageStorageApi(new StubMessageStorageApi());
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e("StorageSettingsAdapter", "Error stubbing storage API", e);
+                    }
+                }
+
+                if (oldStorageApi != null) {
+                    try {
+                        oldStorageApi.close();
+                    } catch (Exception e) {
+                        Log.e("StorageSettingsAdapter", "Error closing old storage API for server " + uuid, e);
+                    }
+                }
+
+                File file = ServerConfigManager.getInstance(mContext).getServerChatLogDir(uuid);
+                deleteChatLogsInDirectory(file);
+
+                if (connection != null) {
+                    try {
+                        synchronized (connection.getLock()) {
+                            Object api = connection.getApiInstance();
+                            if (api instanceof ServerConnectionApi) {
+                                file.mkdirs();
+                                SQLiteMessageStorageApi newStorageApi = new SQLiteMessageStorageApi(file);
+                                try {
+                                    newStorageApi.open();
+                                } catch (Exception e) {
+                                    Log.e("StorageSettingsAdapter", "Failed to reopen storage API for server " + uuid, e);
+                                }
+                                ServerConnectionData connectionData = ((ServerConnectionApi) api).getServerConnectionData();
+                                connectionData.setMessageStorageApi(newStorageApi);
+                            }
+                        }
+                        IRCService.onStorageApiChanged(connection);
+                    } catch (Exception e) {
+                        Log.e("StorageSettingsAdapter", "Error restoring new storage API", e);
+                    }
+                }
+                ChatLogStorageManager.getInstance(mContext).requestUpdate(uuid);
+            } catch (Exception e) {
+                Log.e("StorageSettingsAdapter", "Error in deleteChatLogDir for uuid " + uuid, e);
             }
-            File file = ServerConfigManager.getInstance(mContext).getServerChatLogDir(uuid);
-            deleteRecursive(file);
-            if (storageApi != null) {
-                storageApi.open();
-                ((ServerConnectionApi) connection.getApiInstance()).getServerConnectionData().setMessageStorageApi(storageApi);
+        }
+
+        private void deleteChatLogsInDirectory(File dir) {
+            if (dir == null || !dir.exists())
+                return;
+            if (dir.isDirectory()) {
+                File[] files = dir.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file.isDirectory()) {
+                            deleteChatLogsInDirectory(file);
+                        } else if (file.getName().startsWith("messages-")) {
+                            if (file.getName().endsWith(".db")) {
+                                SettingsHelper.deleteSQLiteDatabase(file);
+                            } else if (file.exists()) {
+                                file.delete();
+                            }
+                        }
+                    }
+                }
+            } else if (dir.getName().startsWith("messages-")) {
+                if (dir.getName().endsWith(".db")) {
+                    SettingsHelper.deleteSQLiteDatabase(dir);
+                } else if (dir.exists()) {
+                    dir.delete();
+                }
             }
         }
 
@@ -500,16 +719,71 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter {
                         deleteRecursive(subfile);
                 }
             }
-            file.delete();
+            if (!file.delete()) {
+                Log.w("StorageSettingsAdapter", "Failed to delete file: " + file.getAbsolutePath());
+            }
         }
+    }
 
+    public static void clearAllAppData(Context context) {
+        final ExecutorService executor = new PoolSerialExecutor();
+        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        executor.execute(() -> {
+            try {
+                Context ctx = context;
+                ServerConnectionManager mgr = ServerConnectionManager.getInstance(ctx);
+                if (mgr != null)
+                    mgr.disconnectAndRemoveAllConnections(true);
+                else
+                    new File(ctx.getFilesDir(),
+                            ServerConnectionManager.CONNECTED_SERVERS_FILE_PATH).delete();
+                ServerConfigManager.getInstance(ctx).deleteAllServers(true);
+                NotificationRuleManager.getUserRules(ctx).clear();
+                CommandAliasManager.getInstance(ctx).getUserAliases().clear();
+                SettingsHelper.getInstance(ctx).clear();
+                NotificationCountStorage.getInstance(ctx).close();
+
+                File files = ctx.getFilesDir();
+                File[] filesList = files.listFiles();
+                if (filesList != null) {
+                    for (File file : filesList) {
+                        if (file.getName().equals("cache") || file.getName().equals("lib"))
+                            continue;
+                        deleteRecursive(file);
+                    }
+                }
+
+                NotificationCountStorage.getInstance(ctx).open();
+            } finally {
+                latch.countDown();
+            }
+        });
+        try {
+            latch.await(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    private static void deleteRecursive(File file) {
+        if (file.isDirectory()) {
+            File[] files = file.listFiles();
+            if (files != null) {
+                for (File subfile : files)
+                    deleteRecursive(subfile);
+            }
+        }
+        if (!file.delete()) {
+            Log.w("StorageSettingsAdapter", "Failed to delete file: " + file.getAbsolutePath());
+        }
     }
 
     private static String formatFileSize(long size) {
         if (size / 1024L >= 128)
-            return String.format("%.2f MB", size / 1024.0 / 1024.0);
+            return String.format(Locale.US, "%.2f MB", size / 1024.0 / 1024.0);
         else
-            return String.format("%.2f KB", size / 1024.0);
+            return String.format(Locale.US, "%.2f KB", size / 1024.0);
     }
-
 }

@@ -9,7 +9,9 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import io.mrarm.irc.BuildConfig;
@@ -41,11 +43,14 @@ public class SSDPDiscovery {
     }
 
     public void close() {
-        mDiscoverySocket.close();
+        if (mDiscoverySocket != null)
+            mDiscoverySocket.close();
     }
 
     public void sendSearch(String deviceType, int waitSeconds) throws IOException {
-        byte[] request = buildSearchRequest(deviceType, waitSeconds).getBytes("UTF-8");
+        if (mDiscoverySocket == null)
+            return;
+        byte[] request = buildSearchRequest(deviceType, waitSeconds).getBytes(StandardCharsets.UTF_8);
         mDiscoverySocket.send(new DatagramPacket(request, request.length, BROADCAST_ADDR));
     }
 
@@ -53,25 +58,28 @@ public class SSDPDiscovery {
         if (waitSeconds < 0)
             mReceiveTimeout = -1;
         else
-            mReceiveTimeout = System.currentTimeMillis() + waitSeconds * 1000;
+            mReceiveTimeout = System.currentTimeMillis() + waitSeconds * 1000L;
     }
 
     public Response receive() throws IOException {
+        if (mDiscoverySocket == null)
+            return null;
         int timeout = 0;
         if (mReceiveTimeout > 0)
             timeout = Math.max((int) (mReceiveTimeout - System.currentTimeMillis()), 1);
         mDiscoverySocket.setSoTimeout(timeout);
         try {
+            mReceivePacket.setLength(mReceiveBuffer.length);
             mDiscoverySocket.receive(mReceivePacket);
         } catch (SocketTimeoutException ignored) {
             return null;
         }
-        String decoded = new String(mReceiveBuffer, "UTF-8");
+        String decoded = new String(mReceiveBuffer, 0, mReceivePacket.getLength(), StandardCharsets.UTF_8);
         if (!decoded.startsWith("HTTP/1.1 200 OK\r\n")) {
             Log.w("SSDP", "Invalid response");
             return null;
         }
-        int i = 19;
+        int i = 17;
         Map<String, String> headers = new HashMap<>();
         while (true) {
             int j = decoded.indexOf("\r\n", i);
@@ -80,7 +88,7 @@ public class SSDPDiscovery {
             String ent = decoded.substring(i, j);
             int s = ent.indexOf(": ");
             if (s != -1) {
-                headers.put(ent.substring(0, s).toUpperCase(), ent.substring(s + 2));
+                headers.put(ent.substring(0, s).toUpperCase(Locale.US), ent.substring(s + 2));
             }
             i = j + 2;
         }

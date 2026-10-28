@@ -6,11 +6,15 @@ import android.os.Bundle;
 import androidx.annotation.Nullable;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import androidx.fragment.app.Fragment;
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.graphics.Insets;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -18,6 +22,7 @@ import android.view.ViewGroup;
 import io.mrarm.irc.config.ServerConfigData;
 import io.mrarm.irc.config.ServerConfigManager;
 import io.mrarm.irc.dialog.MenuBottomSheetDialog;
+import io.mrarm.irc.util.StyledAttributesHelper;
 
 public class ServerListFragment extends Fragment {
 
@@ -32,7 +37,24 @@ public class ServerListFragment extends Fragment {
         View rootView = inflater.inflate(R.layout.server_list_fragment, container, false);
 
         Toolbar toolbar = rootView.findViewById(R.id.toolbar);
+        ViewCompat.setOnApplyWindowInsetsListener(toolbar, (v, windowInsets) -> {
+            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(0, insets.top, 0, 0);
+            ViewGroup.LayoutParams params = v.getLayoutParams();
+            StyledAttributesHelper ta = StyledAttributesHelper.obtainStyledAttributes(getContext(),
+                    new int[] { R.attr.actionBarSize });
+            int actionBarSize = ta.getDimensionPixelSize(R.attr.actionBarSize, 0);
+            ta.recycle();
+            params.height = actionBarSize + insets.top;
+            v.setLayoutParams(params);
+            return windowInsets;
+        });
         ((AppCompatActivity) getActivity()).setSupportActionBar(toolbar);
+        ActionBar actionBar = ((AppCompatActivity) getActivity()).getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setTitle(R.string.app_name);
+            actionBar.setDisplayHomeAsUpEnabled(true);
+        }
 
         ((MainActivity) getActivity()).addActionBarDrawerToggle(toolbar);
 

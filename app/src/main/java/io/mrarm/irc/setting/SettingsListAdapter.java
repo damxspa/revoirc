@@ -15,7 +15,7 @@ public class SettingsListAdapter extends EntryRecyclerViewAdapter {
 
     private Activity mActivity;
     private Fragment mFragment;
-    private SimpleCounter mRequestCodeCounter;
+    private SimpleCounter mRequestCodeCounter = new SimpleCounter(100);
 
     public SettingsListAdapter(Activity activity) {
         mActivity = activity;

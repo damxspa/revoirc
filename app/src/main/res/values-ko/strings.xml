@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RevoIRC</string>
+    <string name="navigation_drawer_open">내비게이션 서랍 열기</string>
+    <string name="navigation_drawer_close">내비게이션 서랍 닫기</string>
+    <string name="tab_server">서버</string>
+    <string name="message_hint">메시지 보내기</string>
+    <string name="message_disconnected">연결 끊김</string>
+    <string name="message_join" formatted="false">%s 님이 참여했습니다</string>
+    <string name="message_kick" formatted="false">%s 님이 %s 님을 강퇴했습니다 (%s)</string>
+    <string name="message_part" formatted="false">%s 님이 나갔습니다 (%s)</string>
+    <string name="message_part_no_message" formatted="false">%s 님이 나갔습니다</string>
+    <string name="message_quit" formatted="false">%s 님이 연결을 끊었습니다 (%s)</string>
+    <string name="message_nick_change" formatted="false">%s 님이 %s 님으로 별명을 변경했습니다</string>
+    <string name="message_topic" formatted="false">주제: %s</string>
+    <string name="message_topic_whotime" formatted="false">주제는 %s 님이 %s 에 설정했습니다</string>
+    <string name="message_topic_by" formatted="false">주제: %s (%s 님 설정)</string>
+    <string name="message_topic_none" formatted="false">설정된 주제가 없습니다</string>
+    <string name="action_ok">확인</string>
+    <string name="action_done">완료</string>
+    <string name="action_cancel">취소</string>
+    <string name="action_settings">설정</string>
+    <string name="action_connect">연결</string>
+    <string name="action_disconnect">연결 끊기</string>
+    <string name="action_clear_history">기록 지우기</string>
+    <string name="notification_vibration">진동</string>
+    <string name="notification_vibration_duration_hint">진동 지속 시간 (ms)</string>
+    <string name="notification_vibration_test">테스트</string>
+    <string name="notification_priority">우선순위</string>
+    <string name="notification_color">LED 색상</string>
+    <string name="notification_light_on_duration">조명 켜짐 시간 (ms)</string>
+    <string name="notification_light_off_duration">조명 꺼짐 시간 (ms)</string>
+    <string name="notification_android_settings_link">더 많은 설정…</string>
+
+    <string-array name="notification_vibration_options">
+        <item>짧게</item>
+        <item>길게</item>
+        <item>사용자 정의</item>
+        <item>사용 안 함</item>
+    </string-array>
+    <string name="pref_header_language">언어</string>
+    <string name="action_reset">초기화</string>
+
+    <string name="pref_storage_export_logs_txt">채팅 로그를 TXT로 내보내기</string>
+    <string name="pref_storage_export_logs_html">채팅 로그를 HTML로 내보내기</string>
+
+    <string name="chat_export_file_name">revoirc-chat-export.zip</string>
+    <string name="chat_export_progress">채팅 로그 내보내는 중…</string>
+    <string name="chat_export_success">채팅 로그를 성공적으로 내보냈습니다</string>
+    <string name="chat_export_error">채팅 로그 내보내기 오류</string>
+    <string name="export_completed">내보내기 완료: %s</string>
+    <string name="export_failed">내보내기 실패: %s</string>
+    <string name="action_export_logs_txt">로그 내보내기 (TXT)</string>
+    <string name="action_export_logs_html">로그 내보내기 (HTML)</string>
+    <string name="action_export_logs">로그 내보내기</string>
+    <string name="action_check_connection">연결 확인</string>
+    <string name="action_view_avatar">아바타 보기</string>
+    <string name="user_connected">연결됨</string>
+    <string name="user_disconnected">연결 끊김</string>
+    <string name="action_mark_as_read">읽음으로 표시</string>
+    <string name="action_join_channel">채널 참여</string>
+
+    <string name="pref_title_close_private_quit">사용자 퇴장 시 귓속말 자동 닫기</string>
+</resources>

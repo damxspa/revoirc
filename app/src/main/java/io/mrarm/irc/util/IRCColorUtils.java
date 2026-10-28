@@ -12,6 +12,7 @@ import android.text.style.BackgroundColorSpan;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
 import android.text.style.UnderlineSpan;
+import android.util.Log;
 import android.util.TypedValue;
 
 import java.util.Arrays;
@@ -27,7 +28,7 @@ public class IRCColorUtils {
     public static final int COLOR_MEMBER_VOICE = R.styleable.IRCColors_colorMemberVoice;
     public static final int COLOR_MEMBER_NORMAL = R.styleable.IRCColors_colorMemberNormal;
 
-    private static int[] COLOR_IDS = new int[] {
+    private static final int[] COLOR_IDS = new int[] {
             R.styleable.IRCColors_colorWhite,
             R.styleable.IRCColors_colorBlack,
             R.styleable.IRCColors_colorBlue,
@@ -46,26 +47,29 @@ public class IRCColorUtils {
             R.styleable.IRCColors_colorLightGray
     };
 
-    private static int[] NICK_COLORS = new int[] { 3, 4, 7, 8, 9, 10, 11, 12, 13 };
+    private static final int[] NICK_COLORS = new int[] { 3, 4, 7, 8, 9, 10, 11, 12, 13 };
 
     private static int[] sColorValues = null;
 
-    public static void loadColors(Resources.Theme theme, int resId) {
-        TypedArray ta = theme.obtainStyledAttributes(resId, R.styleable.IRCColors);
-        sColorValues = new int[R.styleable.IRCColors.length];
-        for (int i = 0; i < sColorValues.length; i++) {
-            try {
-                int j = i;
-                TypedValue tv;
-                while ((tv = ta.peekValue(j)) != null && tv.type == TypedValue.TYPE_ATTRIBUTE)
-                    j = Arrays.binarySearch(R.styleable.IRCColors, tv.data);
-                sColorValues[i] = ta.getColor(j, Color.RED);
-            } catch (UnsupportedOperationException e) {
-                e.printStackTrace();
-                sColorValues[i] = Color.RED;
+    public static synchronized void loadColors(Resources.Theme theme, int resId) {
+        if (sColorValues != null)
+            return;
+        try (TypedArray ta = theme.obtainStyledAttributes(resId, R.styleable.IRCColors)) {
+            int[] values = new int[R.styleable.IRCColors.length];
+            for (int i = 0; i < values.length; i++) {
+                try {
+                    int j = i;
+                    TypedValue tv;
+                    while ((tv = ta.peekValue(j)) != null && tv.type == TypedValue.TYPE_ATTRIBUTE)
+                        j = Arrays.binarySearch(R.styleable.IRCColors, tv.data);
+                    values[i] = ta.getColor(j, Color.RED);
+                } catch (UnsupportedOperationException e) {
+                    Log.e("IRCColorUtils", "Failed to get color from theme", e);
+                    values[i] = Color.RED;
+                }
             }
+            sColorValues = values;
         }
-        ta.recycle();
     }
 
     private static void loadColors(Context context) {
@@ -106,7 +110,7 @@ public class IRCColorUtils {
         int sum = 0;
         for (int i = 0; i < nick.length(); i++)
             sum += nick.charAt(i);
-        return getIrcColor(context, NICK_COLORS[sum % NICK_COLORS.length]);
+        return getIrcColor(context, NICK_COLORS[Math.abs(sum % NICK_COLORS.length)]);
     }
 
     public static int findNearestIRCColor(Context context, int color) {
@@ -196,14 +200,14 @@ public class IRCColorUtils {
                         builder.endSpans(BackgroundColorSpan.class);
                         continue;
                     }
-                    if (((fg < 0 || fg >= COLOR_IDS.length) && fg != 99))
+                    if ((fg >= COLOR_IDS.length && fg != 99))
                         throw new RuntimeException("Invalid formatting");
 
                     builder.endSpans(ForegroundColorSpan.class);
                     if (fg != 99)
                         builder.setSpan(new ForegroundColorSpan(getIrcColor(context, fg)));
 
-                    if (string.charAt(i) != ',')
+                    if (i >= string.length() || string.charAt(i) != ',')
                         break;
                     i++;
                     bg = 0;

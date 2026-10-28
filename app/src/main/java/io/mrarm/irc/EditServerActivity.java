@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import io.mrarm.irc.config.ServerCertificateManager;
@@ -64,7 +65,7 @@ import io.mrarm.irc.view.ChipsEditText;
 
 public class EditServerActivity extends ThemedActivity {
 
-    private static String TAG = "EditServerActivity";
+    private static final String TAG = "EditServerActivity";
 
     public static final String RESULT_ACTION = "io.mrarm.irc.EDIT_SERVER_RESULT_ACTION";
 
@@ -85,7 +86,6 @@ public class EditServerActivity extends ThemedActivity {
     private EditText mServerPort;
     private TextInputLayout mServerPortCtr;
     private CheckBox mServerSSL;
-    private View mServerSSLCertsButton;
     private TextView mServerSSLCertsLbl;
     private ResettablePasswordHelper mServerPass;
     private Spinner mServerAuthMode;
@@ -103,6 +103,7 @@ public class EditServerActivity extends ThemedActivity {
     private ChipsEditText mServerChannels;
     private CheckBox mServerRejoinChannels;
     private AutoRunCommandListEditText mServerCommands;
+    private EditText mServerAvatarUrl;
     private Spinner mServerEncoding;
 
     private View mServerUserExpandIcon;
@@ -137,7 +138,9 @@ public class EditServerActivity extends ThemedActivity {
             mEditServer = ServerConfigManager.getInstance(this).findServer(UUID.fromString(uuidString));
 
         setContentView(R.layout.activity_edit_server);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
         mServerName = findViewById(R.id.server_name);
         mServerNameCtr = findViewById(R.id.server_name_ctr);
@@ -146,7 +149,7 @@ public class EditServerActivity extends ThemedActivity {
         mServerPort = findViewById(R.id.server_address_port);
         mServerPortCtr = findViewById(R.id.server_address_port_ctr);
         mServerSSL = findViewById(R.id.server_ssl_checkbox);
-        mServerSSLCertsButton = findViewById(R.id.server_ssl_certs);
+        View serverSSLCertsButton = findViewById(R.id.server_ssl_certs);
         mServerSSLCertsLbl = findViewById(R.id.server_ssl_cert_lbl);
         mServerPass = new ResettablePasswordHelper(
                 findViewById(R.id.server_password_ctr),
@@ -170,6 +173,7 @@ public class EditServerActivity extends ThemedActivity {
         mServerChannels = findViewById(R.id.server_channels);
         mServerRejoinChannels = findViewById(R.id.server_rejoin_channels);
         mServerCommands = findViewById(R.id.server_commands);
+        mServerAvatarUrl = findViewById(R.id.server_avatar_url);
         mServerEncoding = findViewById(R.id.server_encoding);
 
         mServerUserExpandIcon = findViewById(R.id.server_user_expand);
@@ -183,7 +187,7 @@ public class EditServerActivity extends ThemedActivity {
         mServerAddress.addTextChangedListener(new SimpleTextWatcher((Editable s) -> mServerAddressCtr.setErrorEnabled(false)));
         mServerPort.addTextChangedListener(new SimpleTextWatcher((Editable s) -> mServerPortCtr.setErrorEnabled(false)));
 
-        mServerSSLCertsButton.setOnClickListener((View v) -> {
+        serverSSLCertsButton.setOnClickListener((View v) -> {
             Intent intent = new Intent(EditServerActivity.this, CertificateManagerActivity.class);
             intent.putExtra(CertificateManagerActivity.ARG_SERVER_UUID, mEditServer.uuid.toString());
             startActivity(intent);
@@ -227,7 +231,8 @@ public class EditServerActivity extends ThemedActivity {
             try {
                 generateCert();
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                Log.e(TAG, "Failed to generate certificate", e);
+                Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -240,7 +245,7 @@ public class EditServerActivity extends ThemedActivity {
 
         mServerPort.setText(String.valueOf(getDefaultPort(mServerSSL.isEnabled())));
         mServerSSL.setOnCheckedChangeListener((CompoundButton buttonView, boolean isChecked) -> {
-            if (String.valueOf(getDefaultPort(!isChecked)).equals(mServerPort.getText().toString()))
+            if (Objects.equals(String.valueOf(getDefaultPort(!isChecked)), mServerPort.getText().toString()))
                 mServerPort.setText(String.valueOf(getDefaultPort(isChecked)));
         });
 
@@ -292,7 +297,7 @@ public class EditServerActivity extends ThemedActivity {
                 ExpandIconStateHelper.setExpanded(mServerUserExpandIcon, true);
             }
             if (mEditServer.execCommandsConnected != null
-                    && mEditServer.execCommandsConnected.size() > 0) {
+                    && !mEditServer.execCommandsConnected.isEmpty()) {
                 StringBuilder b = new StringBuilder();
                 for (String cmd : mEditServer.execCommandsConnected) {
                     if (b.length() > 0)
@@ -301,19 +306,24 @@ public class EditServerActivity extends ThemedActivity {
                 }
                 mServerCommands.setText(b.toString());
             }
+            mServerAvatarUrl.setText(mEditServer.avatarUrl);
             mServerEncoding.setSelection(0);
             for (int i = 0; i < mServerEncodingValues.length; i++) {
-                if (mServerEncodingValues[i].equals(mEditServer.charset))
+                if (Objects.equals(mServerEncodingValues[i], mEditServer.charset))
                     mServerEncoding.setSelection(i);
             }
             if (getIntent().getBooleanExtra(ARG_COPY, false)) {
                 mEditServer = null;
-                getSupportActionBar().setTitle(R.string.add_server);
-                mServerSSLCertsButton.setVisibility(View.GONE);
+                if (getSupportActionBar() != null) {
+                    getSupportActionBar().setTitle(R.string.add_server);
+                }
+                serverSSLCertsButton.setVisibility(View.GONE);
             }
         } else {
-            getSupportActionBar().setTitle(R.string.add_server);
-            mServerSSLCertsButton.setVisibility(View.GONE);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setTitle(R.string.add_server);
+            }
+            serverSSLCertsButton.setVisibility(View.GONE);
 
             String prefillName = getIntent().getStringExtra(ARG_NAME);
             if (prefillName != null)
@@ -341,7 +351,7 @@ public class EditServerActivity extends ThemedActivity {
             succeeded = false;
         }
         for (ServerConfigData data : ServerConfigManager.getInstance(this).getServers()) {
-            if (data != mEditServer && data.name.equals(newServerName)) {
+            if (data != mEditServer && Objects.equals(data.name, newServerName)) {
                 mServerNameCtr.setError(getString(R.string.server_error_name_collision));
                 mServerName.requestFocus();
                 succeeded = false;
@@ -385,7 +395,7 @@ public class EditServerActivity extends ThemedActivity {
         mEditServer.port = Integer.parseInt(mServerPort.getText().toString());
         mEditServer.ssl = mServerSSL.isChecked();
         mEditServer.nicks = Arrays.asList(mServerNick.getItems());
-        if (mEditServer.nicks.size() == 0)
+        if (mEditServer.nicks.isEmpty())
             mEditServer.nicks = null;
         mEditServer.user = nullifyIfEmpty(mServerUser.getText().toString());
         mEditServer.realname = nullifyIfEmpty(mServerRealname.getText().toString());
@@ -416,14 +426,15 @@ public class EditServerActivity extends ThemedActivity {
         }
         mEditServer.autojoinChannels = Arrays.asList(mServerChannels.getItems());
         mEditServer.rejoinChannels = mServerRejoinChannels.isChecked();
-        mEditServer.execCommandsConnected = mServerCommands.getText().length() > 0
+        Editable commandsText = mServerCommands.getText();
+        mEditServer.execCommandsConnected = (commandsText != null && commandsText.length() > 0)
                 ? Arrays.asList(mServerCommands.getTextWithPasswords().split("\n")) : null;
+        mEditServer.avatarUrl = nullifyIfEmpty(mServerAvatarUrl.getText().toString());
         mEditServer.charset = mServerEncodingValues[mServerEncoding.getSelectedItemPosition()];
         try {
             ServerConfigManager.getInstance(this).saveServer(mEditServer);
         } catch (IOException e) {
-            Log.e(TAG, "Failed to save server info");
-            e.printStackTrace();
+            Log.e(TAG, "Failed to save server info", e);
 
             Toast.makeText(this, R.string.server_save_error, Toast.LENGTH_SHORT).show();
             return false;
@@ -481,34 +492,33 @@ public class EditServerActivity extends ThemedActivity {
             X509Certificate cert = null;
             PrivateKey privKey = null;
             int errorResId = -1;
-            try {
-                ParcelFileDescriptor desc = getContentResolver().openFileDescriptor(uri, "r");
+            try (ParcelFileDescriptor desc = getContentResolver().openFileDescriptor(uri, "r")) {
                 if (desc == null)
                     throw new IOException();
-                BufferedReader reader = new BufferedReader(
-                        new FileReader(desc.getFileDescriptor()));
-                List<Object> objects = PEMParser.parse(reader);
-                for (Object o : objects) {
-                    if (o instanceof X509Certificate) {
-                        if (cert != null) {
-                            errorResId = R.string.error_cert_already_present;
-                            break;
+                try (BufferedReader reader = new BufferedReader(new FileReader(desc.getFileDescriptor()))) {
+                    List<Object> objects = PEMParser.parse(reader);
+                    for (Object o : objects) {
+                        if (o instanceof X509Certificate) {
+                            if (cert != null) {
+                                errorResId = R.string.error_cert_already_present;
+                                break;
+                            }
+                            cert = (X509Certificate) o;
                         }
-                        cert = (X509Certificate) o;
-                    }
-                    if (o instanceof PrivateKey) {
-                        if (privKey != null) {
-                            errorResId = R.string.error_privkey_already_present;
-                            break;
+                        if (o instanceof PrivateKey) {
+                            if (privKey != null) {
+                                errorResId = R.string.error_privkey_already_present;
+                                break;
+                            }
+                            privKey = (PrivateKey) o;
                         }
-                        privKey = (PrivateKey) o;
                     }
+                    if (privKey == null || cert == null)
+                        errorResId = R.string.error_cert_or_privkey_missing;
                 }
-                if (privKey == null || cert == null)
-                    errorResId = R.string.error_cert_or_privkey_missing;
             } catch (IOException e) {
                 errorResId = R.string.error_file_open;
-                e.printStackTrace();
+                Log.e(TAG, "Failed to open or parse certificate file", e);
             }
             if (errorResId == -1) {
                 mServerCert = cert;

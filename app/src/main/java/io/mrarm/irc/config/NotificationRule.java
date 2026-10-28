@@ -99,7 +99,7 @@ public class NotificationRule {
         while (matcher.find()) {
             String type = matcher.group(1);
             String replaceWith = "";
-            if (type.equals("nick"))
+            if ("nick".equals(type))
                 replaceWith = conn.getConnection().getUserNick();
             matcher.appendReplacement(buf, Matcher.quoteReplacement(Pattern.quote(replaceWith)));
         }

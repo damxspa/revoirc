@@ -5,7 +5,6 @@ import android.content.Context;
 import android.graphics.Typeface;
 import androidx.annotation.NonNull;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
-import androidx.core.view.MarginLayoutParamsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.ItemTouchHelper;
@@ -19,11 +18,15 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.graphics.Insets;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import java.util.List;
+import java.util.Objects;
 
 import io.mrarm.chatlib.dto.NickWithPrefix;
 import io.mrarm.chatlib.dto.WhoisInfo;
@@ -72,6 +75,11 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
         mFormatBar = rootView.findViewById(R.id.format_bar);
         mFormatBarDivider = rootView.findViewById(R.id.format_bar_divider);
         mSendContainer = rootView.findViewById(R.id.send_container);
+        ViewCompat.setOnApplyWindowInsetsListener(mSendContainer, (v, windowInsets) -> {
+            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(0, 0, 0, insets.bottom);
+            return windowInsets;
+        });
         mSendText = rootView.findViewById(R.id.send_text);
         mSendIcon = rootView.findViewById(R.id.send_button);
         mTabIcon = rootView.findViewById(R.id.tab_button);
@@ -100,7 +108,7 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
         });
 
         ImageViewTintUtils.setTint(mSendIcon, 0x54000000);
-        int accentColor = StyledAttributesHelper.getColor(mContext, R.attr.colorAccent, 0);;
+        int accentColor = StyledAttributesHelper.getColor(mContext, R.attr.colorAccent, 0);
 
         mSendTextMultilineHelper = new AutoMultilineTextListener(mSendText);
         mSendText.addTextChangedListener(mSendTextMultilineHelper);
@@ -137,11 +145,12 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
         mServerMessagesList.setItemAnimator(null);
         ItemTouchHelper itemTouchHelper = new ItemTouchHelper(new MyItemTouchHelperCallback());
         itemTouchHelper.attachToRecyclerView(mServerMessagesList);
-        BottomSheetBehavior.from(mServerMessagesCard).setBottomSheetCallback(mServerMessagesBottomSheetCallback);
+        BottomSheetBehavior<View> behavior = BottomSheetBehavior.from(mServerMessagesCard);
+        behavior.addBottomSheetCallback(mServerMessagesBottomSheetCallback);
         rootView.findViewById(R.id.server_messages_dismiss).setOnTouchListener((View view, MotionEvent motionEvent) -> {
             if (motionEvent.getAction() == MotionEvent.ACTION_DOWN) {
                 mServerMessagesContainer.setVisibility(View.GONE);
-                BottomSheetBehavior.from(mServerMessagesCard).setState(BottomSheetBehavior.STATE_COLLAPSED);
+                behavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
                 mServerMessagesListAdapter.clear();
             }
             return true;
@@ -166,10 +175,10 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
         RelativeLayout.LayoutParams layoutParams = (RelativeLayout.LayoutParams)
                 mSendText.getLayoutParams();
         if (visible) {
-            MarginLayoutParamsCompat.setMarginStart(layoutParams, 0);
+            layoutParams.setMarginStart(0);
             mTabIcon.setVisibility(View.VISIBLE);
         } else {
-            MarginLayoutParamsCompat.setMarginStart(layoutParams, mContext.getResources()
+            layoutParams.setMarginStart(mContext.getResources()
                     .getDimensionPixelSize(R.dimen.message_edit_text_margin_left));
             mTabIcon.setVisibility(View.GONE);
         }
@@ -202,7 +211,9 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
                 .getOrCreateChannelData(name);
         mSendText.setHistory(uiData.getSentMessageHistory());
         mSendText.setText(uiData.getCurrentText());
-        mSendText.setSelection(mSendText.getText().length());
+        Editable text = mSendText.getText();
+        if (text != null)
+            mSendText.setSelection(text.length());
     }
 
     public void setCurrentChannelMembers(List<NickWithPrefix> members) {
@@ -218,8 +229,23 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
         mSendText.setTypeface(typeface);
     }
 
-    public void setMessageText(String text) {
+    public void setMessageText(CharSequence text) {
         mSendText.setText(text);
+    }
+
+    public CharSequence getMessageText() {
+        return mSendText.getText();
+    }
+
+    public void insertText(String text) {
+        Editable editable = mSendText.getText();
+        if (editable != null) {
+            editable.append(text);
+        }
+    }
+
+    public void setSelection(int index) {
+        mSendText.setSelection(index);
     }
 
     public void sendMessage() {
@@ -229,6 +255,12 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
 
     @Override
     public void onMessageSent() {
+        mSendText.setText("");
+    }
+
+    @Override
+    public void onClearHistoryRequested() {
+        mFragment.clearHistory();
         mSendText.setText("");
     }
 
@@ -274,18 +306,20 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
         CommandHandlerList l = connection.getServerConnectionData().getCommandHandlerList();
         if (params[0].equalsIgnoreCase("WHOIS")) {
             l.getHandler(WhoisCommandHandler.class).onRequested(params.length > 1 ? params[1] : null, (WhoisInfo whoisInfo) -> {
-                mFragment.getActivity().runOnUiThread(() -> {
-                    UserBottomSheetDialog dialog = new UserBottomSheetDialog(mContext);
-                    dialog.setConnection(mFragment.getConnectionInfo());
-                    dialog.setData(whoisInfo);
-                    Dialog d = dialog.show();
-                    ((MainActivity) mFragment.getActivity()).setFragmentDialog(d);
-                });
+                if (mFragment.getActivity() != null) {
+                    mFragment.getActivity().runOnUiThread(() -> {
+                        UserBottomSheetDialog dialog = new UserBottomSheetDialog(mContext);
+                        dialog.setConnection(mFragment.getConnectionInfo());
+                        dialog.setData(whoisInfo);
+                        Dialog d = dialog.show();
+                        ((MainActivity) mFragment.getActivity()).setFragmentDialog(d);
+                    });
+                }
             }, (String n, int i, String m) -> {
                 notifyCommandFailed(clientCommand, m);
             });
         } else if (params[0].equalsIgnoreCase("NICK")) {
-            if (params.length > 1 && params[1].equals(connection.getServerConnectionData().getUserNick()))
+            if (params.length > 1 && Objects.equals(params[1], connection.getServerConnectionData().getUserNick()))
                 return;
             l.getHandler(NickCommandHandler.class).onRequested(params.length > 1 ? params[1] : null, null, (String n, int i, String m) -> {
                 notifyCommandFailed(clientCommand, m);
@@ -332,7 +366,9 @@ public class ChatFragmentSendMessageHelper implements SendMessageHelper.Callback
 
     private final ChatServerMessagesAdapter.CommandErrorItem.OnClickListener mCommandErrorClickListener = (ChatServerMessagesAdapter.CommandErrorItem i) -> {
         mSendText.setText(i.getCommand());
-        mSendText.setSelection(i.getCommand().length());
+        Editable text = mSendText.getText();
+        if (text != null)
+            mSendText.setSelection(text.length());
         mServerMessagesListAdapter.removeItem(i);
         if (mServerMessagesListAdapter.getItemCount() == 0)
             mServerMessagesContainer.setVisibility(View.GONE);

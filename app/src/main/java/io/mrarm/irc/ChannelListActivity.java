@@ -1,6 +1,5 @@
 package io.mrarm.irc;
 
-import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import androidx.recyclerview.widget.DividerItemDecoration;
@@ -21,8 +20,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 import io.mrarm.chatlib.dto.ChannelList;
+import io.mrarm.irc.util.PoolSerialExecutor;
 import io.mrarm.irc.view.RecyclerViewScrollbar;
 
 public class ChannelListActivity extends ThemedActivity {
@@ -42,13 +44,15 @@ public class ChannelListActivity extends ThemedActivity {
     private String mFilterQuery;
     private int mSortMode = SORT_NAME;
 
-    private UpdateListAsyncTask mUpdateListAsyncTask;
-
     private List<ChannelList.Entry> mEntries = new ArrayList<>();
     private List<ChannelList.Entry> mFilteredEntries = new ArrayList<>();
 
     private final List<ChannelList.Entry> mAppendEntries = new ArrayList<>();
     private List<ChannelList.Entry> mAssignEntries = new ArrayList<>();
+
+    // Use PoolSerialExecutor for ordered execution like AsyncTask.THREAD_POOL_EXECUTOR
+    private final ExecutorService mExecutor = new PoolSerialExecutor();
+    private UpdateTask mCurrentUpdateTask;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,9 +115,9 @@ public class ChannelListActivity extends ThemedActivity {
     }
 
     private void requestListUpdate() {
-        if (mUpdateListAsyncTask == null) {
-            mUpdateListAsyncTask = new UpdateListAsyncTask(this);
-            mUpdateListAsyncTask.execute();
+        if (mCurrentUpdateTask == null) {
+            mCurrentUpdateTask = new UpdateTask(this);
+            mExecutor.execute(mCurrentUpdateTask);
         }
     }
 
@@ -246,23 +250,27 @@ public class ChannelListActivity extends ThemedActivity {
 
     }
 
-    private static class UpdateListAsyncTask extends AsyncTask<Void, Void, List<ChannelList.Entry>> {
+    private static class UpdateTask implements Runnable {
 
-        private WeakReference<ChannelListActivity> mActivity;
-        private String mStartFilterQuery;
-        private int mStartSortMode;
+        private final WeakReference<ChannelListActivity> mActivityRef;
+        private final String mStartFilterQuery;
+        private final int mStartSortMode;
 
-        public UpdateListAsyncTask(ChannelListActivity activity) {
-            mActivity = new WeakReference<>(activity);
+        public UpdateTask(ChannelListActivity activity) {
+            mActivityRef = new WeakReference<>(activity);
             mStartFilterQuery = activity.mFilterQuery;
             mStartSortMode = activity.mSortMode;
         }
 
         @Override
-        protected List<ChannelList.Entry> doInBackground(Void... voids) {
-            ChannelListActivity activity = mActivity.get();
+        public void run() {
+            ChannelListActivity activity = mActivityRef.get();
             if (activity == null)
-                return null;
+                return;
+
+            List<ChannelList.Entry> entriesToProcess;
+            List<ChannelList.Entry> assignEntries;
+            
             synchronized (activity.mAppendEntries) {
                 activity.mEntries.addAll(activity.mAppendEntries);
                 activity.mAppendEntries.clear();
@@ -270,9 +278,11 @@ public class ChannelListActivity extends ThemedActivity {
                     activity.mEntries = activity.mAssignEntries;
                     activity.mAssignEntries = null;
                 }
+                entriesToProcess = new ArrayList<>(activity.mEntries);
             }
+
             List<ChannelList.Entry> ret = new ArrayList<>();
-            for (ChannelList.Entry entry : activity.mEntries) {
+            for (ChannelList.Entry entry : entriesToProcess) {
                 if (filterEntry(entry, mStartFilterQuery))
                     ret.add(entry);
             }
@@ -283,26 +293,33 @@ public class ChannelListActivity extends ThemedActivity {
                 Collections.sort(ret, (ChannelList.Entry l, ChannelList.Entry r) ->
                         Integer.compare(r.getMemberCount(), l.getMemberCount()));
             }
-            return ret;
-        }
 
-        @Override
-        protected void onPostExecute(List<ChannelList.Entry> ret) {
-            ChannelListActivity activity = mActivity.get();
-            if (activity == null || ret == null)
-                return;
-            activity.mFilteredEntries = ret;
-            activity.mListAdapter.notifyDataSetChanged();
-            activity.mUpdateListAsyncTask = null;
-            if ((mStartFilterQuery != null && !mStartFilterQuery.equals(activity.mFilterQuery)) ||
-                    mStartSortMode != activity.mSortMode) {
-                activity.requestListUpdate();
-            }
-            synchronized (activity.mAppendEntries) {
-                if (activity.mAppendEntries.size() > 0)
-                    activity.requestListUpdate();
-            }
+            final List<ChannelList.Entry> finalResult = ret;
+            activity.runOnUiThread(() -> {
+                ChannelListActivity activity2 = mActivityRef.get();
+                if (activity2 == null || finalResult == null)
+                    return;
+                activity2.mFilteredEntries = finalResult;
+                activity2.mListAdapter.notifyDataSetChanged();
+                activity2.mCurrentUpdateTask = null;
+                
+                // Check if we need to re-run due to filter/sort changes or new entries
+                synchronized (activity2.mAppendEntries) {
+                    boolean needsUpdate = (mStartFilterQuery != null && !mStartFilterQuery.equals(activity2.mFilterQuery)) ||
+                            mStartSortMode != activity2.mSortMode ||
+                            activity2.mAppendEntries.size() > 0;
+                    if (needsUpdate) {
+                        activity2.requestListUpdate();
+                    }
+                }
+            });
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mExecutor.shutdown();
     }
 
 }

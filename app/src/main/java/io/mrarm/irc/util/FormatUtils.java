@@ -5,10 +5,13 @@ public class FormatUtils {
     private static final String[] BYTE_SIZE_SUFFIXES = new String[] { "B", "KB", "MB", "GB" };
 
     public static int getByteFormatUnit(long size) {
-        int i;
-        //noinspection StatementWithEmptyBody
-        for (i = 0; size > 1024 && i < BYTE_SIZE_SUFFIXES.length; i++, size /= 1024);
-        return i;
+        int unit = 0;
+        long s = size;
+        while (s > 1024 && unit < BYTE_SIZE_SUFFIXES.length - 1) {
+            s /= 1024;
+            unit++;
+        }
+        return unit;
     }
 
     public static String formatByteSize(long size, int unit) {

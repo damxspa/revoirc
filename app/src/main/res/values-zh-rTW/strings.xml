@@ -1,0 +1,599 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RevoIRC</string>
+    <string name="navigation_drawer_open">開啟導航欄</string>
+    <string name="navigation_drawer_close">關閉導航欄</string>
+    <string name="tab_server">伺服器</string>
+    <string name="message_hint">發送訊息</string>
+    <string name="message_disconnected">已中斷連線</string>
+    <string name="message_join" formatted="false">%s 已加入</string>
+    <string name="message_kick" formatted="false">%s 已將 %s 踢出 (%s)</string>
+    <string name="message_part" formatted="false">%s 已離開 (%s)</string>
+    <string name="message_part_no_message" formatted="false">%s 已離開</string>
+    <string name="message_quit" formatted="false">%s 已中斷連線 (%s)</string>
+    <string name="message_nick_change" formatted="false">%s 現已更名為 %s</string>
+    <string name="message_topic" formatted="false">主題: %s</string>
+    <string name="message_topic_whotime" formatted="false">主題由 %s 在 %s 設置</string>
+    <string name="message_topic_by" formatted="false">主題: %s，由 %s 設置</string>
+    <string name="message_topic_none">未設置主題</string>
+    <string name="message_host_info" formatted="false">伺服器名稱為 %s，執行於 %s。支援的使用者模式: %s，支援的頻道模式: %s</string>
+    <string name="message_motd">今日訊息 (MOTD)</string>
+    <string name="message_whois">%s 的使用者資訊</string>
+    <string name="message_mode" formatted="false">%s %s</string>
+    <string name="message_mode_set" formatted="false">已設置 %s</string>
+    <string name="message_mode_unset" formatted="false">已取消設置 %s</string>
+    <string name="message_mode_gave" formatted="false">已給予 %s</string>
+    <string name="message_mode_removed" formatted="false">已移除 %s</string>
+    <string name="message_mode_gave_to" formatted="false">%s 給 %s</string>
+    <string name="message_mode_removed_from" formatted="false">%s 從 %s 移除</string>
+    <plurals name="message_mode_channel">
+        <item quantity="one">頻道模式 \'%s\'</item>
+        <item quantity="other">頻道模式 \'%s\'</item>
+    </plurals>
+    <string name="message_mode_channel_value" formatted="false">頻道模式 \'%s\' 給 %s</string>
+    <string name="message_mode_channel_ban" formatted="false">封鎖 %s</string>
+    <string name="message_mode_nick_owner">頻道擁有者狀態</string>
+    <string name="message_mode_nick_admin">頻道管理員狀態</string>
+    <string name="message_mode_nick_op">頻道操作員狀態</string>
+    <string name="message_mode_nick_half_op">頻道半操作員狀態</string>
+    <string name="message_mode_nick_voice">語音</string>
+    <string name="message_ctcp_ping">收到 CTCP ping</string>
+    <string name="message_ctcp_version">收到 CTCP version</string>
+    <string name="command_error_not_found">找不到該指令。</string>
+    <string name="command_error_internal">處理指令時發生內部錯誤。</string>
+    <string name="command_send_raw">以原始格式傳送</string>
+    <string name="channel_topic">主題</string>
+    <string name="channel_topic_info" formatted="false">由 %s 在 %s 設置</string>
+    <string name="channel_topic_none">未設置主題</string>
+    <string name="channel_members">成員</string>
+    <string name="message_sent">訊息已發送</string>
+    <string name="message_share_title">分享聊天訊息</string>
+    <string name="message_new_messages">新訊息</string>
+    <plurals name="unread_message_counter">
+        <item quantity="one">1 則未讀訊息</item>
+        <item quantity="other">%d 則未讀訊息</item>
+    </plurals>
+    <plurals name="message_delete_confirm">
+        <item quantity="one">確定要刪除選取的訊息嗎？</item>
+        <item quantity="other">確定要刪除選取的 %d 則訊息嗎？</item>
+    </plurals>
+    <string name="message_delete_confirm_note">訊息僅會在此裝置上刪除。</string>
+    <string name="action_ok">確定</string>
+    <string name="action_done">完成</string>
+    <string name="action_delete">刪除</string>
+    <string name="action_edit">編輯</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_expand">展開</string>
+    <string name="action_settings">設定</string>
+    <string name="action_connect">連線</string>
+    <string name="action_disconnect">中斷連線</string>
+    <string name="action_reconnect">重新連線</string>
+    <string name="action_open">開啟</string>
+    <string name="action_back">返回</string>
+    <string name="action_close">關閉</string>
+    <string name="action_disconnect_and_close">中斷連線並關閉</string>
+    <string name="action_servers">管理伺服器</string>
+    <string name="action_add_below">在下方新增</string>
+    <string name="action_add_rule">新增規則</string>
+    <string name="action_reorder">重新排序</string>
+    <string name="action_undo">復原</string>
+    <string name="action_copy">複製</string>
+    <string name="action_clone">複製</string>
+    <string name="action_continue">繼續</string>
+    <string name="action_finish">完成</string>
+    <string name="action_search">搜尋</string>
+    <string name="action_search_ellipsis">搜尋…</string>
+    <string name="action_sort">排序</string>
+    <string name="action_sort_none">不排序</string>
+    <string name="action_sort_name">依名稱排序</string>
+    <string name="action_join_channel">加入頻道</string>
+    <string name="action_message_user">發送訊息給使用者</string>
+    <string name="action_check_connection">檢查連線</string>
+    <string name="action_view_avatar">查看頭像</string>
+    <string name="action_part_channel">離開頻道</string>
+    <string name="action_close_direct">關閉對話</string>
+    <string name="action_clear_all">全部清除</string>
+    <string name="action_clear_history">清除歷史紀錄</string>
+    <string name="action_reset">重設</string>
+    <string name="action_exit">退出</string>
+    <string name="action_reply">回覆</string>
+    <string name="action_mark_as_read">標記為已讀</string>
+    <string name="action_share">分享</string>
+    <string name="action_dcc_send">使用 DCC 傳送檔案</string>
+    <string name="action_accept">接受</string>
+    <string name="action_reject">拒絕</string>
+    <string name="action_ask_again">再次詢問</string>
+    <string name="action_rename">重新命名</string>
+    <string name="action_export">匯出</string>
+    <string name="action_export_logs_txt">匯出為 .txt</string>
+    <string name="action_export_logs_html">匯出為 .html</string>
+    <string name="action_export_logs">匯出聊天紀錄</string>
+    <string name="action_import_theme">匯入佈景主題</string>
+    <string name="action_delete_confirm_title">確定嗎？</string>
+    <string name="action_delete_confirm_body" formatted="false">確定要刪除 %s 嗎？此操作無法復原。</string>
+    <string name="format_bold">粗體</string>
+    <string name="format_italic">斜體</string>
+    <string name="format_underline">底線</string>
+    <string name="format_text_color">文字顏色</string>
+    <string name="format_fill_color">背景顏色</string>
+    <string name="format_clear">清除格式</string>
+    <string name="service_title">已連線至 IRC</string>
+    <plurals name="service_status_connected">
+        <item quantity="one">已連線至 %d 個網路</item>
+        <item quantity="other">已連線至 %d 個網路</item>
+    </plurals>
+    <plurals name="service_status_connecting">
+        <item quantity="one">正在連線至 %d 個網路</item>
+        <item quantity="other">正在連線至 %d 個網路</item>
+    </plurals>
+    <plurals name="service_status_disconnected">
+        <item quantity="one">已從 %d 個網路中斷連線</item>
+        <item quantity="other">已從 %d 個網路中斷連線</item>
+    </plurals>
+    <plurals name="notify_multiple_messages">
+        <item quantity="one">%d 則未讀訊息</item>
+        <item quantity="other">%d 則未讀訊息</item>
+    </plurals>
+    <string name="notification_action_required">需要使用者操作</string>
+    <string name="notification_channel_group_system">雜項通知</string>
+    <string name="notification_channel_group_default">預設通知規則</string>
+    <string name="notification_channel_group_user">使用者通知規則</string>
+    <string name="notification_channel_idle">狀態通知</string>
+    <string name="notification_channel_warning">警告通知</string>
+    <string name="connection_error_no_nick">未設定暱稱</string>
+    <string name="connection_error_command_title">處理連線後指令時發生錯誤</string>
+    <string name="connection_error_command_notification_desc">嘗試處理連線後指令時發生內部錯誤。</string>
+    <plurals name="connection_error_command_dialog_content">
+        <item quantity="one">處理網路 \"%s\" 的下列指令時發生錯誤：\n\n%s</item>
+        <item quantity="other">處理網路 \"%s\" 的下列指令時發生錯誤：\n\n%s</item>
+    </plurals>
+    <string name="server_list_header_active">已啟用</string>
+    <string name="server_list_header_inactive">未啟用</string>
+    <plurals name="server_list_connected_channels">
+        <item quantity="one">已連線，%d 個頻道</item>
+        <item quantity="other">已連線，%d 個頻道</item>
+    </plurals>
+    <plurals name="server_list_connected_privates">
+        <item quantity="one">%d 個私訊</item>
+        <item quantity="other">%d 個私訊</item>
+    </plurals>
+    <string name="server_list_connecting">正在連線…</string>
+    <string name="server_list_disconnected">已中斷連線</string>
+    <string name="add_server">新增伺服器</string>
+    <string name="edit_server">編輯伺服器</string>
+    <string name="server_save_error">儲存伺服器資訊失敗</string>
+    <string name="server_error_name_collision">具有此名稱的伺服器已存在</string>
+    <string name="server_error_name_empty">伺服器名稱不可為空</string>
+    <string name="server_error_invalid_address">無效的位址</string>
+    <string name="server_error_invalid_port">無效的埠號</string>
+    <string name="server_address">伺服器位址</string>
+    <string name="server_port">埠號</string>
+    <string name="server_ssl">使用 SSL/TLS</string>
+    <plurals name="server_manage_custom_certs_text">
+        <item quantity="one">%d 個自訂憑證已儲存</item>
+        <item quantity="other">%d 個自訂憑證已儲存</item>
+    </plurals>
+    <string name="server_manage_custom_certs">管理自訂憑證</string>
+    <string name="server_password_unchanged">未更改</string>
+    <string name="server_authentication_mode">驗證模式</string>
+    <string name="server_channels">自動加入頻道</string>
+    <string name="server_rejoin_channels">重新加入開啟的頻道</string>
+    <string name="server_commands">自動執行指令</string>
+    <string name="server_encoding">編碼</string>
+    <string name="server_nicks">暱稱</string>
+    <string name="server_user">使用者</string>
+    <string name="server_realname">真實姓名</string>
+    <string name="server_sasl_ext_none">未設定憑證</string>
+    <string name="server_sasl_ext_fp" formatted="false">憑證指紋: %s</string>
+    <string name="server_sasl_ext_import">匯入 PEM</string>
+    <string name="server_sasl_ext_create">建立新的</string>
+    <string name="error_cert_already_present">指定的檔案包含多個憑證項目。</string>
+    <string name="error_privkey_already_present">指定的檔案包含多個私鑰項目。</string>
+    <string name="error_cert_or_privkey_missing">指定的檔案缺少私鑰或憑證。</string>
+    <string-array name="server_auth_modes">
+        <item>無</item>
+        <item>使用者名稱與密碼 (SASL)</item>
+        <item>客戶端憑證 (CertFP)</item>
+    </string-array>
+    <string name="server_password">伺服器密碼</string>
+    <string name="title_activity_certificate_manager">憑證列表</string>
+    <string name="certificate_manager_empty">沒有儲存自訂憑證。</string>
+    <string name="certificate_error" formatted="false">驗證 %s 的憑證失敗</string>
+    <string name="certificate_error_ignore">接受並繼續</string>
+    <string name="certificate_bad_cert">系統無法識別下列憑證：</string>
+    <string name="certificate_bad_hostname" formatted="false">主機提供的憑證中的主機名稱 (%1$s) 與我們連線的主機名稱 (%2$s) 不符。</string>
+    <string name="certificate_error_footer">如果您不確定這意味著什麼，請勿接受此憑證。</string>
+    <string name="certificate_error_remember">記住例外</string>
+    <string name="title_activity_channel_list">頻道列表</string>
+    <string name="action_sort_member_count">依成員數排序</string>
+    <plurals name="channel_list_title_with_member_count">
+        <item quantity="one">%s (%d 位成員)</item>
+        <item quantity="other">%s (%d 位成員)</item>
+    </plurals>
+    <string name="title_activity_settings">設定</string>
+    <string name="value_default">預設</string>
+    <string name="value_custom">自訂</string>
+    <string name="value_custom_specific">自訂 (%s)</string>
+    <string name="value_none">無</string>
+    <string name="value_any">任意</string>
+    <string name="value_always">總是</string>
+    <string name="value_never">從不</string>
+    <string name="value_preset">預設值</string>
+    <string name="value_not_set">未設定</string>
+    <string name="value_total">總計</string>
+    <string name="value_copy">%s (複製)</string>
+    <string name="entry_name">名稱</string>
+    <string name="entry_text">文字</string>
+    <string name="entry_username">使用者名稱</string>
+    <string name="entry_password">密碼</string>
+    <string name="entry_comment">註解</string>
+    <string name="text_comma">"，"</string>
+    <string name="text_and">" 和 "</string>
+    <string name="error_generic">發生錯誤。</string>
+    <string name="error_file_open">無法開啟檔案。</string>
+    <plurals name="time_seconds">
+        <item quantity="one">%d 秒</item>
+        <item quantity="other">%d 秒</item>
+    </plurals>
+    <plurals name="time_minutes">
+        <item quantity="one">%d 分鐘</item>
+        <item quantity="other">%d 分鐘</item>
+    </plurals>
+    <plurals name="time_hours">
+        <item quantity="one">%d 小時</item>
+        <item quantity="other">%d 小時</item>
+    </plurals>
+    <plurals name="time_days">
+        <item quantity="one">%d 天</item>
+        <item quantity="other">%d 天</item>
+    </plurals>
+    <string name="pref_header_user">使用者資訊</string>
+    <string name="pref_title_default_nick">預設暱稱</string>
+    <string name="pref_title_default_user">預設使用者</string>
+    <string name="pref_title_default_realname">預設真實姓名</string>
+    <string name="pref_title_default_quit_message">中斷連線 (quit) 訊息</string>
+    <string name="pref_title_default_part_message">離開頻道訊息</string>
+    <string name="pref_value_default_quit_message">Quit</string>
+    <string name="pref_value_default_part_message">Leaving</string>
+    <string name="pref_header_interface">介面</string>
+    <string name="pref_header_chat">聊天</string>
+    <string name="pref_title_font">字體</string>
+    <string name="pref_title_font_size">字體大小</string>
+    <string name="pref_title_hide_join_part">隱藏加入/離開訊息</string>
+    <string name="pref_summary_hide_join_part">隱藏所有加入與離開 (part/quit) 訊息。</string>
+    <string name="pref_title_autocorrect">啟用文字自動校正</string>
+    <string name="pref_summary_autocorrect">啟用鍵盤提供的自動校正</string>
+    <string name="pref_title_appbar_compact_mode">隱藏網路名稱標題</string>
+    <string name="pref_title_message_format">訊息格式</string>
+    <string name="pref_title_nick_autocomplete">暱稱/頻道自動完成</string>
+    <string name="pref_title_chat_box_always_multiline">多行輸入框</string>
+    <string name="pref_summary_chat_box_always_multiline">在輸入框中啟用自動換行，並將輸入法中的發送按鈕替換為 Enter</string>
+    <string name="pref_title_chat_box_history_swipe_mode">歷史紀錄滑動導航模式</string>
+    <string name="pref_title_chat_multi_scroll_mode">使用批次訊息選擇模式</string>
+    <string name="pref_summary_chat_multi_scroll_mode">始終啟用舊版的批次訊息選擇模式</string>
+    <string name="pref_header_misc">其他</string>
+    <string name="pref_title_drawer_always_show_server">在導航欄中顯示伺服器</string>
+    <string name="pref_summary_drawer_always_show_server">始終在導航欄中顯示伺服器標籤</string>
+    <string name="pref_title_chat_show_dcc_send">顯示 DCC 發送按鈕</string>
+    <string name="pref_summary_chat_show_dcc_send">在私人聊天中顯示使用 DCC 發送檔案的按鈕</string>
+    <string name="pref_title_nick_autocomplete_show_button">顯示按鈕</string>
+    <string name="pref_summary_nick_autocomplete_show_button">顯示暱稱自動完成按鈕</string>
+    <string name="pref_title_nick_autocomplete_double_tap">雙擊文字欄</string>
+    <string name="pref_summary_nick_autocomplete_double_tap">雙擊文字欄以完成暱稱或頻道</string>
+    <string name="pref_title_nick_autocomplete_suggestions">建議暱稱</string>
+    <string name="pref_summary_nick_autocomplete_suggestions">輸入至少兩個字元後顯示暱稱建議</string>
+    <string name="pref_title_nick_autocomplete_at_suggestions">在 \'@\' 後建議暱稱</string>
+    <string name="pref_summary_nick_autocomplete_at_suggestions">在 \'@\' 字元後顯示暱稱建議</string>
+    <string name="pref_title_nick_autocomplete_at_suggestions_remove_at">自動移除 \'@\'</string>
+    <string name="pref_summary_nick_autocomplete_at_suggestions_remove_at">選擇建議後移除 \'@\' 字元</string>
+    <string name="pref_title_channel_autocomplete_suggestions">建議頻道</string>
+    <string name="pref_summary_channel_autocomplete_suggestions">輸入 \'#\' 字元後顯示頻道建議</string>
+    <string-array name="pref_entries_font">
+        <item>預設 (Sans)</item>
+        <item>Serif</item>
+        <item>Monospace</item>
+    </string-array>
+    <string name="font_size_sample_text">這是一段用於反映字體大小在聊天中效果的範例文字。您可以使用下方的滑桿來更改它。</string>
+    <string-array name="pref_entries_appbar_compact_mode">
+        <item>@string/value_never</item>
+        <item>@string/value_always</item>
+        <item>如果訊息空間不足</item>
+    </string-array>
+    <string-array name="pref_entries_chat_history_swipe_mode">
+        <item>已停用</item>
+        <item>水平 (向左滑為上一頁)</item>
+        <item>水平 (向右滑為上一頁)</item>
+        <item>垂直 (向上滑為上一頁)</item>
+        <item>垂直 (向下滑為上一頁)</item>
+    </string-array>
+    <string name="title_activity_message_format_settings">訊息格式</string>
+    <string name="message_format">格式</string>
+    <string name="message_format_date">時間格式</string>
+    <string name="message_format_date_fixed_width">固定寬度</string>
+    <string name="message_format_normal">訊息格式</string>
+    <string name="message_format_normal_mention">提及訊息格式</string>
+    <string name="message_format_action">動作 (me) 訊息格式</string>
+    <string name="message_format_action_mention">提及動作 (me) 訊息格式</string>
+    <string name="message_format_notice">公告訊息格式</string>
+    <string name="message_format_event">事件 (加入/離開等) 訊息格式</string>
+    <string name="message_format_event_hostname">顯示使用者主機名稱</string>
+    <string name="message_format_date_invalid">無效的日期/時間格式</string>
+    <string name="message_format_time">時間</string>
+    <string name="message_format_sender">發送者</string>
+    <string name="message_format_message">訊息</string>
+    <string name="message_format_sender_prefix">前綴</string>
+    <string name="message_format_time_add">時間</string>
+    <string name="message_format_sender_add">發送者</string>
+    <string name="message_format_message_add">訊息</string>
+    <string name="message_format_wrap_anchor_add">換行錨點</string>
+    <string name="message_format_sender_prefix_add">發送者前綴</string>
+    <string name="message_format_add_chip">新增格式片段</string>
+    <string name="message_format_sender_color">暱稱顏色</string>
+    <string name="message_example_sender">發送者暱稱</string>
+    <string name="message_example_message">這是一則範例訊息。</string>
+    <string-array name="time_format_presets_desc">
+        <item>帶括號的 24 小時制</item>
+        <item>24 小時制</item>
+        <item>帶秒數的 24 小時制</item>
+        <item>12 小時制</item>
+    </string-array>
+    <string name="pref_header_theme">佈景主題</string>
+    <string name="theme_create_new">建立新佈景主題</string>
+    <string name="theme_custom_default_name">@string/value_custom</string>
+    <string name="title_activity_theme_editor">佈景主題編輯器</string>
+    <string name="theme_category_common">一般</string>
+    <string name="theme_base">基礎佈景主題</string>
+    <string name="theme_color_primary">主要顏色</string>
+    <string name="theme_color_primary_dark">主要深色</string>
+    <string name="theme_color_accent">強調色</string>
+    <string name="theme_color_action_bar_text_primary">Appbar 文字顏色</string>
+    <string name="theme_color_action_bar_text_secondary">Appbar 次要文字顏色</string>
+    <string name="theme_color_status_bar_light">淺色狀態列</string>
+    <string name="theme_color_background">背景顏色</string>
+    <string name="theme_color_background_floating">背景顏色 (彈出視窗/浮動視窗)</string>
+    <string name="theme_color_text_primary">主要文字顏色</string>
+    <string name="theme_color_text_secondary">次要文字顏色</string>
+    <string name="theme_color_icon">圖示顏色</string>
+    <string name="theme_color_icon_opaque">圖示顏色 (不透明，與文字一同使用)</string>
+    <string name="theme_category_chat">聊天</string>
+    <string name="theme_category_chat_irc">IRC 格式碼</string>
+    <string name="theme_color_irc_black">黑</string>
+    <string name="theme_color_irc_white">白</string>
+    <string name="theme_color_irc_blue">藍</string>
+    <string name="theme_color_irc_green">綠</string>
+    <string name="theme_color_irc_light_red">亮紅</string>
+    <string name="theme_color_irc_brown">褐</string>
+    <string name="theme_color_irc_purple">紫</string>
+    <string name="theme_color_irc_orange">橘</string>
+    <string name="theme_color_irc_yellow">黃</string>
+    <string name="theme_color_irc_light_green">亮綠</string>
+    <string name="theme_color_irc_cyan">青</string>
+    <string name="theme_color_irc_light_cyan">亮青</string>
+    <string name="theme_color_irc_light_blue">亮藍</string>
+    <string name="theme_color_irc_pink">粉</string>
+    <string name="theme_color_irc_gray">灰</string>
+    <string name="theme_color_irc_light_gray">亮灰</string>
+    <string name="theme_category_chat_message">訊息</string>
+    <string name="theme_color_message_timestamp">訊息時間戳記</string>
+    <string name="theme_color_message_status_text">訊息狀態文字</string>
+    <string name="theme_color_message_disconnected">中斷連線訊息</string>
+    <string name="theme_color_message_topic">主題訊息</string>
+    <string name="theme_category_chat_member_list">成員列表</string>
+    <string name="theme_color_member_owner">擁有者</string>
+    <string name="theme_color_member_admin">管理員</string>
+    <string name="theme_color_member_op">操作員</string>
+    <string name="theme_color_member_half_op">半操作員</string>
+    <string name="theme_color_member_voice">語音成員</string>
+    <string name="theme_color_member_normal">普通成員</string>
+    <string name="theme_default_dark">預設 (深色)</string>
+    <string name="pref_header_notifications">通知</string>
+    <string name="notification_custom_rules">自訂規則</string>
+    <string name="notification_tip_no_custom_rules">沒有自訂規則。您可以點擊右下角的加號新增規則。</string>
+    <string name="notification_custom_rule_deleted">通知規則已刪除。</string>
+    <string name="notification_rule_name_collision">具有此名稱的通知規則已存在</string>
+    <string name="notification_rule_regex_invalid">無效的 Regex</string>
+    <string name="notification_rule_nick">暱稱提及</string>
+    <string name="notification_rule_chan_messages">頻道訊息</string>
+    <string name="notification_rule_direct">私人訊息</string>
+    <string name="notification_rule_notice">私人公告</string>
+    <string name="notification_rule_chan_notice">頻道公告</string>
+    <string name="notification_rule_zncplayback">停用 ZNC 播放通知</string>
+    <string name="title_activity_edit_notification_settings">通知設定</string>
+    <string name="notification_header_match">匹配</string>
+    <string name="notification_match_mode">模式</string>
+    <string name="notification_match_case">區分大小寫</string>
+    <string-array name="notification_match_modes">
+        <item>包含</item>
+        <item>包含單詞</item>
+        <item>Regex</item>
+    </string-array>
+    <string name="notification_header_applies_to">套用於</string>
+    <string name="notification_rule_server">伺服器</string>
+    <string name="notification_rule_summary_any_server">任何伺服器</string>
+    <string name="notification_rule_summary_any_channel">任何頻道</string>
+    <plurals name="notification_rule_summary_multi_channels">
+        <item quantity="other">%d 個頻道</item>
+    </plurals>
+    <string name="notification_rule_summary_any_nick">任何暱稱</string>
+    <plurals name="notification_rule_summary_multi_nicks">
+        <item quantity="other">%d 個暱稱</item>
+    </plurals>
+    <string name="notification_header_options">選項</string>
+    <string name="notification_mention">使用提及格式</string>
+    <string name="notification_show">顯示通知</string>
+    <string name="notification_sound">聲音</string>
+    <string name="notification_vibration">震動</string>
+    <string name="notification_vibration_duration_hint">震動持續時間 (毫秒)</string>
+    <string name="notification_vibration_test">測試</string>
+    <string name="notification_priority">優先級</string>
+    <string name="notification_color">LED 顏色</string>
+    <string name="notification_light_on_duration">亮燈持續時間 (毫秒)</string>
+    <string name="notification_light_off_duration">滅燈持續時間 (毫秒)</string>
+    <string name="notification_android_settings_link">更多設定…</string>
+    <string-array name="notification_vibration_options">
+        <item>短</item>
+        <item>長</item>
+        <item>自訂</item>
+        <item>已停用</item>
+    </string-array>
+    <string-array name="notification_priority_options">
+        <item>一般</item>
+        <item>高 (預設)</item>
+        <item>最高</item>
+    </string-array>
+    <string name="pref_header_reconnect">重新連線</string>
+    <string name="pref_title_start_on_boot">開機啟動</string>
+    <string name="pref_description_start_on_boot">系統重啟後自動啟動應用程式</string>
+    <string name="pref_title_auto_reconnect">自動重新連線</string>
+    <string name="pref_description_auto_reconnect">連線中斷後自動嘗試重新連線</string>
+    <string name="pref_title_reconnect_connchg">追蹤連線變更</string>
+    <string name="pref_description_reconnect_connchg">連線狀態變更後自動嘗試重新連線</string>
+    <string name="pref_title_reconnect_pattern">重新連線間隔</string>
+    <string name="reconnect_header_interval">間隔</string>
+    <string name="reconnect_header_tries">嘗試次數</string>
+    <plurals name="reconnect_desc_tries">
+        <item quantity="one">" (%d 次嘗試)"</item>
+        <item quantity="other">" (%d 次嘗試)"</item>
+    </plurals>
+    <string-array name="duration_types">
+        <item>秒</item>
+        <item>分鐘</item>
+        <item>小時</item>
+    </string-array>
+    <string name="pref_title_ping_enabled">定期發送心跳</string>
+    <string name="pref_description_ping_enabled">定期發送心跳 (ping) 給伺服器以確保連線仍然存活。這可能會增加電池消耗。</string>
+    <string name="pref_title_ping_interval">心跳間隔</string>
+    <string name="pref_header_command_aliases">指令別名</string>
+    <string name="title_activity_edit_command_alias">編輯指令別名</string>
+    <string name="title_activity_add_command_alias">新增指令別名</string>
+    <string name="title_activity_view_command_alias">檢視指令別名</string>
+    <string name="edit_command_alias_error_name_collision">具有此名稱和語法的指令別名已存在。</string>
+    <string name="edit_command_alias_type">類型</string>
+    <string name="edit_command_alias_syntax">語法</string>
+    <string name="edit_command_alias_channel">頻道</string>
+    <string-array name="edit_command_alias_types">
+        <item>訊息</item>
+        <item>客戶端指令</item>
+        <item>原始指令</item>
+    </string-array>
+    <string name="pref_header_storage">儲存空間</string>
+    <string name="pref_storage_chat_logs_title">聊天紀錄</string>
+    <string name="pref_storage_change_limits">更改限制</string>
+    <string name="pref_storage_configuration_title">設定檔</string>
+    <string name="pref_storage_reset_configuration">重設設定檔</string>
+    <string name="pref_storage_reset_configuration_confirm">確定要重設應用程式設定嗎？所有伺服器和聊天紀錄資料都將遺失。</string>
+    <string name="pref_storage_clear_all_chat_logs">刪除所有聊天紀錄</string>
+    <string name="pref_storage_clear_all_chat_logs_confirm">確定要刪除所有聊天紀錄嗎？</string>
+
+    <string name="pref_storage_export_logs_txt">將對話記錄匯出為 TXT</string>
+    <string name="pref_storage_export_logs_html">將對話記錄匯出為 HTML</string>
+
+    <string name="pref_storage_clear_server_chat_logs">刪除伺服器聊天紀錄</string>
+    <string name="pref_header_storage_limits">限制</string>
+    <string name="pref_storage_limit_global_title">全域聊天紀錄儲存限制</string>
+    <string name="pref_storage_limit_def_server_title">伺服器聊天紀錄儲存限制</string>
+    <string name="pref_storage_no_limit">無限制</string>
+    <string name="pref_storage_limit_notice">請注意，這些是軟限制，有時可能會超過。</string>
+    <string name="pref_storage_set_server_limit">設定伺服器限制</string>
+    <string name="pref_storage_change_server_limit">更改伺服器限制</string>
+    <string name="pref_storage_remove_server_limit">重設自訂伺服器限制</string>
+    <string name="pref_storage_limit_server_title">伺服器聊天儲存限制</string>
+    <string name="pref_header_backup">備份</string>
+    <string name="backup_create">建立新備份</string>
+    <string name="backup_restore">還原備份</string>
+    <string name="title_activity_backup">備份</string>
+    <string name="title_activity_restore">還原</string>
+    <string name="title_activity_backup_password">設定密碼</string>
+    <string name="title_activity_backup_password_restore">輸入密碼</string>
+    <string name="title_activity_backup_progress">正在建立備份</string>
+    <string name="title_activity_backup_progress_restore">正在還原備份</string>
+    <string name="backup_desc">為了能在稍後還原應用程式設定（例如在系統重新安裝後），您可能需要建立設定備份並將其安全保存。</string>
+    <string name="backup_password_text">備份將包含您的所有設定，包括伺服器資訊和未加密的密碼。建議設定密碼，還原資料時將需要此密碼。</string>
+    <string name="backup_restore_password_text">指定的備份已受密碼保護。為了還原它，您需要輸入密碼。</string>
+    <string name="backup_created">備份檔案已成功建立。</string>
+    <string name="backup_cancelled">備份建立已取消。</string>
+    <string name="backup_restored">備份檔案已成功還原。</string>
+    <string name="backup_restore_cancelled">還原已取消。</string>
+    <string name="backup_restore_invalid">指定的備份檔案無效。</string>
+    <string name="backup_restore_invalid_password">密碼錯誤</string>
+    <string name="backup_restore_password_not_empty">密碼不可為空</string>
+    <string name="please_wait_generic">請稍候…</string>
+    <string name="title_activity_ignore_list">忽略列表</string>
+    <string name="title_activity_ignore_list_network">%s 的忽略列表</string>
+    <string name="title_activity_edit_ignore_entry">編輯忽略項目</string>
+    <string name="title_activity_add_ignore_entry">新增忽略項目</string>
+    <string name="user_title_away" formatted="false">%s (離開)</string>
+    <string name="user_connected">使用者已連線</string>
+    <string name="user_disconnected">使用者已斷線</string>
+    <string name="user_nick">暱稱</string>
+    <string name="user_hostname">主機名稱</string>
+    <string name="user_server">伺服器</string>
+    <string name="user_server_format" formatted="false">%s (%s)</string>
+    <string name="user_channels">頻道</string>
+    <string name="user_idle">閒置時間</string>
+    <string name="user_server_op">伺服器操作員狀態</string>
+    <string name="user_server_op_desc">此使用者為 IRC 伺服器操作員</string>
+    <string name="user_secure">連線安全性狀態</string>
+    <string name="user_secure_desc">此使用者使用安全連線</string>
+    <string name="user_account">帳號</string>
+    <string name="user_away">離開訊息</string>
+    <string name="user_info_copied" formatted="false">已複製 %s 到剪貼簿。</string>
+    <string name="color_picker_title">選擇顏色</string>
+    <string name="color_picker_palette">從調色盤選擇顏色</string>
+    <string name="color_value_hex">十六進位代碼</string>
+    <string name="color_value_red">紅</string>
+    <string name="color_value_green">綠</string>
+    <string name="color_value_blue">藍</string>
+    <string name="color_value_alpha">透明度</string>
+    <string-array name="color_picker_color_names">
+        <item>黑</item>
+        <item>白</item>
+        <item>藍</item>
+        <item>綠</item>
+        <item>亮紅</item>
+        <item>褐</item>
+        <item>紫</item>
+        <item>橘</item>
+        <item>黃</item>
+        <item>亮綠</item>
+        <item>青</item>
+        <item>亮青</item>
+        <item>亮藍</item>
+        <item>粉</item>
+        <item>灰</item>
+        <item>亮灰</item>
+    </string-array>
+    <string name="title_activity_irc_link">加入頻道</string>
+    <string name="irc_link_pick_header">選擇一個連線以加入 %1$s 上的 %2$s</string>
+    <string name="irc_link_show_all">顯示其他連線</string>
+    <string name="title_activity_dcc">DCC 傳輸</string>
+    <string name="notification_channel_dcc">@string/title_activity_dcc</string>
+    <string name="dcc_summary_notification_title">正在進行 DCC 傳輸</string>
+    <plurals name="dcc_summary_notification_text">
+        <item quantity="one">%d 項傳輸正在進行</item>
+        <item quantity="other">%d 項傳輸正在進行</item>
+    </plurals>
+    <string name="dcc_active_upload_transfer_status" formatted="false">正在上傳至 %s</string>
+    <string name="dcc_active_download_transfer_status" formatted="false">正在從 %s 下載</string>
+    <string name="dcc_active_waiting_for_connection">等待連線中…</string>
+    <string name="dcc_active_waiting_for_approval">等待使用者批准中…</string>
+    <string name="dcc_approve_notification_body" formatted="false">%s (伺服器: %s) 已向您發送檔案</string>
+    <string name="dcc_history_upload" formatted="false">已上傳 %2$s 至 %3$s (%1$s)</string>
+    <string name="dcc_history_download" formatted="false">已下載 %2$s 從 %3$s (%1$s)</string>
+    <string name="dcc_history_download_failed" formatted="false">下載 %2$s 從 %1$s 失敗</string>
+    <string name="dcc_approve_download_title">DCC 檔案: %s</string>
+    <string name="dcc_approve_download_title_with_size" formatted="false">DCC 檔案: %s (%s)</string>
+    <string name="dcc_approve_download_body" formatted="false">%s (伺服器: %s) 已向您發送檔案。\n\n警告：此下載將透過不安全且未加密的連線傳輸。接受此下載將允許對方看到您的 IP 位址。僅在您信任此使用者時才接受。</string>
+    <string name="dcc_approve_download_enable_anyway">仍然啟用</string>
+    <string name="dcc_enable_send_warning_title">安全性警告</string>
+    <string name="dcc_enable_send_warning_body">DCC 是一種舊的點對點檔案共享協議，檔案透過不安全且未加密的連線發送。這意味著所有透過此功能發送的資料都可能被駭客複製或篡改，尤其是在公共 WiFi 網路上。\n此外，由於協議的性質，當您使用 DCC 共享檔案時，您也將您的 IP 位址給了對方。DCC 在使用行動數據時通常無法運作，且在某些 WiFi 連線上也可能無法運作。\n\n因此，我們建議您改用第三方共享服務，僅與目標使用者分享連結，而不是使用 DCC。</string>
+    <string name="dcc_system_downloads_permission_dialog_title">Downloads 資料夾權限</string>
+    <string name="dcc_system_downloads_permission_dialog_text">Downloads 資料夾的權限已被拒絕，因此將使用應用程式內部的下載目錄。如果這不是您想要的，請點擊“再次詢問”。</string>
+    <string name="dcc_set_download_dir">設定下載目錄</string>
+    <string name="dcc_download_dir_application">應用程式</string>
+    <string name="dcc_download_dir_system">系統</string>
+    <string name="dcc_download_dir_custom">自訂</string>
+    <string name="dcc_error_no_activity">找不到開啟該檔案的應用程式</string>
+    <string name="pref_header_language">語言</string>
+    <string name="pref_title_close_private_quit">使用者退出時自動關閉私人訊息</string>
+</resources>

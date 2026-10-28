@@ -1,7 +1,7 @@
 package io.mrarm.irc.setting.fragment;
 
+import android.content.Context;
 import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
 
 import io.mrarm.irc.R;
 import io.mrarm.irc.config.AppSettings;
@@ -19,7 +19,8 @@ public class UserSettingsFragment extends SettingsListFragment implements NamedS
     @Override
     public SettingsListAdapter createAdapter() {
         SettingsListAdapter a = new SettingsListAdapter(this);
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        SharedPreferences prefs = requireContext().getSharedPreferences(
+                requireContext().getPackageName() + "_preferences", Context.MODE_PRIVATE);
         a.add(new ChipsEditTextSetting(getString(R.string.pref_title_default_nick), null,
                 getString(R.string.value_not_set))
                 .linkSetting(prefs, AppSettings.PREF_DEFAULT_NICKS));

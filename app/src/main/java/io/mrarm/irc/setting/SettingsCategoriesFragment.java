@@ -36,6 +36,7 @@ public abstract class SettingsCategoriesFragment extends Fragment {
         private int mTextId;
         private int mIconId;
         private View.OnClickListener mOnClickListener;
+        private View.OnLongClickListener mOnLongClickListener;
 
         public Item(int textId, int iconId) {
             mTextId = textId;
@@ -55,9 +56,14 @@ public abstract class SettingsCategoriesFragment extends Fragment {
         }
 
         public Item(int textId, int iconId, View.OnClickListener listener) {
+            this(textId, iconId, listener, null);
+        }
+
+        public Item(int textId, int iconId, View.OnClickListener listener, View.OnLongClickListener longClickListener) {
             mTextId = textId;
             mIconId = iconId;
             mOnClickListener = listener;
+            mOnLongClickListener = longClickListener;
         }
 
         public int getTextId() {
@@ -106,6 +112,13 @@ public abstract class SettingsCategoriesFragment extends Fragment {
                 mIcon = itemView.findViewById(R.id.image);
                 itemView.setOnClickListener((View v) -> {
                     ((Item) itemView.getTag()).mOnClickListener.onClick(v);
+                });
+                itemView.setOnLongClickListener((View v) -> {
+                    Item item = (Item) itemView.getTag();
+                    if (item.mOnLongClickListener != null) {
+                        return item.mOnLongClickListener.onLongClick(v);
+                    }
+                    return false;
                 });
             }
 

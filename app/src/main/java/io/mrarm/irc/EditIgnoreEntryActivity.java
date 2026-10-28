@@ -1,6 +1,7 @@
 package io.mrarm.irc;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.inputmethod.InputMethodManager;
@@ -85,7 +86,7 @@ public class EditIgnoreEntryActivity extends ThemedActivity {
         try {
             ServerConfigManager.getInstance(this).saveServer(mServer);
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.e("EditIgnoreEntryActivity", "Failed to save server config", e);
             Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
             return false;
         }

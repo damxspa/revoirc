@@ -71,6 +71,8 @@ public class ThemeManager {
         reloadThemes();
 
         SettingsHelper.changeEvent().listen(AppSettings.PREF_THEME, this::onThemeSettingChanged);
+        SettingsHelper.changeEvent().listen(AppSettings.PREF_NIGHT_MODE, (String key) -> applyNightMode());
+        applyNightMode();
     }
 
     public File getThemesDir() {
@@ -266,7 +268,7 @@ public class ThemeManager {
             Configuration c = new Configuration();
             c.setToDefaults();
             c.uiMode = Configuration.UI_MODE_TYPE_NORMAL;
-            if (currentBaseTheme instanceof BaseTheme && ((BaseTheme) currentBaseTheme).isDark)
+            if (isThemeDark)
                 c.uiMode |= Configuration.UI_MODE_NIGHT_YES;
             Resources r = new Resources(currentCustomThemePatcher != null ?
                     currentCustomThemePatcher.getAssetManager() : context.getAssets(),
@@ -280,10 +282,29 @@ public class ThemeManager {
         if (currentCustomThemePatcher != null) {
             currentCustomThemePatcher.applyToActivity(activity);
         }
-        if (isThemeDark)
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-        else
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+        applyNightMode();
+    }
+
+    public void applyNightMode() {
+        ThemeResInfo currentBaseTheme = currentTheme;
+        if (currentCustomTheme != null)
+            currentBaseTheme = currentCustomTheme.baseThemeInfo;
+        boolean isThemeDark = currentBaseTheme instanceof BaseTheme &&
+                ((BaseTheme) currentBaseTheme).isDark;
+        int mode;
+        if (isThemeDark) {
+            mode = AppCompatDelegate.MODE_NIGHT_YES;
+        } else {
+            String nightMode = AppSettings.getNightMode();
+            if (nightMode.equals("on"))
+                mode = AppCompatDelegate.MODE_NIGHT_YES;
+            else if (nightMode.equals("off"))
+                mode = AppCompatDelegate.MODE_NIGHT_NO;
+            else
+                mode = AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
+        }
+        if (AppCompatDelegate.getDefaultNightMode() != mode)
+            AppCompatDelegate.setDefaultNightMode(mode);
     }
 
     public int getThemeIdToApply(int appThemeId) {

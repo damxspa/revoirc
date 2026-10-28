@@ -1,16 +1,21 @@
 package io.mrarm.irc;
 
+import android.Manifest;
 import android.app.NotificationChannelGroup;
 import android.app.PendingIntent;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Build;
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -18,8 +23,11 @@ import io.mrarm.chatlib.ChatApi;
 import io.mrarm.chatlib.dto.MessageId;
 import io.mrarm.chatlib.dto.MessageInfo;
 import io.mrarm.chatlib.irc.ServerConnectionApi;
+import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.NotificationRule;
 import io.mrarm.irc.config.NotificationRuleManager;
+import io.mrarm.irc.util.IRCUtils;
+import io.mrarm.irc.util.VibrationUtils;
 import io.mrarm.irc.util.WarningHelper;
 
 public class NotificationManager {
@@ -50,11 +58,13 @@ public class NotificationManager {
             channelManager.addUnreadMessage(messageId);
 
         if (info.getMessage() == null || info.getSender() == null ||
-                info.getSender().getNick().equals(connection.getUserNick()))
+                Objects.equals(info.getSender().getNick(), connection.getUserNick()))
             return;
 
         NotificationRule rule = findNotificationRule(connection, channel, info);
         if (rule == null || rule.settings.noNotification)
+            return;
+        if (info.getType() == MessageInfo.MessageType.QUIT && !IRCUtils.isChannel(channel) && !AppSettings.isNotifyPrivateQuitEnabled())
             return;
         synchronized (channelManager) {
             if (channelManager.addNotificationMessage(info, messageId)) {
@@ -62,6 +72,9 @@ public class NotificationManager {
                     ChannelNotificationManager.createChannel(context, rule);
                 updateSummaryNotification(context, rule.settings.notificationChannelId);
                 channelManager.showNotification(context, rule);
+                if (rule.settings.vibrationEnabled && rule.settings.vibrationDuration > 0) {
+                    VibrationUtils.vibrate(context, rule.settings.vibrationDuration);
+                }
             }
         }
     }
@@ -69,7 +82,7 @@ public class NotificationManager {
     public boolean shouldMessageUseMentionFormatting(ServerConnectionInfo connection,
                                                      String channel, MessageInfo info) {
         if (info.getMessage() == null || info.getSender() == null ||
-                info.getSender().getNick().equals(connection.getUserNick()))
+                Objects.equals(info.getSender().getNick(), connection.getUserNick()))
             return false;
         NotificationRule rule = findNotificationRule(connection, channel, info);
         return (rule != null && rule.settings.mentionFormatting);
@@ -88,7 +101,7 @@ public class NotificationManager {
     private NotificationRule findNotificationRule(ServerConnectionInfo connection, String channel,
                                                   MessageInfo message) {
         ChatApi api = connection.getApiInstance();
-        if (api instanceof ServerConnectionApi && channel != null && channel.length() > 0 &&
+        if (api instanceof ServerConnectionApi && channel != null && !channel.isEmpty() &&
                 !((ServerConnectionApi) api).getServerConnectionData().getSupportList()
                         .getSupportedChannelTypes().contains(channel.charAt(0)))
             channel = null;
@@ -149,23 +162,25 @@ public class NotificationManager {
         }
         if (channel != null)
             mLastSummaryChannel = channel;
+        if (mLastSummaryChannel == null)
+            return;
         NotificationCompat.Builder notification = new NotificationCompat.Builder(context,
                 mLastSummaryChannel);
         PendingIntent dismissIntent = PendingIntent.getBroadcast(context,
                 ChannelNotificationManager.CHAT_DISMISS_INTENT_ID_START + CHAT_SUMMARY_NOTIFICATION_ID,
                 ChannelNotificationManager.NotificationActionReceiver.getDismissIntentForSummary(context),
-                PendingIntent.FLAG_CANCEL_CURRENT);
+                PendingIntent.FLAG_CANCEL_CURRENT | IRCService.getPendingIntentFlagsMutable());
         notification
                 .setAutoCancel(true)
                 .setSmallIcon(R.drawable.ic_notification_message)
                 .setGroup(NOTIFICATION_GROUP_CHAT)
                 .setGroupSummary(true)
-                .setColor(context.getResources().getColor(R.color.colorNotificationMention))
+                .setColor(ContextCompat.getColor(context, R.color.colorNotificationMention))
                 .setDeleteIntent(dismissIntent)
                 .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN);
         if (isLong) {
             PendingIntent intent = PendingIntent.getActivity(context, CHAT_SUMMARY_NOTIFICATION_ID,
-                    MainActivity.getLaunchIntent(context, null, null), PendingIntent.FLAG_CANCEL_CURRENT);
+                    MainActivity.getLaunchIntent(context, null, null), PendingIntent.FLAG_CANCEL_CURRENT | IRCService.getPendingIntentFlagsMutable());
             notification
                     .setContentTitle(context.getResources().getQuantityString(R.plurals.notify_multiple_messages, notificationCount, notificationCount))
                     .setContentText(longBuilder.toString())
@@ -173,11 +188,15 @@ public class NotificationManager {
         } else {
             PendingIntent intent = PendingIntent.getActivity(context, CHAT_SUMMARY_NOTIFICATION_ID,
                     MainActivity.getLaunchIntent(context, first.getConnection(), first.getChannel()),
-                    PendingIntent.FLAG_CANCEL_CURRENT);
+                    PendingIntent.FLAG_CANCEL_CURRENT | IRCService.getPendingIntentFlagsMutable());
             notification
                     .setContentTitle(first.getChannel())
                     .setContentText(first.getNotificationMessage(first.getNotificationMessageCount() - 1).getNotificationText(context))
                     .setContentIntent(intent);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return;
         }
         NotificationManagerCompat.from(context).notify(CHAT_SUMMARY_NOTIFICATION_ID, notification.build());
     }

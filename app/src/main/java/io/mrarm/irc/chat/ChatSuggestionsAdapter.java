@@ -107,17 +107,18 @@ public class ChatSuggestionsAdapter extends SelectableRecyclerViewAdapter<ChatSu
             super(view);
             mText = view.findViewById(R.id.chat_member);
             view.setOnClickListener((View v) -> {
-                mClickListener.onItemClick(v.getTag());
+                if (mClickListener != null)
+                    mClickListener.onItemClick(v.getTag());
             });
         }
 
         public void bind(Object item) {
             itemView.setTag(item);
             if (item instanceof NickWithPrefix) {
-                ChannelInfoAdapter.MemberHolder.bindText(mText, (NickWithPrefix) item);
+                ChannelInfoAdapter.MemberHolder.bindText(mText, mConnection, (NickWithPrefix) item);
             } else {
                 mText.setText(item.toString());
-                mText.setTextColor(mText.getContext().getResources().getColor(R.color.memberNormal));
+                mText.setTextColor(androidx.core.content.ContextCompat.getColor(mText.getContext(), R.color.memberNormal));
             }
         }
 
@@ -143,7 +144,7 @@ public class ChatSuggestionsAdapter extends SelectableRecyclerViewAdapter<ChatSu
                 ModeList channelTypes = ((ServerConnectionApi) mConnection.getApiInstance())
                         .getServerConnectionData().getSupportList().getSupportedChannelTypes();
                 for (String channel : mConnection.getChannels()) {
-                    if (channel.length() == 0 || !channelTypes.contains(channel.charAt(0)))
+                    if (channel.isEmpty() || !channelTypes.contains(channel.charAt(0)))
                         continue;
                     if (channel.regionMatches(true, 0, str, 0, str.length()))
                         list.add(channel);
@@ -151,7 +152,7 @@ public class ChatSuggestionsAdapter extends SelectableRecyclerViewAdapter<ChatSu
             }
             if (areUsersEnabled()) {
                 try {
-                    list.addAll(mConnection.getApiInstance().getUserInfoApi().findUsers(str, null, null).get());
+                    list.addAll(mConnection.getApiInstance().getUserInfoApi().findUsers(str, null, null).get(500, java.util.concurrent.TimeUnit.MILLISECONDS));
                 } catch (Exception ignored) {
                 }
             }

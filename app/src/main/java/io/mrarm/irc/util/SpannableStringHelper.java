@@ -12,6 +12,8 @@ import android.text.style.StyleSpan;
 
 import com.google.gson.JsonObject;
 
+import java.util.Objects;
+
 public class SpannableStringHelper {
 
     public static final String SPAN_TYPE_FOREGROUND = "foreground";
@@ -87,11 +89,11 @@ public class SpannableStringHelper {
 
     public static Object spanFromJson(JsonObject obj) {
         String type = obj.get("type").getAsString();
-        if (type.equals(SPAN_TYPE_FOREGROUND))
+        if (Objects.equals(type, SPAN_TYPE_FOREGROUND))
             return new ForegroundColorSpan(obj.get("color").getAsNumber().intValue());
-        if (type.equals(SPAN_TYPE_BACKGROUND))
+        if (Objects.equals(type, SPAN_TYPE_BACKGROUND))
             return new BackgroundColorSpan(obj.get("color").getAsNumber().intValue());
-        if (type.equals(SPAN_TYPE_STYLE))
+        if (Objects.equals(type, SPAN_TYPE_STYLE))
             return new StyleSpan(obj.get("style").getAsNumber().intValue());
         return null;
     }

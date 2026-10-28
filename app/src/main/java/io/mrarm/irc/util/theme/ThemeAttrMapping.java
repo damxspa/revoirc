@@ -52,6 +52,8 @@ public class ThemeAttrMapping {
         mapColorToAttr(ThemeInfo.COLOR_ACTION_BAR_TEXT_SECONDARY, R.attr.actionBarTextColorSecondary);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
             mapColorToAttr(ThemeInfo.COLOR_BACKGROUND_FLOATING, android.R.attr.colorBackgroundFloating);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+            mapColorToAttr(ThemeInfo.COLOR_BACKGROUND, android.R.attr.navigationBarColor);
 
         ircColorToAttrs.put(ThemeInfo.COLOR_IRC_BLACK, R.attr.colorBlack);
         ircColorToAttrs.put(ThemeInfo.COLOR_IRC_WHITE, R.attr.colorWhite);

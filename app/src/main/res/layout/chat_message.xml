@@ -1,13 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:id="@+id/chat_message"
-    android:paddingLeft="8dp"
-    android:paddingStart="8dp"
-    android:paddingRight="8dp"
-    android:paddingEnd="8dp"
-    android:paddingTop="1dp"
-    android:paddingBottom="1dp"
-    android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-    android:background="?attr/selectableItemBackground" />
+    android:orientation="vertical">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/chat_message"
+        android:paddingLeft="8dp"
+        android:paddingStart="8dp"
+        android:paddingRight="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="1dp"
+        android:paddingBottom="1dp"
+        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+        android:background="?attr/selectableItemBackground" />
+
+    <ImageView
+        android:id="@+id/image_preview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp"
+        android:maxHeight="200dp"
+        android:adjustViewBounds="true"
+        android:scaleType="fitStart"
+        android:visibility="gone" />
+
+</LinearLayout>

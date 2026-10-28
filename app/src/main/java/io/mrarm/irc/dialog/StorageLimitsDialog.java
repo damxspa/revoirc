@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
 import androidx.annotation.NonNull;
 import androidx.appcompat.widget.Toolbar;
 import android.view.View;
@@ -111,7 +110,8 @@ public class StorageLimitsDialog extends Dialog {
 
     @Override
     public void dismiss() {
-        SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(getContext()).edit();
+        SharedPreferences.Editor editor = getContext().getSharedPreferences(
+                getContext().getPackageName() + "_preferences", Context.MODE_PRIVATE).edit();
         if (mGlobalLimitSeekBar.getProgress() == SIZES.length)
             editor.putLong(AppSettings.PREF_STORAGE_LIMIT_GLOBAL, -1L);
         else

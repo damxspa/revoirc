@@ -147,27 +147,38 @@ public class ListWithCustomSetting extends ListSetting implements
         if (mRequestCode == requestCode && data != null && data.getData() != null) {
             try {
                 Uri uri = data.getData();
-                Cursor cursor = activity.getContentResolver().query(uri, null, null, null, null);
-                int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                cursor.moveToFirst();
-                String name = cursor.getString(nameIndex);
+                String name = null;
+                try (Cursor cursor = activity.getContentResolver().query(uri, null, null, null, null)) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                        if (nameIndex != -1)
+                            name = cursor.getString(nameIndex);
+                    }
+                }
+                if (name == null)
+                    name = "custom";
                 File outFile = getCustomFile(activity, mInternalFileName, name);
                 if (outFile == null)
                     throw new IOException();
                 File tempOutFile = new File(outFile.getParent(), FILENAME_TEMP_PREFIX + outFile.getName());
 
-                ParcelFileDescriptor desc = activity.getContentResolver().openFileDescriptor(uri, "r");
-                FileInputStream fis = new FileInputStream(desc.getFileDescriptor());
-                FileOutputStream fos = new FileOutputStream(tempOutFile);
-                byte[] buf = new byte[1024 * 16];
-                int c;
-                while ((c = fis.read(buf, 0, buf.length)) > 0) {
-                    fos.write(buf, 0, c);
+                try (ParcelFileDescriptor desc = activity.getContentResolver().openFileDescriptor(uri, "r")) {
+                    if (desc == null)
+                        throw new IOException("Failed to open file descriptor");
+                    try (FileInputStream fis = new FileInputStream(desc.getFileDescriptor());
+                         FileOutputStream fos = new FileOutputStream(tempOutFile)) {
+                        byte[] buf = new byte[1024 * 16];
+                        int c;
+                        while ((c = fis.read(buf, 0, buf.length)) > 0) {
+                            fos.write(buf, 0, c);
+                        }
+                    }
                 }
                 if (mCustomValueType == TYPE_FONT) {
                     try {
                         Typeface.createFromFile(tempOutFile);
                     } catch (Exception e) {
+                        tempOutFile.delete();
                         throw new IOException("Failed to load font", e);
                     }
                 }
