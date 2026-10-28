@@ -63,7 +63,8 @@ import io.mrarm.irc.config.SettingsHelper;
 
 
 public class ChatMessagesFragment extends Fragment implements StatusMessageListener,
-        MessageListener, ChannelInfoListener, NotificationManager.UnreadMessageCountCallback {
+        MessageListener, ChannelInfoListener, NotificationManager.UnreadMessageCountCallback,
+        ServerConnectionInfo.StorageChangeListener {
 
     private static final String TAG = "ChatMessagesFragment";
 
@@ -79,6 +80,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
     private ServerConnectionInfo mConnection;
     private String mChannelName;
+    private MessageStorageApi mLastStorageApi;
     private String mChannelTopic;
     private MessageSenderInfo mChannelTopicSetBy;
     private Date mChannelTopicSetOn;
@@ -219,6 +221,21 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
 
         SettingsHelper.registerCallbacks(this);
+        connectionInfo.addStorageChangeListener(this);
+    }
+
+    @Override
+    public void onStorageApiChanged(ServerConnectionInfo connection) {
+        if (mNeedsUnsubscribeMessages && getArguments() != null && mChannelName != null && mLastStorageApi != null) {
+            try {
+                mLastStorageApi.unsubscribeChannelMessages(mChannelName, ChatMessagesFragment.this, null, null);
+            } catch (Exception ignored) {}
+            mNeedsUnsubscribeMessages = false;
+        }
+        if (mChannelName != null) {
+            mNeedsUnsubscribeMessages = false;
+            reloadMessages(null);
+        }
     }
 
     @Override
@@ -226,11 +243,14 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         super.onDestroy();
 
         SettingsHelper.unregisterCallbacks(this);
+        if (mConnection != null) {
+            mConnection.removeStorageChangeListener(this);
+        }
 
         if (mNeedsUnsubscribeChannelInfo && getArguments() != null)
             mConnection.getApiInstance().unsubscribeChannelInfo(getArguments().getString(ARG_CHANNEL_NAME), ChatMessagesFragment.this, null, null);
-        if (mNeedsUnsubscribeMessages && getArguments() != null)
-            mConnection.getApiInstance().getMessageStorageApi().unsubscribeChannelMessages(getArguments().getString(ARG_CHANNEL_NAME), ChatMessagesFragment.this, null, null);
+        if (mNeedsUnsubscribeMessages && getArguments() != null && mLastStorageApi != null)
+            mLastStorageApi.unsubscribeChannelMessages(getArguments().getString(ARG_CHANNEL_NAME), ChatMessagesFragment.this, null, null);
         if (mNeedsUnsubscribeStatusMessages)
             mConnection.getApiInstance().unsubscribeStatusMessages(ChatMessagesFragment.this, null, null);
 
@@ -388,6 +408,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             }
         };
         MessageStorageApi storage = mConnection.getApiInstance().getMessageStorageApi();
+        mLastStorageApi = storage;
         if (nearMessage != null) {
             storage.getMessagesNear(mChannelName, nearMessage,
                     getFilterOptions(), (MessageList messages) -> {

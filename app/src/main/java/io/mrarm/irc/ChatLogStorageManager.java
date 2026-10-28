@@ -1,12 +1,13 @@
 package io.mrarm.irc;
 
 import android.content.Context;
-import android.os.StatFs;
+import android.util.Log;
 import androidx.annotation.NonNull;
 
 import java.io.File;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Iterator;
@@ -25,6 +26,7 @@ import io.mrarm.irc.config.ServerConfigManager;
 import io.mrarm.irc.config.SettingChangeCallback;
 import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.util.PoolSerialExecutor;
+import io.mrarm.chatlib.android.storage.SQLiteMessageStorageApi;
 
 import java.util.concurrent.TimeUnit;
 
@@ -36,23 +38,25 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     private static final int GLOBAL_DELETION_CANDIDATES = 1024;
     private static final int CONNECTION_DELETION_CANDIDATES = 32;
 
-    private static final SimpleDateFormat sFileNameFormat = new SimpleDateFormat("'messages-'yyyy-MM-dd'.db'", Locale.US);
+    // Thread-safe DateTimeFormatter (Java 8+)
+    private static final DateTimeFormatter sFileNameFormatter = DateTimeFormatter.ofPattern("'messages-'yyyy-MM-dd'.db'", Locale.US);
 
     private static String formatFileName(Date date) {
-        synchronized (sFileNameFormat) {
-            return sFileNameFormat.format(date);
-        }
+        return sFileNameFormatter.format(date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate());
     }
 
     private static String formatFileName(long time) {
-        synchronized (sFileNameFormat) {
-            return sFileNameFormat.format(time);
-        }
+        return sFileNameFormatter.format(java.time.Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDate());
     }
 
-    private static Date parseFileName(String name) throws ParseException {
-        synchronized (sFileNameFormat) {
-            return sFileNameFormat.parse(name);
+    private static long parseFileName(String name) {
+        // Parse 'messages-yyyy-MM-dd.db' to get epoch millis
+        try {
+            String dateStr = name.substring("messages-".length(), "messages-".length() + 10); // yyyy-MM-dd
+            LocalDate date = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+            return date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        } catch (Exception e) {
+            return 0L;
         }
     }
 
@@ -71,10 +75,10 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
 
     private final ServerConnectionManager mConnectionManager;
     private final ServerConfigManager mServerConfigManager;
-    private long mBlockSize = 0L;
     private final Map<UUID, ServerManager> mServerManagers = new ConcurrentHashMap<>();
     private final AtomicInteger mGlobalMessageCounter = new AtomicInteger(0);
     private final TreeSet<DeletionCandidate> mGlobalDeletionCandidates = new TreeSet<>();
+    private final Object mGlobalDeletionCandidatesLock = new Object();
     private long mGlobalTotalSize = 0L;
     private long mGlobalLimit;
     private long mDefaultServerLimit;
@@ -119,7 +123,9 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
             }
         }
         mServerManagers.clear();
-        mGlobalDeletionCandidates.clear();
+        synchronized (mGlobalDeletionCandidatesLock) {
+            mGlobalDeletionCandidates.clear();
+        }
     }
 
     /**
@@ -164,29 +170,46 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
             if (manager != null)
                 manager.update(currentYear, currentMonth, currentDay);
         }
-        synchronized (mGlobalDeletionCandidates) {
+        synchronized (mGlobalDeletionCandidatesLock) {
             if (mGlobalLimit != -1L && mGlobalTotalSize > mGlobalLimit)
                 performGlobalDeletion(mGlobalTotalSize - mGlobalLimit);
         }
     }
 
     private void performGlobalDeletion(long size) {
+        int maxIterations = 100; // Guard against infinite loop (Bug #7)
+        int iterations = 0;
         while (true) {
+            if (iterations++ >= maxIterations) {
+                Log.w("ChatLogStorageManager", "performGlobalDeletion: max iterations reached, stopping to prevent infinite loop");
+                return;
+            }
             boolean deletedAnyFile = false;
-            for (Iterator<DeletionCandidate> iterator = mGlobalDeletionCandidates.iterator(); iterator.hasNext(); ) {
-                DeletionCandidate candidate = iterator.next();
-                mGlobalTotalSize -= candidate.size;
+            DeletionCandidate[] candidatesToDelete;
+            synchronized (mGlobalDeletionCandidatesLock) {
+                candidatesToDelete = mGlobalDeletionCandidates.toArray(new DeletionCandidate[0]);
+            }
+            for (DeletionCandidate candidate : candidatesToDelete) {
+                synchronized (mGlobalDeletionCandidatesLock) {
+                    // Verify candidate still exists (may have been removed by reload)
+                    if (!mGlobalDeletionCandidates.contains(candidate)) {
+                        continue;
+                    }
+                    mGlobalTotalSize -= candidate.size;
+                    mGlobalDeletionCandidates.remove(candidate);
+                }
                 File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
                 size -= getFileSize(file);
                 SettingsHelper.deleteSQLiteDatabase(file);
                 deletedAnyFile = true;
-                iterator.remove();
                 if (size <= 0L) {
-                    if (mGlobalDeletionCandidates.isEmpty()) {
-                        // If there are no deletion candidates left, refresh the list so they are
-                        // available during the next performGlobalDeletion call.
-                        for (ServerManager manager : mServerManagers.values())
-                            manager.reload();
+                    synchronized (mGlobalDeletionCandidatesLock) {
+                        if (mGlobalDeletionCandidates.isEmpty()) {
+                            // If there are no deletion candidates left, refresh the list so they are
+                            // available during the next performGlobalDeletion call.
+                            for (ServerManager manager : mServerManagers.values())
+                                manager.reload();
+                        }
                     }
                     return;
                 }
@@ -215,7 +238,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     }
 
     private void addGlobalDeletionCandidate(DeletionCandidate candidate) {
-        synchronized (mGlobalDeletionCandidates) {
+        synchronized (mGlobalDeletionCandidatesLock) {
             if (mGlobalDeletionCandidates.size() < GLOBAL_DELETION_CANDIDATES) {
                 mGlobalDeletionCandidates.add(candidate);
             } else if (mGlobalDeletionCandidates.lower(candidate) != null) {
@@ -225,20 +248,13 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         }
     }
 
-    private long getBlockSize() {
-        if (mBlockSize == 0L) {
-            File chatLogDir = mServerConfigManager.getChatLogDir();
-            if (!chatLogDir.exists())
-                return 0L;
-            StatFs statFs = new StatFs(chatLogDir.getAbsolutePath());
-            mBlockSize = statFs.getBlockSizeLong();
-        }
-        return mBlockSize;
-    }
-
+    /**
+     * Gets the file size in bytes. Since we only use this for relative comparisons
+     * and quota calculations, we use actual file length instead of block-aligned size.
+     * This avoids deprecated StatFs API.
+     */
     private long getFileSize(File file) {
-        long blockSize = getBlockSize();
-        return (file.length() + blockSize - 1) / blockSize * blockSize;
+        return file.length();
     }
 
     @Override
@@ -264,6 +280,70 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         requestUpdate(data.uuid);
     }
 
+    /**
+     * Safely deletes all chat logs for a specific server and recreates the storage API.
+     * This runs on the ChatLogStorageManager's executor to ensure serialization
+     * with other storage operations (performUpdate, onMessage, etc.).
+     *
+     * @param uuid The server UUID
+     * @param callback Callback that receives the new SQLiteMessageStorageApi (or null on error)
+     */
+    public void deleteServerLogs(UUID uuid, StorageDeletionCallback callback) {
+        if (mDestroyed) {
+            if (callback != null) callback.onComplete(null);
+            return;
+        }
+        mExecutor.execute(() -> {
+            SQLiteMessageStorageApi newStorageApi = null;
+            try {
+                // Delete the actual database files
+                File logsDir = mServerConfigManager.getServerChatLogDir(uuid);
+                if (logsDir != null) {
+                    logsDir.mkdirs(); // Ensure directory exists for new DB
+                    File[] files = logsDir.listFiles();
+                    if (files != null) {
+                        for (File file : files) {
+                            if (file.getName().startsWith("messages-") && file.getName().endsWith(".db")) {
+                                SettingsHelper.deleteSQLiteDatabase(file);
+                            }
+                        }
+                    }
+
+                    // Create new storage API for the connection to use
+                    newStorageApi = new SQLiteMessageStorageApi(logsDir);
+                    newStorageApi.open();
+                }
+
+                // Reload or recreate ServerManager so storage manager keeps tracking this server
+                ServerManager manager = mServerManagers.get(uuid);
+                if (manager != null) {
+                    manager.reload();
+                } else {
+                    ServerConfigData config = mServerConfigManager.findServer(uuid);
+                    if (config != null) {
+                        mServerManagers.put(uuid, new ServerManager(config));
+                    }
+                }
+            } catch (Exception e) {
+                Log.e("ChatLogStorageManager", "Error deleting server logs for " + uuid, e);
+                // Close new storage API if it was created but something failed
+                if (newStorageApi != null) {
+                    try { newStorageApi.close(); } catch (Exception ignored) {}
+                }
+                newStorageApi = null;
+            } finally {
+                if (callback != null) callback.onComplete(newStorageApi);
+            }
+        });
+    }
+
+    /**
+     * Callback for storage deletion with result.
+     */
+    public interface StorageDeletionCallback {
+        void onComplete(SQLiteMessageStorageApi newStorageApi);
+    }
+
     public class ServerManager {
 
         private final ServerConfigData mServerConfig;
@@ -286,7 +366,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
             File[] files = mLogsDir.listFiles();
             if (files == null)
                 return;
-            synchronized (mGlobalDeletionCandidates) {
+            synchronized (mGlobalDeletionCandidatesLock) {
                 mTotalSize = 0L;
                 int currentYear = mCurrentLogTime.get(Calendar.YEAR);
                 int currentMonth = mCurrentLogTime.get(Calendar.MONTH);
@@ -295,15 +375,10 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
                 for (File file : files) {
                     long fileSize = getFileSize(file);
                     mTotalSize += fileSize;
-                    Date date;
-                    try {
-                        date = parseFileName(file.getName());
-                    } catch (ParseException ignored) {
+                    long dateMs = parseFileName(file.getName());
+                    if (dateMs == 0L)
                         continue;
-                    }
-                    if (date == null)
-                        continue;
-                    calendar.setTime(date);
+                    calendar.setTimeInMillis(dateMs);
                     if (calendar.get(Calendar.YEAR) == currentYear &&
                             calendar.get(Calendar.MONTH) == currentMonth &&
                             calendar.get(Calendar.DAY_OF_MONTH) == currentDay) {
@@ -311,7 +386,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
                         mCurrentLogSize = fileSize;
                         continue;
                     }
-                    DeletionCandidate candidate = new DeletionCandidate(this, fileSize, date.getTime());
+                    DeletionCandidate candidate = new DeletionCandidate(this, fileSize, dateMs);
                     addDeletionCandidate(candidate);
                     addGlobalDeletionCandidate(candidate);
                 }
@@ -320,7 +395,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         }
 
         public void remove() {
-            synchronized (mGlobalDeletionCandidates) {
+            synchronized (mGlobalDeletionCandidatesLock) {
                 mGlobalTotalSize -= mTotalSize;
                 mDeletionCandidates.clear();
                 for (Iterator<DeletionCandidate> iterator = mGlobalDeletionCandidates.iterator(); iterator.hasNext(); ) {
@@ -335,14 +410,13 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         }
 
         public void update(int currentYear, int currentMonth, int currentDay) {
-            synchronized (mGlobalDeletionCandidates) {
+            synchronized (mGlobalDeletionCandidatesLock) {
                 mTotalSize -= mCurrentLogSize;
                 mGlobalTotalSize -= mCurrentLogSize;
                 mCurrentLogSize = mCurrentLogFile == null ? 0L : getFileSize(mCurrentLogFile);
                 mTotalSize += mCurrentLogSize;
                 mGlobalTotalSize += mCurrentLogSize;
 
-                long blockSize = getBlockSize();
                 while (currentYear > mCurrentLogTime.get(Calendar.YEAR) || (currentYear == mCurrentLogTime.get(Calendar.YEAR) &&
                         (currentMonth > mCurrentLogTime.get(Calendar.MONTH) || (currentMonth == mCurrentLogTime.get(Calendar.MONTH) &&
                                 currentDay > mCurrentLogTime.get(Calendar.DAY_OF_MONTH))))) {
@@ -355,7 +429,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
 
                     mCurrentLogTime.add(Calendar.DAY_OF_MONTH, 1);
                     mCurrentLogFile = new File(mLogsDir, formatFileName(mCurrentLogTime.getTime()));
-                    mCurrentLogSize = (mCurrentLogFile.length() + blockSize - 1) / blockSize * blockSize;
+                    mCurrentLogSize = getFileSize(mCurrentLogFile);
                     mTotalSize += mCurrentLogSize;
                     mGlobalTotalSize += mCurrentLogSize;
                 }
@@ -367,19 +441,38 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         }
 
         private void performDeletion(long size) {
+            int maxIterations = 100; // Guard against infinite loop
+            int iterations = 0;
             while (true) {
+                if (iterations++ >= maxIterations) {
+                    Log.w("ChatLogStorageManager", "performDeletion: max iterations reached, stopping to prevent infinite loop");
+                    return;
+                }
                 boolean deletedAnyFile = false;
-                for (Iterator<DeletionCandidate> iterator = mDeletionCandidates.iterator(); iterator.hasNext(); ) {
-                    DeletionCandidate candidate = iterator.next();
-                    mGlobalTotalSize -= candidate.size;
+                DeletionCandidate[] candidatesToDelete;
+                synchronized (mGlobalDeletionCandidatesLock) {
+                    candidatesToDelete = mDeletionCandidates.toArray(new DeletionCandidate[0]);
+                }
+                for (DeletionCandidate candidate : candidatesToDelete) {
+                    synchronized (mGlobalDeletionCandidatesLock) {
+                        // Verify candidate still exists
+                        if (!mDeletionCandidates.contains(candidate)) {
+                            continue;
+                        }
+                        mGlobalTotalSize -= candidate.size;
+                        mDeletionCandidates.remove(candidate);
+                        // Also remove from global candidates
+                        mGlobalDeletionCandidates.remove(candidate);
+                    }
                     File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
                     size -= getFileSize(file);
                     SettingsHelper.deleteSQLiteDatabase(file);
                     deletedAnyFile = true;
-                    iterator.remove();
                     if (size <= 0L) {
-                        if (mGlobalDeletionCandidates.isEmpty())
-                            reload();
+                        synchronized (mGlobalDeletionCandidatesLock) {
+                            if (mGlobalDeletionCandidates.isEmpty())
+                                reload();
+                        }
                         return;
                     }
                 }
@@ -390,11 +483,13 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         }
 
         private void addDeletionCandidate(DeletionCandidate candidate) {
-            if (mDeletionCandidates.size() < CONNECTION_DELETION_CANDIDATES) {
-                mDeletionCandidates.add(candidate);
-            } else if (mDeletionCandidates.lower(candidate) != null) {
-                mDeletionCandidates.add(candidate);
-                mDeletionCandidates.remove(mDeletionCandidates.last());
+            synchronized (mGlobalDeletionCandidatesLock) {
+                if (mDeletionCandidates.size() < CONNECTION_DELETION_CANDIDATES) {
+                    mDeletionCandidates.add(candidate);
+                } else if (mDeletionCandidates.lower(candidate) != null) {
+                    mDeletionCandidates.add(candidate);
+                    mDeletionCandidates.remove(mDeletionCandidates.last());
+                }
             }
         }
 

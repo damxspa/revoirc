@@ -7,11 +7,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A utility class that executes the tasks in order, for use with a ThreadPoolExecutor.
@@ -23,6 +25,10 @@ public class PoolSerialExecutor implements ExecutorService {
     private final Queue<Runnable> mQueue = new LinkedList<>();
     private final AtomicBoolean mQueuedMainTask = new AtomicBoolean(false);
     private final AtomicBoolean mShutdown = new AtomicBoolean(false);
+    // Tracks number of tasks currently running (0 or 1 since serial)
+    private final AtomicInteger mRunningTasks = new AtomicInteger(0);
+    // Latch for awaitTermination - counts down when executor becomes terminated
+    private final CountDownLatch mTerminationLatch = new CountDownLatch(1);
 
     public PoolSerialExecutor(ExecutorService parentExecutor) {
         mParentExecutor = parentExecutor;
@@ -46,25 +52,39 @@ public class PoolSerialExecutor implements ExecutorService {
     }
 
     private final Runnable mRunTasksRunnable = () -> {
-        while (true) {
-            Runnable runnable;
-            synchronized (this) {
-                if (mQueue.isEmpty()) {
-                    mQueuedMainTask.set(false);
-                    return;
+        mRunningTasks.incrementAndGet();
+        try {
+            while (true) {
+                Runnable runnable;
+                synchronized (this) {
+                    if (mQueue.isEmpty()) {
+                        mQueuedMainTask.set(false);
+                        break;
+                    }
+                    runnable = mQueue.remove();
                 }
-                runnable = mQueue.remove();
+                if (!mShutdown.get()) {
+                    runnable.run();
+                }
             }
-            if (!mShutdown.get()) {
-                runnable.run();
-            }
+        } finally {
+            mRunningTasks.decrementAndGet();
+            checkTermination();
         }
     };
+
+    private void checkTermination() {
+        if (mShutdown.get() && mQueue.isEmpty() && !mQueuedMainTask.get() && mRunningTasks.get() == 0) {
+            mTerminationLatch.countDown();
+        }
+    }
 
     @Override
     public void shutdown() {
         mShutdown.set(true);
         // Don't shutdown parent executor as it's shared (AsyncTask.THREAD_POOL_EXECUTOR)
+        // But ensure we signal termination if already idle
+        checkTermination();
     }
 
     @Override
@@ -75,6 +95,7 @@ public class PoolSerialExecutor implements ExecutorService {
             remaining = new LinkedList<>(mQueue);
             mQueue.clear();
         }
+        checkTermination();
         return remaining;
     }
 
@@ -85,22 +106,12 @@ public class PoolSerialExecutor implements ExecutorService {
 
     @Override
     public boolean isTerminated() {
-        return mShutdown.get() && mQueue.isEmpty() && !mQueuedMainTask.get();
+        return mShutdown.get() && mQueue.isEmpty() && !mQueuedMainTask.get() && mRunningTasks.get() == 0;
     }
 
     @Override
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        long deadline = System.nanoTime() + unit.toNanos(timeout);
-        while (true) {
-            if (isTerminated()) {
-                return true;
-            }
-            long remaining = deadline - System.nanoTime();
-            if (remaining <= 0) {
-                return false;
-            }
-            Thread.sleep(Math.min(100, unit.toMillis(remaining)));
-        }
+        return mTerminationLatch.await(timeout, unit);
     }
 
     @Override

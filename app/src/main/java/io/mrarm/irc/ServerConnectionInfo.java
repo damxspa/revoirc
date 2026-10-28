@@ -10,6 +10,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import io.mrarm.chatlib.ChannelListListener;
 import io.mrarm.chatlib.ChatApi;
@@ -48,6 +50,9 @@ import io.mrarm.irc.util.StubMessageStorageApi;
 import io.mrarm.irc.util.UserAutoRunCommandHelper;
 
 public class ServerConnectionInfo {
+
+    // Shared executor for avatar preparation tasks (avoids thread leak from creating new executor per connection)
+    private static final ExecutorService sAvatarExecutor = Executors.newSingleThreadExecutor();
 
     private final Object mLock = new Object();
     private final Handler mReconnectHandler = new Handler(Looper.getMainLooper());
@@ -231,7 +236,7 @@ public class ServerConnectionInfo {
         List<String> rejoinChannels = getChannels();
 
         if (AvatarUtils.isChateagratisServer(getHost()) || (mServerConfig != null && AvatarUtils.isChateagratisServer(mServerConfig.address))) {
-            Executors.newSingleThreadExecutor().execute(() -> {
+            sAvatarExecutor.execute(() -> {
                 String username = mServerConfig != null && mServerConfig.authUser != null && !mServerConfig.authUser.trim().isEmpty() ? mServerConfig.authUser.trim() :
                         (mServerConfig != null && mServerConfig.user != null && !mServerConfig.user.trim().isEmpty() ? mServerConfig.user.trim() :
                         (mServerConfig != null && mServerConfig.nicks != null && !mServerConfig.nicks.isEmpty() && mServerConfig.nicks.get(0) != null ? mServerConfig.nicks.get(0) : "unknown"));
@@ -356,6 +361,37 @@ public class ServerConnectionInfo {
 
     public void disconnect() {
         disconnect(false);
+    }
+
+    public void recreateAndConnect() {
+        synchronized (mLock) {
+            mReconnectHandler.removeCallbacks(mReconnectRunnable);
+            ChatApi api = getApiInstance();
+            if (api instanceof IRCConnection) {
+                mConnecting = false;
+                mDisconnecting = true;
+                Thread disconnectThread = new Thread(() -> {
+                    try {
+                        ((IRCConnection) api).disconnect(true);
+                    } catch (Exception ignored) {}
+                    mReconnectHandler.post(() -> {
+                        synchronized (mLock) {
+                            setConnected(false);
+                            mConnecting = false;
+                            mDisconnecting = false;
+                            mUserDisconnectRequest = false;
+                            mApi = null;
+                        }
+                        connect();
+                    });
+                });
+                disconnectThread.setName("Server Recreate Thread");
+                disconnectThread.start();
+                return;
+            }
+        }
+        mApi = null;
+        connect();
     }
 
     public void notifyUserExecutedQuit() {
@@ -632,6 +668,31 @@ public class ServerConnectionInfo {
         synchronized (mChannelsListeners) {
             mChannelsListeners.remove(listener);
         }
+    }
+
+    private final List<StorageChangeListener> mStorageListeners = new ArrayList<>();
+
+    public void addStorageChangeListener(StorageChangeListener listener) {
+        synchronized (mStorageListeners) {
+            mStorageListeners.add(listener);
+        }
+    }
+
+    public void removeStorageChangeListener(StorageChangeListener listener) {
+        synchronized (mStorageListeners) {
+            mStorageListeners.remove(listener);
+        }
+    }
+
+    public void notifyStorageApiChanged() {
+        synchronized (mStorageListeners) {
+            for (StorageChangeListener listener : mStorageListeners)
+                listener.onStorageApiChanged(this);
+        }
+    }
+
+    public interface StorageChangeListener {
+        void onStorageApiChanged(ServerConnectionInfo connection);
     }
 
     private void notifyInfoChanged() {

@@ -44,6 +44,7 @@ import io.mrarm.irc.util.ChatExportManager;
 import io.mrarm.irc.util.ColoredTextBuilder;
 import io.mrarm.irc.util.PoolSerialExecutor;
 import io.mrarm.irc.util.StubMessageStorageApi;
+import io.mrarm.irc.util.StubMessageStorageApi;
 import io.mrarm.irc.util.StyledAttributesHelper;
 import io.mrarm.irc.view.SimpleBarChart;
 
@@ -63,6 +64,8 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
     private long mCacheSize = 0L;
     private int mSecondaryTextColor;
     private boolean mDestroyed = false;
+    // Atomic flag to prevent concurrent refreshServerLogs calls (Bug #8)
+    private final java.util.concurrent.atomic.AtomicBoolean mIsCalculatingSpace = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public StorageSettingsAdapter(Context context) {
         refreshServerLogs(context);
@@ -99,9 +102,16 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
 
     private void refreshServerLogs(Context context) {
         if (mDestroyed) return;
+        // Use atomic flag to prevent race condition where mCurrentSpaceTask is nulled asynchronously
+        if (!mIsCalculatingSpace.compareAndSet(false, true)) {
+            return; // Already calculating
+        }
         synchronized (this) {
-            if (mCurrentSpaceTask != null)
+            // Double-check after acquiring lock
+            if (mCurrentSpaceTask != null) {
+                mIsCalculatingSpace.set(false);
                 return;
+            }
             mServerLogEntries.clear();
             notifyDataSetChanged();
             mCurrentSpaceTask = new SpaceCalculateTask(context, this);
@@ -416,17 +426,16 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
 
         @Override
         public void run() {
-            final long dataBlockSize = getBlockSize(mDataDir);
             final long[] dataSize = {0L};
             File[] dataFiles = mDataDir.listFiles();
             if (dataFiles != null) {
                 for (File file : dataFiles) {
                     if (file.getName().equals("cache") || file.getName().equals("lib"))
                         continue;
-                    dataSize[0] += calculateDirectorySize(file, dataBlockSize);
+                    dataSize[0] += calculateDirectorySize(file);
                 }
             }
-            final long cacheSize = calculateDirectorySize(mCacheDir, dataBlockSize);
+            final long cacheSize = calculateDirectorySize(mCacheDir);
 
             // Post results to UI thread
             mMainHandler.post(() -> {
@@ -454,7 +463,7 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
                 processedDirs.add(file);
                 if (!file.exists())
                     continue;
-                long size = calculateChatLogDirectorySize(file, getBlockSize(file));
+                long size = calculateChatLogDirectorySize(file);
                 if (size == 0L)
                     continue;
                 final ServerLogsEntry entry = new ServerLogsEntry(data.name, data.uuid, size);
@@ -473,7 +482,7 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
                     for (File file : files) {
                         if (processedDirs.contains(file))
                             continue;
-                        long size = calculateChatLogDirectorySize(file, getBlockSize(file));
+                        long size = calculateChatLogDirectorySize(file);
                         if (size == 0L)
                             continue;
                         UUID fileUuid = null;
@@ -499,43 +508,33 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
                 StorageSettingsAdapter adapter = mAdapterRef.get();
                 if (adapter != null) {
                     adapter.mCurrentSpaceTask = null;
+                    adapter.mIsCalculatingSpace.set(false);
                 }
             });
         }
 
-        private long getBlockSize(File file) {
-            if (file == null || !file.exists())
-                return 4096L;
-            try {
-                StatFs statFs = new StatFs(file.getAbsolutePath());
-                return statFs.getBlockSizeLong();
-            } catch (Exception e) {
-                return 4096L;
-            }
-        }
-
-        private long calculateDirectorySize(File file, long blockSize) {
+        private long calculateDirectorySize(File file) {
             if (file == null || !file.exists())
                 return 0L;
             File[] files = file.listFiles();
             if (files == null)
-                return blockSize;
-            long ret = blockSize;
+                return 0L;
+            long ret = 0L;
             for (File subfile : files) {
                 if (subfile.isDirectory())
-                    ret += calculateDirectorySize(subfile, blockSize);
+                    ret += calculateDirectorySize(subfile);
                 else
-                    ret += (subfile.length() + blockSize - 1) / blockSize * blockSize;
+                    ret += subfile.length();
             }
             return ret;
         }
 
-        private long calculateChatLogDirectorySize(File file, long blockSize) {
+        private long calculateChatLogDirectorySize(File file) {
             if (file == null || !file.exists())
                 return 0L;
             if (!file.isDirectory()) {
                 if (file.getName().startsWith("messages-"))
-                    return (file.length() + blockSize - 1) / blockSize * blockSize;
+                    return file.length();
                 return 0L;
             }
             File[] files = file.listFiles();
@@ -544,9 +543,9 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
             long ret = 0L;
             for (File subfile : files) {
                 if (subfile.isDirectory()) {
-                    ret += calculateChatLogDirectorySize(subfile, blockSize);
+                    ret += calculateChatLogDirectorySize(subfile);
                 } else if (subfile.getName().startsWith("messages-")) {
-                    ret += (subfile.length() + blockSize - 1) / blockSize * blockSize;
+                    ret += subfile.length();
                 }
             }
             return ret;
@@ -654,66 +653,57 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
         }
 
         private void deleteChatLogDir(UUID uuid) {
-            try {
-                ServerConnectionManager connectionManager = ServerConnectionManager.getInstance(mContext);
-                if (connectionManager != null)
-                    connectionManager.killDisconnectingConnection(uuid);
-                ServerConnectionInfo connection = connectionManager != null ? connectionManager.getConnection(uuid) : null;
+            ServerConnectionManager connectionManager = ServerConnectionManager.getInstance(mContext);
+            if (connectionManager != null)
+                connectionManager.killDisconnectingConnection(uuid);
+            ServerConnectionInfo connection = connectionManager != null ? connectionManager.getConnection(uuid) : null;
 
-                SQLiteMessageStorageApi oldStorageApi = null;
-                if (connection != null) {
-                    try {
-                        synchronized (connection.getLock()) {
-                            Object api = connection.getApiInstance();
-                            if (api instanceof ServerConnectionApi) {
-                                ServerConnectionData connectionData = ((ServerConnectionApi) api).getServerConnectionData();
-                                if (connectionData.getMessageStorageApi() instanceof SQLiteMessageStorageApi) {
-                                    oldStorageApi = (SQLiteMessageStorageApi) connectionData.getMessageStorageApi();
-                                    connectionData.setMessageStorageApi(new StubMessageStorageApi());
-                                }
+            boolean wasConnected = false;
+            SQLiteMessageStorageApi oldStorageApi = null;
+            if (connection != null) {
+                wasConnected = connection.isConnected() || connection.isConnecting();
+                try {
+                    synchronized (connection.getLock()) {
+                        Object api = connection.getApiInstance();
+                        if (api instanceof ServerConnectionApi) {
+                            ServerConnectionData connectionData = ((ServerConnectionApi) api).getServerConnectionData();
+                            if (connectionData.getMessageStorageApi() instanceof SQLiteMessageStorageApi) {
+                                oldStorageApi = (SQLiteMessageStorageApi) connectionData.getMessageStorageApi();
+                                connectionData.setMessageStorageApi(new StubMessageStorageApi());
                             }
                         }
-                    } catch (Exception e) {
-                        Log.e("StorageSettingsAdapter", "Error stubbing storage API", e);
                     }
+                } catch (Exception e) {
+                    Log.e("StorageSettingsAdapter", "Error stubbing storage API", e);
                 }
-
-                if (oldStorageApi != null) {
-                    try {
-                        oldStorageApi.close();
-                    } catch (Exception e) {
-                        Log.e("StorageSettingsAdapter", "Error closing old storage API for server " + uuid, e);
-                    }
-                }
-
-                File file = ServerConfigManager.getInstance(mContext).getServerChatLogDir(uuid);
-                deleteChatLogsInDirectory(file);
-
-                if (connection != null) {
-                    try {
-                        synchronized (connection.getLock()) {
-                            Object api = connection.getApiInstance();
-                            if (api instanceof ServerConnectionApi) {
-                                file.mkdirs();
-                                SQLiteMessageStorageApi newStorageApi = new SQLiteMessageStorageApi(file);
-                                try {
-                                    newStorageApi.open();
-                                } catch (Exception e) {
-                                    Log.e("StorageSettingsAdapter", "Failed to reopen storage API for server " + uuid, e);
-                                }
-                                ServerConnectionData connectionData = ((ServerConnectionApi) api).getServerConnectionData();
-                                connectionData.setMessageStorageApi(newStorageApi);
-                            }
-                        }
-                        IRCService.onStorageApiChanged(connection);
-                    } catch (Exception e) {
-                        Log.e("StorageSettingsAdapter", "Error restoring new storage API", e);
-                    }
-                }
-                ChatLogStorageManager.getInstance(mContext).requestUpdate(uuid);
-            } catch (Exception e) {
-                Log.e("StorageSettingsAdapter", "Error in deleteChatLogDir for uuid " + uuid, e);
             }
+
+            if (oldStorageApi != null) {
+                try {
+                    oldStorageApi.close();
+                } catch (Exception e) {
+                    Log.e("StorageSettingsAdapter", "Error closing old storage API for server " + uuid, e);
+                }
+            }
+
+            final boolean wasConnectedFinal = wasConnected;
+
+            // Use ChatLogStorageManager to safely delete logs on its executor,
+            // ensuring serialization with other storage operations (onMessage, performUpdate, etc.)
+            ChatLogStorageManager.getInstance(mContext).deleteServerLogs(uuid, newStorageApi -> {
+                // After deletion, assign new storage API to connection if it exists
+                mMainHandler.post(() -> {
+                    if (connection != null) {
+                        if (wasConnectedFinal) {
+                            connection.recreateAndConnect();
+                        } else {
+                            IRCService.onStorageApiChanged(connection);
+                        }
+                        connection.notifyStorageApiChanged();
+                    }
+                    ChatLogStorageManager.getInstance(mContext).requestUpdate(uuid);
+                });
+            });
         }
 
         private void deleteChatLogsInDirectory(File dir) {
@@ -780,9 +770,12 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
     }
 
     private static String formatFileSize(long size) {
-        if (size / 1024L >= 128)
+        if (size >= 1024L * 1024L * 1024L) {
+            return String.format(java.util.Locale.getDefault(), "%.2f GB", size / 1024.0 / 1024.0 / 1024.0);
+        } else if (size >= 1024L * 1024L) {
             return String.format(java.util.Locale.getDefault(), "%.2f MB", size / 1024.0 / 1024.0);
-        else
+        } else {
             return String.format(java.util.Locale.getDefault(), "%.2f KB", size / 1024.0);
+        }
     }
 }

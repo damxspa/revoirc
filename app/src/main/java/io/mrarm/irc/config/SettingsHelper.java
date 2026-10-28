@@ -72,13 +72,17 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
      * Returns null if not yet initialized.
      * 
      * @return The SettingsHelper instance or null if not initialized
+     * @deprecated Use {@link #getInstanceOrThrow()} if you expect the instance to be initialized,
+     *             or {@link #getInstance(Context)} to ensure initialization.
      */
+    @Deprecated
     public static SettingsHelper getInstanceOrNull() {
         return INSTANCE.get();
     }
 
     /**
      * Gets the singleton instance, throwing if not initialized.
+     * Preferred over getInstanceOrNull() when you expect the instance to exist.
      * 
      * @return The SettingsHelper instance
      * @throws IllegalStateException if not initialized
@@ -86,7 +90,7 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     public static SettingsHelper getInstanceOrThrow() {
         SettingsHelper instance = INSTANCE.get();
         if (instance == null) {
-            throw new IllegalStateException("SettingsHelper not initialized");
+            throw new IllegalStateException("SettingsHelper not initialized. Call getInstance(Context) first.");
         }
         return instance;
     }
