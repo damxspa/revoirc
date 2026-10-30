@@ -25,6 +25,9 @@ import io.mrarm.irc.config.ServerConfigManager;
 import io.mrarm.irc.config.SettingChangeCallback;
 import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.util.PoolSerialExecutor;
+import io.mrarm.irc.util.StubMessageStorageApi;
+import io.mrarm.chatlib.android.storage.SQLiteMessageStorageApi;
+import io.mrarm.chatlib.message.WritableMessageStorageApi;
 
 import java.util.concurrent.TimeUnit;
 
@@ -148,6 +151,55 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         mExecutor.execute(() -> {
             performUpdate(serverUUID);
             callback.run();
+        });
+    }
+
+    /**
+     * Deletes all chat logs for a server and provides a new storage API for the server.
+     * This is used when the user wants to clear chat logs for a specific server.
+     */
+    public interface DeleteServerLogsCallback {
+        void onNewStorageApi(WritableMessageStorageApi storageApi);
+    }
+
+    public void deleteServerLogs(UUID uuid, DeleteServerLogsCallback callback) {
+        if (mDestroyed) return;
+        mExecutor.execute(() -> {
+            // Get the server's log directory
+            File logDir = mServerConfigManager.getServerChatLogDir(uuid);
+            
+            // Delete all message database files in the directory
+            if (logDir != null && logDir.exists()) {
+                File[] files = logDir.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file.getName().startsWith("messages-")) {
+                            if (file.getName().endsWith(".db")) {
+                                SettingsHelper.deleteSQLiteDatabase(file);
+                            } else if (file.exists()) {
+                                file.delete();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Remove from server managers and reload
+            ServerManager manager = mServerManagers.get(uuid);
+            if (manager != null) {
+                synchronized (mGlobalDeletionCandidates) {
+                    manager.remove();
+                }
+                mServerManagers.put(uuid, new ServerManager(mServerConfigManager.findServer(uuid)));
+            }
+            
+            // Create new storage API for the server
+            WritableMessageStorageApi newStorageApi = new SQLiteMessageStorageApi(logDir);
+            
+            // Post callback to main thread
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                callback.onNewStorageApi(newStorageApi);
+            });
         });
     }
 

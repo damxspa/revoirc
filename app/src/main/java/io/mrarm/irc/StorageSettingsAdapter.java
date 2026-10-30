@@ -30,6 +30,7 @@ import io.mrarm.chatlib.ChatApi;
 import io.mrarm.chatlib.android.storage.SQLiteMessageStorageApi;
 import io.mrarm.chatlib.irc.ServerConnectionApi;
 import io.mrarm.chatlib.irc.ServerConnectionData;
+import io.mrarm.chatlib.message.WritableMessageStorageApi;
 import io.mrarm.irc.config.ChatSettings;
 import io.mrarm.irc.config.CommandAliasManager;
 import io.mrarm.irc.config.NotificationCountStorage;
@@ -690,19 +691,22 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
 
             // Use ChatLogStorageManager to safely delete logs on its executor,
             // ensuring serialization with other storage operations (onMessage, performUpdate, etc.)
-            ChatLogStorageManager.getInstance(mContext).deleteServerLogs(uuid, newStorageApi -> {
-                // After deletion, assign new storage API to connection if it exists
-                mMainHandler.post(() -> {
-                    if (connection != null) {
-                        if (wasConnectedFinal) {
-                            connection.recreateAndConnect();
-                        } else {
-                            IRCService.onStorageApiChanged(connection);
+            ChatLogStorageManager.getInstance(mContext).deleteServerLogs(uuid, new ChatLogStorageManager.DeleteServerLogsCallback() {
+                @Override
+                public void onNewStorageApi(WritableMessageStorageApi newStorageApi) {
+                    // After deletion, assign new storage API to connection if it exists
+                    mMainHandler.post(() -> {
+                        if (connection != null) {
+                            if (wasConnectedFinal) {
+                                connection.recreateAndConnect();
+                            } else {
+                                IRCService.onStorageApiChanged(connection);
+                            }
+                            connection.notifyStorageApiChanged();
                         }
-                        connection.notifyStorageApiChanged();
-                    }
-                    ChatLogStorageManager.getInstance(mContext).requestUpdate(uuid);
-                });
+                        ChatLogStorageManager.getInstance(mContext).requestUpdate(uuid);
+                    });
+                }
             });
         }
 
