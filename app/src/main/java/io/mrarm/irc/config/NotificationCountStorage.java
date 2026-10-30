@@ -13,6 +13,8 @@ import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -22,7 +24,6 @@ public class NotificationCountStorage implements AutoCloseable {
 
     private static volatile NotificationCountStorage sInstance;
 
-    // Flush delay for notification count changes. Could be made configurable via settings in the future.
     private static final int FLUSH_DELAY = 10 * 1000;
 
     private static final int DB_VERSION = 2;
@@ -55,6 +56,8 @@ public class NotificationCountStorage implements AutoCloseable {
     private final HandlerThread mHandlerThread;
     private Map<UUID, Map<String, Integer>> mChangeQueue;
     private boolean mClosed = false;
+    // Latch for database initialization synchronization
+    private final CountDownLatch mDatabaseInitLatch = new CountDownLatch(1);
 
     public NotificationCountStorage(String path) {
         mPath = path;
@@ -62,22 +65,14 @@ public class NotificationCountStorage implements AutoCloseable {
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
 
-        // Initialize database synchronously in constructor to avoid race conditions
-        open();
+        mHandler.post(this::open);
     }
 
-    /**
-     * Opens or reopens the database. Can be called after close() to reinitialize.
-     * This method is thread-safe and idempotent.
-     */
     public void open() {
         synchronized (mDatabaseLock) {
             if (mDatabase != null) {
+                mDatabaseInitLatch.countDown();
                 return;
-            }
-            if (mClosed) {
-                // If closed, reset closed flag to allow reopening
-                mClosed = false;
             }
             try {
                 mDatabase = SQLiteDatabase.openOrCreateDatabase(mPath, null);
@@ -98,7 +93,9 @@ public class NotificationCountStorage implements AutoCloseable {
             } catch (Exception e) {
                 Log.e("NotifCountStorage", "Failed to open database", e);
                 mDatabase = null;
-                throw new RuntimeException("Failed to initialize notification count database", e);
+            } finally {
+                mDatabaseInitLatch.countDown();
+                mDatabaseLock.notifyAll();
             }
         }
     }
@@ -145,7 +142,7 @@ public class NotificationCountStorage implements AutoCloseable {
         });
         try {
             s.get(5, TimeUnit.SECONDS);
-        } catch (InterruptedException | TimeoutException | java.util.concurrent.ExecutionException e) {
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
             Log.w("NotifCountStorage", "Timeout waiting for close", e);
         }
         // Shutdown handler thread after close completes
@@ -160,6 +157,36 @@ public class NotificationCountStorage implements AutoCloseable {
     }
 
     /**
+     * Waits for database to be initialized with proper synchronization.
+     * Uses CountDownLatch for reliable initialization waiting.
+     *
+     * @return true if database is ready, false if timeout or interrupted
+     */
+    private boolean waitForDatabase() {
+        // Fast path - check if already initialized
+        if (mDatabase != null && mDatabase.isOpen()) {
+            return true;
+        }
+        
+        try {
+            // Wait for initialization to complete (with timeout)
+            boolean initialized = mDatabaseInitLatch.await(3, TimeUnit.SECONDS);
+            if (!initialized) {
+                Log.w("NotifCountStorage", "Database initialization timed out");
+                return false;
+            }
+            
+            // Verify database is actually open after initialization
+            synchronized (mDatabaseLock) {
+                return mDatabase != null && mDatabase.isOpen();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /**
      * Checks if database is open and ready without blocking.
      */
     public boolean isDatabaseReady() {
@@ -170,7 +197,7 @@ public class NotificationCountStorage implements AutoCloseable {
 
     private int getChannelCounter(UUID server, String channel) {
         synchronized (mDatabaseLock) {
-            if (!isDatabaseReady())
+            if (!waitForDatabase())
                 return 0;
             mGetNotificationCountStatement.bindString(1, server.toString());
             mGetNotificationCountStatement.bindString(2, channel);
@@ -187,7 +214,7 @@ public class NotificationCountStorage implements AutoCloseable {
 
     private void incrementChannelCounter(UUID server, String channel, int i) {
         synchronized (mDatabaseLock) {
-            if (!isDatabaseReady())
+            if (!waitForDatabase())
                 return;
             mIncrementNotificationCountStatement.bindString(1, server.toString());
             mIncrementNotificationCountStatement.bindString(2, channel);
@@ -207,7 +234,7 @@ public class NotificationCountStorage implements AutoCloseable {
 
     private void resetChannelCounter(UUID server, String channel) {
         synchronized (mDatabaseLock) {
-            if (!isDatabaseReady())
+            if (!waitForDatabase())
                 return;
             mDatabase.execSQL("DELETE FROM 'notification_count' WHERE server=?1 AND channel=?2",
                     new Object[]{server.toString(), channel});
@@ -216,7 +243,7 @@ public class NotificationCountStorage implements AutoCloseable {
 
     private void removeServerCounters(UUID server) {
         synchronized (mDatabaseLock) {
-            if (!isDatabaseReady())
+            if (!waitForDatabase())
                 return;
             mDatabase.execSQL("DELETE FROM 'notification_count' WHERE server=?1",
                     new Object[]{server.toString()});
@@ -225,7 +252,7 @@ public class NotificationCountStorage implements AutoCloseable {
 
     private String getFirstMessageId(UUID server, String channel) {
         synchronized (mDatabaseLock) {
-            if (!isDatabaseReady())
+            if (!waitForDatabase())
                 return null;
             mGetFirstMessageIdStatement.bindString(1, server.toString());
             mGetFirstMessageIdStatement.bindString(2, channel);
@@ -242,7 +269,7 @@ public class NotificationCountStorage implements AutoCloseable {
 
     private void setFirstMessageId(UUID server, String channel, String messageId) {
         synchronized (mDatabaseLock) {
-            if (!isDatabaseReady())
+            if (!waitForDatabase())
                 return;
             mSetFirstMessageIdStatement.bindString(1, server.toString());
             mSetFirstMessageIdStatement.bindString(2, channel);
@@ -262,7 +289,7 @@ public class NotificationCountStorage implements AutoCloseable {
 
     private void resetFirstMessageId(UUID server, String channel) {
         synchronized (mDatabaseLock) {
-            if (!isDatabaseReady())
+            if (!waitForDatabase())
                 return;
             mResetFirstMessageIdStatement.bindString(1, server.toString());
             mResetFirstMessageIdStatement.bindString(2, channel);
@@ -279,11 +306,8 @@ public class NotificationCountStorage implements AutoCloseable {
         }
         if (map == null)
             return;
-        // Iterate over a copy to avoid ConcurrentModificationException if map is modified during iteration
-        // (though we already nulled mChangeQueue, defensive copy is safer)
-        for (Map.Entry<UUID, Map<String, Integer>> vals : new HashMap<>(map).entrySet()) {
-            Map<String, Integer> channelMap = new HashMap<>(vals.getValue());
-            for (Map.Entry<String, Integer> v : channelMap.entrySet()) {
+        for (Map.Entry<UUID, Map<String, Integer>> vals : map.entrySet()) {
+            for (Map.Entry<String, Integer> v : vals.getValue().entrySet()) {
                 incrementChannelCounter(vals.getKey(), v.getKey(), v.getValue());
             }
         }

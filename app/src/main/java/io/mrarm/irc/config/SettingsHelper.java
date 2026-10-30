@@ -10,6 +10,8 @@ import android.util.Log;
 import com.google.gson.Gson;
 
 import java.io.File;
+import java.lang.ref.Reference;
+import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -299,6 +301,7 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
 
     private static final HashMap<Class<?>, ClassCallbackInfo> sCallbacks = new HashMap<>();
     private static final WeakHashMap<Object, WeakReference<ListenerHandle>> sRegisteredListeners = new WeakHashMap<>();
+    private static final ReferenceQueue<Object> sReferenceQueue = new ReferenceQueue<>();
     private static final Handler sUiHandler = new Handler(Looper.getMainLooper());
 
     private static synchronized ClassCallbackInfo resolveCallbacks(Class<?> c) {
@@ -325,6 +328,7 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     public static synchronized void registerCallbacks(Object o) {
         if (sRegisteredListeners.containsKey(o))
             return;
+        cleanupStaleEntries();
         ClassCallbackInfo c = resolveCallbacks(o.getClass());
         ListenerHandle handle = changeEvent();
         for (ClassCallbackInfo.MethodInfo m : c.methods) {
@@ -332,7 +336,7 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
             for (String k : m.keys)
                 handle.listen(k, cb);
         }
-        sRegisteredListeners.put(o, new WeakReference<>(handle));
+        sRegisteredListeners.put(o, new WeakReference<>(handle, sReferenceQueue));
     }
 
     public static synchronized void unregisterCallbacks(Object o) {
@@ -341,6 +345,24 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
             ListenerHandle hh = h.get();
             if (hh != null)
                 hh.cancel();
+        }
+        cleanupStaleEntries();
+    }
+
+    /**
+     * Removes entries from sRegisteredListeners whose keys have been garbage collected.
+     * Called during registration/unregistration to prevent unbounded growth.
+     */
+    private static void cleanupStaleEntries() {
+        Reference<?> ref;
+        while ((ref = sReferenceQueue.poll()) != null) {
+            // Find and remove the entry with this reference
+            for (Map.Entry<Object, WeakReference<ListenerHandle>> entry : sRegisteredListeners.entrySet()) {
+                if (entry.getValue() == ref) {
+                    sRegisteredListeners.remove(entry.getKey());
+                    break;
+                }
+            }
         }
     }
 

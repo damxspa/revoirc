@@ -50,9 +50,12 @@ public class DCCHistory {
 
     /** Closes the underlying SQLite database. Call when the instance is no longer needed. */
     public synchronized void close() {
-        if (mDatabase != null && mDatabase.isOpen()) {
-            mDatabase.close();
-            mDatabase = null;
+        synchronized (mLock) {
+            if (mDatabase != null && mDatabase.isOpen()) {
+                checkpointWal();
+                mDatabase.close();
+                mDatabase = null;
+            }
         }
     }
 
@@ -74,6 +77,21 @@ public class DCCHistory {
                     COLUMN_FILE_SIZE + " INTEGER," +
                     COLUMN_FILE_URI + " TEXT" +
                     ")");
+        }
+    }
+
+    /**
+     * Performs WAL checkpoint to prevent unbounded WAL file growth.
+     */
+    public void checkpointWal() {
+        synchronized (mLock) {
+            if (mDatabase != null && mDatabase.isOpen()) {
+                try {
+                    mDatabase.execSQL("PRAGMA wal_checkpoint(TRUNCATE)");
+                } catch (Exception e) {
+                    // Ignore checkpoint failures
+                }
+            }
         }
     }
 

@@ -46,6 +46,11 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.mrarm.chatlib.irc.MessagePrefix;
 import io.mrarm.chatlib.irc.ServerConnectionApi;
@@ -94,7 +99,22 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
     private boolean mUseSystemDirectoryViaControlResolver;
     private boolean mHasSystemDirectoryAccess;
     private final DCCNotificationManager mNotificationManager;
-    private final ExecutorService mExecutor = Executors.newCachedThreadPool();
+    private final ExecutorService mExecutor = new ThreadPoolExecutor(
+            2,  // core pool size
+            8,  // maximum pool size
+            60L, TimeUnit.SECONDS,  // keep-alive time
+            new LinkedBlockingQueue<>(),
+            new ThreadFactory() {
+                private final AtomicInteger mCount = new AtomicInteger(1);
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r, "DCCManager-Worker-" + mCount.getAndIncrement());
+                    t.setDaemon(true);
+                    return t;
+                }
+            },
+            new ThreadPoolExecutor.AbortPolicy()
+    );
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
@@ -1007,6 +1027,9 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
             while (interfaces.hasMoreElements()) {
                 NetworkInterface iface = interfaces.nextElement();
+                // Skip loopback, virtual, and down interfaces
+                if (iface.isLoopback() || iface.isVirtual() || !iface.isUp())
+                    continue;
                 Enumeration<InetAddress> addrs = iface.getInetAddresses();
                 while (addrs.hasMoreElements()) {
                     InetAddress addr = addrs.nextElement();
@@ -1015,12 +1038,49 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                     String hostAddr = addr.getHostAddress();
                     if (hostAddr != null && hostAddr.indexOf(':') != -1) // IPv6
                         continue;
+                    // Filter out non-routable addresses
+                    if (isNonRoutableAddress(hostAddr))
+                        continue;
                     return hostAddr;
                 }
             }
         } catch (SocketException ignored) {
         }
         return null;
+    }
+
+    /**
+     * Checks if an IPv4 address is non-routable (private, link-local, etc.)
+     * @param ip IPv4 address string
+     * @return true if the address should not be used for DCC connections
+     */
+    private static boolean isNonRoutableAddress(String ip) {
+        if (ip == null) return true;
+        String[] parts = ip.split("\\.");
+        if (parts.length != 4) return true;
+        try {
+            int octet1 = Integer.parseInt(parts[0]);
+            int octet2 = Integer.parseInt(parts[1]);
+            // 10.0.0.0/8 - Private
+            if (octet1 == 10) return true;
+            // 172.16.0.0/12 - Private
+            if (octet1 == 172 && octet2 >= 16 && octet2 <= 31) return true;
+            // 192.168.0.0/16 - Private
+            if (octet1 == 192 && octet2 == 168) return true;
+            // 169.254.0.0/16 - Link-local
+            if (octet1 == 169 && octet2 == 254) return true;
+            // 127.0.0.0/8 - Loopback (should be caught by isLoopbackAddress)
+            if (octet1 == 127) return true;
+            // 0.0.0.0/8 - Current network
+            if (octet1 == 0) return true;
+            // 224.0.0.0/4 - Multicast
+            if (octet1 >= 224 && octet1 <= 239) return true;
+            // 240.0.0.0/4 - Reserved
+            if (octet1 >= 240) return true;
+        } catch (NumberFormatException e) {
+            return true;
+        }
+        return false;
     }
 
 

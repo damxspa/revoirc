@@ -141,7 +141,7 @@ public class BackupManager {
      */
     public static VerificationResult verifyBackupDetailed(File file) {
         VerificationResult result = new VerificationResult();
-        File tempExtractDir = null;
+        final List<File> tempDirsToCleanup = new ArrayList<>();
         try {
             ZipFile zipFile = new ZipFile(file);
             
@@ -251,20 +251,21 @@ public class BackupManager {
             
             // Validate themes
             for (FileHeader themeHeader : themeHeaders) {
-                // Extract to temp file for validation
-                tempExtractDir = new File(file.getParentFile(), "backup_verify_temp_" + System.currentTimeMillis());
-                tempExtractDir.mkdirs();
+                File themeTempDir = null;
                 try {
-                    File extractedFile = new File(tempExtractDir, themeHeader.getFileName());
-                    zipFile.extractFile(themeHeader, tempExtractDir.getAbsolutePath(), null, extractedFile.getName());
+                    themeTempDir = new File(file.getParentFile(), "backup_verify_temp_" + System.currentTimeMillis());
+                    themeTempDir.mkdirs();
+                    tempDirsToCleanup.add(themeTempDir);
+                    File extractedFile = new File(themeTempDir, themeHeader.getFileName());
+                    zipFile.extractFile(themeHeader, themeTempDir.getAbsolutePath(), null, extractedFile.getName());
                     validateThemeFile(extractedFile);
                     result.validThemeCount++;
                 } catch (Exception e) {
                     result.addError("Theme validation failed: " + themeHeader.getFileName() + " - " + e.getMessage());
                 } finally {
-                    if (tempExtractDir != null) {
-                        deleteRecursive(tempExtractDir);
-                        tempExtractDir = null;
+                    if (themeTempDir != null) {
+                        deleteRecursive(themeTempDir);
+                        tempDirsToCleanup.remove(themeTempDir);
                     }
                 }
             }
@@ -272,11 +273,13 @@ public class BackupManager {
             // Validate notification DB if present
             if (result.hasNotificationDb) {
                 FileHeader dbHeader = zipFile.getFileHeader(NOTIFICATION_COUNT_DB_PATH);
-                File tempExtractDir2 = new File(file.getParentFile(), "backup_verify_temp_" + System.currentTimeMillis());
-                tempExtractDir2.mkdirs();
+                File dbTempDir = null;
                 try {
-                    File extractedDb = new File(tempExtractDir2, NOTIFICATION_COUNT_DB_PATH);
-                    zipFile.extractFile(dbHeader, tempExtractDir2.getAbsolutePath(), null, extractedDb.getName());
+                    dbTempDir = new File(file.getParentFile(), "backup_verify_temp_" + System.currentTimeMillis());
+                    dbTempDir.mkdirs();
+                    tempDirsToCleanup.add(dbTempDir);
+                    File extractedDb = new File(dbTempDir, NOTIFICATION_COUNT_DB_PATH);
+                    zipFile.extractFile(dbHeader, dbTempDir.getAbsolutePath(), null, extractedDb.getName());
                     // Validate by opening as SQLite database
                     android.database.sqlite.SQLiteDatabase db = android.database.sqlite.SQLiteDatabase.openDatabase(
                             extractedDb.getAbsolutePath(), null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY);
@@ -289,7 +292,10 @@ public class BackupManager {
                 } catch (Exception e) {
                     result.addError("Notification DB validation failed: " + e.getMessage());
                 } finally {
-                    deleteRecursive(tempExtractDir2);
+                    if (dbTempDir != null) {
+                        deleteRecursive(dbTempDir);
+                        tempDirsToCleanup.remove(dbTempDir);
+                    }
                 }
             }
             
@@ -307,8 +313,9 @@ public class BackupManager {
             Log.e("BackupManager", "Backup verification failed: invalid JSON", e);
             result.addError("JSON syntax error: " + e.getMessage());
         } finally {
-            if (tempExtractDir != null) {
-                deleteRecursive(tempExtractDir);
+            // Cleanup all temp directories
+            for (File dir : tempDirsToCleanup) {
+                deleteRecursive(dir);
             }
         }
         return result;

@@ -156,74 +156,87 @@ public class ServerConnectionInfo {
 
         IRCConnection connection;
         boolean createdNewConnection;
+        boolean connectionSetupComplete = false;
         if (mApi == null || !(mApi instanceof IRCConnection)) {
             connection = new IRCConnection();
-            ServerConfigManager configManager = ServerConfigManager.getInstance(mManager.getContext());
-            connection.getServerConnectionData().setMessageStorageApi(new SQLiteMessageStorageApi(configManager.getServerChatLogDir(getUUID())));
-            mSQLiteMiscStorage = new SQLiteMiscStorage(configManager.getServerMiscDataFile(getUUID()));
-            connection.getServerConnectionData().setChannelDataStorage(new SQLiteChannelDataStorage(mSQLiteMiscStorage));
-            connection.getServerConnectionData().getMessageFilterList().addMessageFilter(new IgnoreListMessageFilter(mServerConfig));
-            if (mSASLOptions != null)
-                connection.getServerConnectionData().getCapabilityManager().registerCapability(
-                        new SASLCapability(mSASLOptions));
-            connection.getServerConnectionData().getMessageFilterList().addMessageFilter(
-                    new ZNCPlaybackMessageFilter(connection.getServerConnectionData()));
-            MessageCommandHandler messageHandler = connection.getServerConnectionData()
-                    .getCommandHandlerList().getHandler(MessageCommandHandler.class);
-            DCCManager dccManager = DCCManager.getInstance(getConnectionManager().getContext());
-            messageHandler.setDCCServerManager(dccManager.getServer());
-            messageHandler.setDCCClientManager(dccManager.createClient(this));
-            messageHandler.setCtcpVersionReply(mManager.getContext()
-                    .getString(R.string.app_name), BuildConfig.VERSION_NAME, "Android");
-            connection.addDisconnectListener((IRCConnection conn, Exception reason) -> {
-                notifyDisconnected();
-            });
-            ServerConnectionData connData = connection.getServerConnectionData();
-            QuitCommandHandler originalQuit = connData.getCommandHandlerList().getHandler(QuitCommandHandler.class);
-            if (originalQuit != null) {
-                connData.getCommandHandlerList().unregisterHandler(originalQuit);
-                connData.getCommandHandlerList().registerHandler(new CommandHandler() {
-                    @Override
-                    public Object[] getHandledCommands() {
-                        return new Object[]{"QUIT"};
-                    }
+            try {
+                ServerConfigManager configManager = ServerConfigManager.getInstance(mManager.getContext());
+                connection.getServerConnectionData().setMessageStorageApi(new SQLiteMessageStorageApi(configManager.getServerChatLogDir(getUUID())));
+                mSQLiteMiscStorage = new SQLiteMiscStorage(configManager.getServerMiscDataFile(getUUID()));
+                connection.getServerConnectionData().setChannelDataStorage(new SQLiteChannelDataStorage(mSQLiteMiscStorage));
+                connection.getServerConnectionData().getMessageFilterList().addMessageFilter(new IgnoreListMessageFilter(mServerConfig));
+                if (mSASLOptions != null)
+                    connection.getServerConnectionData().getCapabilityManager().registerCapability(
+                            new SASLCapability(mSASLOptions));
+                connection.getServerConnectionData().getMessageFilterList().addMessageFilter(
+                        new ZNCPlaybackMessageFilter(connection.getServerConnectionData()));
+                MessageCommandHandler messageHandler = connection.getServerConnectionData()
+                        .getCommandHandlerList().getHandler(MessageCommandHandler.class);
+                DCCManager dccManager = DCCManager.getInstance(getConnectionManager().getContext());
+                messageHandler.setDCCServerManager(dccManager.getServer());
+                messageHandler.setDCCClientManager(dccManager.createClient(this));
+                messageHandler.setCtcpVersionReply(mManager.getContext()
+                        .getString(R.string.app_name), BuildConfig.VERSION_NAME, "Android");
+                connection.addDisconnectListener((IRCConnection conn, Exception reason) -> {
+                    notifyDisconnected();
+                });
+                ServerConnectionData connData = connection.getServerConnectionData();
+                QuitCommandHandler originalQuit = connData.getCommandHandlerList().getHandler(QuitCommandHandler.class);
+                if (originalQuit != null) {
+                    connData.getCommandHandlerList().unregisterHandler(originalQuit);
+                    connData.getCommandHandlerList().registerHandler(new CommandHandler() {
+                        @Override
+                        public Object[] getHandledCommands() {
+                            return new Object[]{"QUIT"};
+                        }
 
-                    @Override
-                    public void handle(ServerConnectionData conn, MessagePrefix sender, String command,
-                                       List<String> params, Map<String, String> tags) throws InvalidMessageException {
-                        if (sender != null && sender.getNick() != null) {
-                            String nick = sender.getNick();
-                            try {
-                                ChannelData pmChannel = conn.getJoinedChannelData(nick);
-                                if (pmChannel != null) {
-                                    conn.getUserInfoApi().getUser(sender.getNick(), sender.getUser(), sender.getHost(),
-                                            (UserInfo userInfo) -> {
-                                                MessageSenderInfo senderInfo = new MessageSenderInfo(sender.getNick(), sender.getUser(),
-                                                        sender.getHost(), null, userInfo.getUUID());
-                                                String message = CommandHandler.getParamOrNull(params, 0);
-                                                if (AppSettings.isNotifyPrivateQuitEnabled())
-                                                    pmChannel.addMessage(new MessageInfo.Builder(senderInfo, message, MessageInfo.MessageType.QUIT), tags);
-                                            },
-                                            (Exception e) -> {
-                                                Log.e("ServerConnectionInfo", "Failed to get user info for QUIT message", e);
-                                            });
+                        @Override
+                        public void handle(ServerConnectionData conn, MessagePrefix sender, String command,
+                                           List<String> params, Map<String, String> tags) throws InvalidMessageException {
+                            if (sender != null && sender.getNick() != null) {
+                                String nick = sender.getNick();
+                                try {
+                                    ChannelData pmChannel = conn.getJoinedChannelData(nick);
+                                    if (pmChannel != null) {
+                                        conn.getUserInfoApi().getUser(sender.getNick(), sender.getUser(), sender.getHost(),
+                                                (UserInfo userInfo) -> {
+                                                    MessageSenderInfo senderInfo = new MessageSenderInfo(sender.getNick(), sender.getUser(),
+                                                            sender.getHost(), null, userInfo.getUUID());
+                                                    String message = CommandHandler.getParamOrNull(params, 0);
+                                                    if (AppSettings.isNotifyPrivateQuitEnabled())
+                                                        pmChannel.addMessage(new MessageInfo.Builder(senderInfo, message, MessageInfo.MessageType.QUIT), tags);
+                                                },
+                                                (Exception e) -> {
+                                                    Log.e("ServerConnectionInfo", "Failed to get user info for QUIT message", e);
+                                                });
                                 }
                             } catch (NoSuchChannelException e) {
                                 // No PM channel with this user, nothing to do
                             }
-                        }
-                        
-                        if (mManager.getContext().getSharedPreferences(mManager.getContext().getPackageName() + "_preferences", Context.MODE_PRIVATE).getBoolean(AppSettings.PREF_CLOSE_PRIVATE_QUIT, false)) {
-                             List<String> channels = getChannels();
-                             for (String channel : channels) {
-                                 if (sender != null && sender.getNick() != null && !IRCUtils.isChannel(channel) && channel.equalsIgnoreCase(sender.getNick())) {
-                                     getApiInstance().leaveChannel(channel, null, (Void v) -> {}, (Exception e) -> {});
+                            }
+                            
+                            if (mManager.getContext().getSharedPreferences(mManager.getContext().getPackageName() + "_preferences", Context.MODE_PRIVATE).getBoolean(AppSettings.PREF_CLOSE_PRIVATE_QUIT, false)) {
+                                 List<String> channels = getChannels();
+                                 for (String channel : channels) {
+                                     if (sender != null && sender.getNick() != null && !IRCUtils.isChannel(channel) && channel.equalsIgnoreCase(sender.getNick())) {
+                                         getApiInstance().leaveChannel(channel, null, (Void v) -> {}, (Exception e) -> {});
+                                     }
                                  }
-                             }
+                            }
+                            originalQuit.handle(conn, sender, command, params, tags);
                         }
-                        originalQuit.handle(conn, sender, command, params, tags);
+                    });
+                }
+                connectionSetupComplete = true;
+            } finally {
+                if (!connectionSetupComplete) {
+                    // Clean up the connection if setup failed
+                    try {
+                        connection.disconnect(true);
+                    } catch (Exception e) {
+                        Log.w("ServerConnectionInfo", "Failed to cleanup connection after setup failure", e);
                     }
-                });
+                }
             }
             createdNewConnection = true;
         } else {

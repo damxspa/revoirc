@@ -57,6 +57,8 @@ public class ServerConnectionManager {
     private final Executor mSaveExecutor = Executors.newSingleThreadExecutor();
     private boolean mDestroying = false;
     private boolean mExecutorShutdown = false;
+    // Timer for periodic cleanup of disconnected connections
+    private final java.util.Timer mCleanupTimer = new java.util.Timer("ServerConnectionManager-Cleanup", true);
 
     public static boolean hasInstance() {
         return instance != null;
@@ -72,6 +74,9 @@ public class ServerConnectionManager {
         if (instance == null)
             return;
         instance.mDestroying = true;
+        // Cleanup timer
+        instance.mCleanupTimer.cancel();
+        instance.cleanupDisconnectingConnections();
         while (!instance.mConnections.isEmpty()) {
             ServerConnectionInfo connection = instance.mConnections.get(instance.mConnections.size() - 1);
             connection.disconnect();
@@ -285,6 +290,8 @@ public class ServerConnectionManager {
                     if (mDisconnectingConnections.containsKey(connection.getUUID()))
                         throw new RuntimeException("mDisconnectingConnections already contains a disconnecting connection with this UUID");
                     mDisconnectingConnections.put(connection.getUUID(), connection);
+                    // Schedule cleanup check
+                    scheduleCleanupCheck();
                 }
             } else if (isConnecting || isConnected || !hasUserDisconnectRequest) {
                 throw new RuntimeException("Trying to remove a non-disconnected connection");
@@ -303,6 +310,31 @@ public class ServerConnectionManager {
         synchronized (mListeners) {
             for (ConnectionsListener listener : mListeners)
                 listener.onConnectionRemoved(connection);
+        }
+    }
+
+    private void scheduleCleanupCheck() {
+        mCleanupTimer.schedule(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                cleanupDisconnectingConnections();
+            }
+        }, 30000); // Check after 30 seconds
+    }
+
+    private void cleanupDisconnectingConnections() {
+        synchronized (mDisconnectingConnections) {
+            if (!mDisconnectingConnections.isEmpty()) {
+                Log.w("ServerConnectionManager", "Cleaning up " + mDisconnectingConnections.size() + " stuck disconnecting connections");
+                for (ServerConnectionInfo connection : mDisconnectingConnections.values()) {
+                    try {
+                        connection.close();
+                    } catch (Exception e) {
+                        Log.e("ServerConnectionManager", "Error closing disconnecting connection", e);
+                    }
+                }
+                mDisconnectingConnections.clear();
+            }
         }
     }
 
