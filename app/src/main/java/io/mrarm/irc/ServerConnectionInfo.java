@@ -272,7 +272,7 @@ public class ServerConnectionInfo {
                         if (mServerConfig.execCommandsConnected != null) {
                             if (mAutoRunHelper == null)
                                 mAutoRunHelper = new UserAutoRunCommandHelper(this);
-                            mAutoRunHelper.executeUserCommands(mServerConfig.execCommandsConnected);
+                            mAutoRunHelper.executeUserCommands(AvatarUtils.ensureWaitCommand(mServerConfig.execCommandsConnected));
                         }
                     }
 
@@ -284,8 +284,15 @@ public class ServerConnectionInfo {
                         joinChannels.addAll(mServerConfig.autojoinChannels);
                     if (rejoinChannels != null && mServerConfig.rejoinChannels)
                         joinChannels.addAll(rejoinChannels);
-                    if (joinChannels.size() > 0)
-                        fConnection.joinChannels(joinChannels, null, null);
+                    if (joinChannels.size() > 0) {
+                        mReconnectHandler.postDelayed(() -> {
+                            synchronized (mLock) {
+                                if (!isConnected())
+                                    return;
+                            }
+                            fConnection.joinChannels(joinChannels, null, null);
+                        }, 3000);
+                    }
 
                 }, (Exception e) -> {
                     if (e instanceof UserOverrideTrustManager.UserRejectedCertificateException ||
