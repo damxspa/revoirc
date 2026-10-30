@@ -16,7 +16,16 @@ import io.mrarm.irc.ServerConnectionManager;
 
 public class ServerPingTask {
 
+    private static final AtomicBoolean isRunning = new AtomicBoolean(false);
+
     public static void pingServers(Context ctx, DoneCallback cb) {
+        if (!isRunning.compareAndSet(false, true)) {
+            Log.d("ServerPingTask", "Ping task already running, skipping execution");
+            if (cb != null)
+                cb.onDone();
+            return;
+        }
+
         PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
         PowerManager.WakeLock wakeLock = null;
         if (pm != null) {
@@ -31,6 +40,7 @@ public class ServerPingTask {
         DoneCallback wrappedCb = () -> {
             if (!doneCalled.compareAndSet(false, true))
                 return; // already done
+            isRunning.set(false);
             if (finalWakeLock != null && finalWakeLock.isHeld()) {
                 try {
                     finalWakeLock.release();
@@ -38,7 +48,8 @@ public class ServerPingTask {
                     Log.w("ServerPingTask", "Failed to release wakelock", e);
                 }
             }
-            cb.onDone();
+            if (cb != null)
+                cb.onDone();
         };
 
         try {

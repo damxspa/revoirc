@@ -86,6 +86,8 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
     @Override
     public void checkServerTrusted(X509Certificate[] chain, String authType)
             throws CertificateException {
+        if (chain == null || chain.length == 0)
+            throw new CertificateException("Certificate chain is null or empty");
         try {
             if (sDefaultTrustManager == null)
                 throw new CertificateException("No default trust manager");
@@ -135,9 +137,14 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
             return true;
         X509Certificate cert;
         try {
-            cert = (X509Certificate) session.getPeerCertificates()[0];
+            java.security.cert.Certificate[] peerCerts = session.getPeerCertificates();
+            if (peerCerts == null || peerCerts.length == 0) {
+                Log.e(TAG, "Peer certificates list is null or empty");
+                return false;
+            }
+            cert = (X509Certificate) peerCerts[0];
         } catch (SSLPeerUnverifiedException e) {
-            Log.e(TAG, "Error while trying to get certificate info");
+            Log.e(TAG, "Error while trying to get certificate info", e);
             return false;
         }
         try {
