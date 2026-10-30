@@ -200,8 +200,12 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
     @Override
     public void onConnectionAdded(ServerConnectionInfo connection) {
+        if (connection == null) return;
         if (messageListeners.containsKey(connection)) {
             onConnectionRemoved(connection);
+        }
+        if (connection.getApiInstance() == null || connection.getApiInstance().getMessageStorageApi() == null) {
+            return;
         }
         MessageListener listener = (channel, info, id) -> onMessage(connection, channel, info, id);
         messageListeners.put(connection, listener);
@@ -210,9 +214,11 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
     @Override
     public void onConnectionRemoved(ServerConnectionInfo connection) {
+        if (connection == null) return;
         MessageListener listener = messageListeners.remove(connection);
-        if (listener != null)
+        if (listener != null && connection.getApiInstance() != null && connection.getApiInstance().getMessageStorageApi() != null) {
             connection.getApiInstance().getMessageStorageApi().unsubscribeChannelMessages(null, listener, null, null);
+        }
     }
 
     @Nullable

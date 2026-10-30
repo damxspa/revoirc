@@ -163,7 +163,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     }
 
     public void deleteServerLogs(UUID uuid, DeleteServerLogsCallback callback) {
-        if (mDestroyed) return;
+        if (mDestroyed || uuid == null) return;
         mExecutor.execute(() -> {
             // Get the server's log directory
             File logDir = mServerConfigManager.getServerChatLogDir(uuid);
@@ -184,21 +184,28 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
                 }
             }
             
-            // Remove from server managers and reload
+            // Remove from server managers and reload if server config exists
             ServerManager manager = mServerManagers.get(uuid);
             if (manager != null) {
                 synchronized (mGlobalDeletionCandidates) {
                     manager.remove();
                 }
-                mServerManagers.put(uuid, new ServerManager(mServerConfigManager.findServer(uuid)));
+                ServerConfigData serverConfig = mServerConfigManager.findServer(uuid);
+                if (serverConfig != null) {
+                    mServerManagers.put(uuid, new ServerManager(serverConfig));
+                } else {
+                    mServerManagers.remove(uuid);
+                }
             }
             
             // Create new storage API for the server
-            WritableMessageStorageApi newStorageApi = new SQLiteMessageStorageApi(logDir);
+            WritableMessageStorageApi newStorageApi = logDir != null ? new SQLiteMessageStorageApi(logDir) : null;
             
             // Post callback to main thread
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                callback.onNewStorageApi(newStorageApi);
+                if (callback != null) {
+                    callback.onNewStorageApi(newStorageApi);
+                }
             });
         });
     }

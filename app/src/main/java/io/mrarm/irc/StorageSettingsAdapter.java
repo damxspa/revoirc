@@ -65,6 +65,7 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
     private long mCacheSize = 0L;
     private int mSecondaryTextColor;
     private boolean mDestroyed = false;
+    private volatile boolean mPendingRefresh = false;
     // Atomic flag to prevent concurrent refreshServerLogs calls (Bug #8)
     private final java.util.concurrent.atomic.AtomicBoolean mIsCalculatingSpace = new java.util.concurrent.atomic.AtomicBoolean(false);
 
@@ -105,11 +106,13 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
         if (mDestroyed) return;
         // Use atomic flag to prevent race condition where mCurrentSpaceTask is nulled asynchronously
         if (!mIsCalculatingSpace.compareAndSet(false, true)) {
+            mPendingRefresh = true;
             return; // Already calculating
         }
         synchronized (this) {
             // Double-check after acquiring lock
             if (mCurrentSpaceTask != null) {
+                mPendingRefresh = true;
                 mIsCalculatingSpace.set(false);
                 return;
             }
@@ -413,12 +416,14 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
 
     private class SpaceCalculateTask implements Runnable {
 
+        private final Context mContext;
         private final WeakReference<StorageSettingsAdapter> mAdapterRef;
         private final ServerConfigManager mServerManager;
         private final File mDataDir;
         private final File mCacheDir;
 
         public SpaceCalculateTask(Context context, StorageSettingsAdapter adapter) {
+            mContext = context.getApplicationContext();
             mServerManager = ServerConfigManager.getInstance(context);
             mDataDir = new File(context.getApplicationInfo().dataDir);
             mCacheDir = context.getCacheDir();
@@ -510,6 +515,10 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
                 if (adapter != null) {
                     adapter.mCurrentSpaceTask = null;
                     adapter.mIsCalculatingSpace.set(false);
+                    if (adapter.mPendingRefresh) {
+                        adapter.mPendingRefresh = false;
+                        adapter.refreshServerLogs(mContext);
+                    }
                 }
             });
         }
@@ -606,10 +615,10 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
 
                     NotificationCountStorage.getInstance(ctx).open();
                 }
+                java.util.Set<UUID> uuidsToDelete = new java.util.HashSet<>();
                 if (mDeleteServerLogs != null) {
-                    deleteChatLogDir(mDeleteServerLogs);
+                    uuidsToDelete.add(mDeleteServerLogs);
                 } else {
-                    java.util.Set<UUID> uuidsToDelete = new java.util.HashSet<>();
                     File chatLogDir = ServerConfigManager.getInstance(mContext).getChatLogDir();
                     File[] logFiles = chatLogDir != null ? chatLogDir.listFiles() : null;
                     if (logFiles != null) {
@@ -627,19 +636,35 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
                             uuidsToDelete.add(conn.getUUID());
                         }
                     }
-                    for (UUID uuid : uuidsToDelete) {
-                        try {
-                            deleteChatLogDir(uuid);
-                        } catch (Exception e) {
-                            Log.e("StorageSettingsAdapter", "Failed to delete chat log dir for uuid: " + uuid, e);
-                        }
+                }
+
+                if (uuidsToDelete.isEmpty()) {
+                    finishTask();
+                    return;
+                }
+
+                java.util.concurrent.atomic.AtomicInteger pendingDeletions = new java.util.concurrent.atomic.AtomicInteger(uuidsToDelete.size());
+                Runnable onOneDeleted = () -> {
+                    if (pendingDeletions.decrementAndGet() == 0) {
+                        finishTask();
+                    }
+                };
+
+                for (UUID uuid : uuidsToDelete) {
+                    try {
+                        deleteChatLogDir(uuid, onOneDeleted);
+                    } catch (Exception e) {
+                        Log.e("StorageSettingsAdapter", "Failed to delete chat log dir for uuid: " + uuid, e);
+                        onOneDeleted.run();
                     }
                 }
             } catch (Exception e) {
                 Log.e("StorageSettingsAdapter", "Failed in RemoveDataTask", e);
+                finishTask();
             }
+        }
 
-            // Dismiss dialog and refresh on UI thread
+        private void finishTask() {
             mMainHandler.post(() -> {
                 try {
                     mAlertDialog.dismiss();
@@ -653,7 +678,7 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
             });
         }
 
-        private void deleteChatLogDir(UUID uuid) {
+        private void deleteChatLogDir(UUID uuid, Runnable onComplete) {
             ServerConnectionManager connectionManager = ServerConnectionManager.getInstance(mContext);
             if (connectionManager != null)
                 connectionManager.killDisconnectingConnection(uuid);
@@ -700,11 +725,19 @@ public class StorageSettingsAdapter extends RecyclerView.Adapter<RecyclerView.Vi
                             if (wasConnectedFinal) {
                                 connection.recreateAndConnect();
                             } else {
+                                Object api = connection.getApiInstance();
+                                if (api instanceof ServerConnectionApi && newStorageApi != null) {
+                                    ServerConnectionData connectionData = ((ServerConnectionApi) api).getServerConnectionData();
+                                    connectionData.setMessageStorageApi(newStorageApi);
+                                }
                                 IRCService.onStorageApiChanged(connection);
                             }
                             connection.notifyStorageApiChanged();
                         }
                         ChatLogStorageManager.getInstance(mContext).requestUpdate(uuid);
+                        if (onComplete != null) {
+                            onComplete.run();
+                        }
                     });
                 }
             });

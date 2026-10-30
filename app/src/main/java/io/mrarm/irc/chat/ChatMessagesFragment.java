@@ -232,9 +232,11 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             } catch (Exception ignored) {}
             mNeedsUnsubscribeMessages = false;
         }
-        if (mChannelName != null) {
+        if (mChannelName != null && connection != null && connection.getApiInstance() != null) {
             mNeedsUnsubscribeMessages = false;
             reloadMessages(null);
+        } else if (mAdapter != null) {
+            mAdapter.setMessages(new java.util.ArrayList<>(), new java.util.ArrayList<>());
         }
     }
 
@@ -247,14 +249,15 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mConnection.removeStorageChangeListener(this);
         }
 
-        if (mNeedsUnsubscribeChannelInfo && getArguments() != null)
+        if (mNeedsUnsubscribeChannelInfo && getArguments() != null && mConnection != null && mConnection.getApiInstance() != null)
             mConnection.getApiInstance().unsubscribeChannelInfo(getArguments().getString(ARG_CHANNEL_NAME), ChatMessagesFragment.this, null, null);
         if (mNeedsUnsubscribeMessages && getArguments() != null && mLastStorageApi != null)
             mLastStorageApi.unsubscribeChannelMessages(getArguments().getString(ARG_CHANNEL_NAME), ChatMessagesFragment.this, null, null);
-        if (mNeedsUnsubscribeStatusMessages)
+        if (mNeedsUnsubscribeStatusMessages && mConnection != null && mConnection.getApiInstance() != null)
             mConnection.getApiInstance().unsubscribeStatusMessages(ChatMessagesFragment.this, null, null);
 
-        mConnection.getNotificationManager().removeUnreadMessageCountCallback(this);
+        if (mConnection != null && mConnection.getNotificationManager() != null)
+            mConnection.getNotificationManager().removeUnreadMessageCountCallback(this);
 
         hideMessagesActionMenu();
     }
@@ -383,6 +386,12 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     }
 
     private void reloadMessages(MessageId nearMessage) {
+        if (mConnection == null || mConnection.getApiInstance() == null) {
+            if (mAdapter != null) {
+                mAdapter.setMessages(new java.util.ArrayList<>(), new java.util.ArrayList<>());
+            }
+            return;
+        }
         boolean isPrivateChat = !IRCUtils.isChannel(mChannelName);
         if (ChatSettings.shouldHideJoinPartMessages() && !isPrivateChat)
             mMessageFilterOptions = sFilterJoinParts;
@@ -390,8 +399,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mMessageFilterOptions = null;
         mUnreadCheckedFirst = -1;
         mUnreadCheckedLast = -1;
-        mAdapter.setNewMessagesStart(mConnection.getNotificationManager()
-                .getChannelManager(mChannelName, true).getFirstUnreadMessage());
+        if (mConnection.getNotificationManager() != null) {
+            mAdapter.setNewMessagesStart(mConnection.getNotificationManager()
+                    .getChannelManager(mChannelName, true).getFirstUnreadMessage());
+        }
         ResponseCallback<MessageList> cb = (MessageList messages) -> {
             Log.i(TAG, "Got message list for " + mChannelName + ": " +
                     messages.getMessages().size() + " messages");
@@ -402,12 +413,18 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                 mLoadOlderIdentifier = messages.getOlder();
             });
 
-            if (!mNeedsUnsubscribeMessages) {
+            if (!mNeedsUnsubscribeMessages && mConnection != null && mConnection.getApiInstance() != null) {
                 mConnection.getApiInstance().getMessageStorageApi().subscribeChannelMessages(mChannelName, ChatMessagesFragment.this, null, null);
                 mNeedsUnsubscribeMessages = true;
             }
         };
         MessageStorageApi storage = mConnection.getApiInstance().getMessageStorageApi();
+        if (storage == null) {
+            if (mAdapter != null) {
+                mAdapter.setMessages(new java.util.ArrayList<>(), new java.util.ArrayList<>());
+            }
+            return;
+        }
         mLastStorageApi = storage;
         if (nearMessage != null) {
             storage.getMessagesNear(mChannelName, nearMessage,
@@ -422,7 +439,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                         });
                     }, null);
         } else {
-            mConnection.getApiInstance().getMessageStorageApi().getMessages(mChannelName, 100,
+            storage.getMessages(mChannelName, 100,
                     getFilterOptions(), null, cb, null);
         }
     }
