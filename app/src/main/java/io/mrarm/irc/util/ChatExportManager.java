@@ -115,7 +115,7 @@ public class ChatExportManager {
                         }
                     }
 
-                    SQLiteMessageStorageApi storageApi = new SQLiteMessageStorageApi(logDir);
+                    SQLiteMessageStorageApi storageApi = createStorageApi(logDir);
                     storageApi.open();
 
                     List<String> channels = discoverChannels(logDir);
@@ -409,7 +409,7 @@ public class ChatExportManager {
                     return;
                 }
 
-                SQLiteMessageStorageApi storageApi = new SQLiteMessageStorageApi(logDir);
+                SQLiteMessageStorageApi storageApi = createStorageApi(logDir);
                 storageApi.open();
 
                 String fileName = (channelName == null || channelName.isEmpty()) ? "server"
@@ -431,6 +431,16 @@ public class ChatExportManager {
                     mainHandler.post(() -> callback.onExportFailed(e));
             }
         }).start();
+    }
+
+    private static SQLiteMessageStorageApi createStorageApi(File logDir) {
+        if (android.os.Looper.myLooper() == null) {
+            try {
+                android.os.Looper.prepare();
+            } catch (Exception ignored) {
+            }
+        }
+        return new SQLiteMessageStorageApi(logDir);
     }
 
     private static void deleteRecursive(File file) {

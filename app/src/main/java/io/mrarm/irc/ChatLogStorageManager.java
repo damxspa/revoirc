@@ -198,11 +198,9 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
                 }
             }
             
-            // Create new storage API for the server
-            WritableMessageStorageApi newStorageApi = logDir != null ? new SQLiteMessageStorageApi(logDir) : null;
-            
-            // Post callback to main thread
+            // Post callback to main thread to create newStorageApi (which instantiates a Handler) and execute callback
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                WritableMessageStorageApi newStorageApi = logDir != null ? new SQLiteMessageStorageApi(logDir) : null;
                 if (callback != null) {
                     callback.onNewStorageApi(newStorageApi);
                 }
