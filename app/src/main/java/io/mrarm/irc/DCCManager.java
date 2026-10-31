@@ -69,6 +69,7 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
         DCCReverseClient.StateListener {
 
     private static DCCManager sInstance;
+    private static final String TAG = "DCCManager";
 
     private static final String PREF_DCC_ASKED_FOR_PERMISSION = "dcc_storage_permission_asked";
     private static final String PREF_DCC_ALWAYS_USE_APP_DOWNLOAD_DIR = "dcc_force_application_download_directory";
@@ -729,7 +730,7 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                     mHandler.post(() ->
                             Toast.makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT)
                                     .show());
-                    e.printStackTrace();
+                    Log.e(TAG, "DCC download error", e);
                     onDownloadDestroyed(this);
                     return;
                 }

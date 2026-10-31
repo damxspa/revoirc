@@ -37,8 +37,7 @@ public class PEMParser {
                             new ByteArrayInputStream(cert));
                     ret.add(crt);
                 } catch (GeneralSecurityException e) {
-                    Log.w("PEMParser", "Failed to load certificate");
-                    e.printStackTrace();
+                    Log.w("PEMParser", "Failed to load certificate", e);
                 }
             }
             if (line.equals(LINE_BEGIN_PRIVATE_KEY)) {
@@ -49,8 +48,7 @@ public class PEMParser {
                     RSAPrivateKey privateKey = (RSAPrivateKey) factory.generatePrivate(keySpec);
                     ret.add(privateKey);
                 } catch (GeneralSecurityException e) {
-                    Log.w("PEMParser", "Failed to load private key");
-                    e.printStackTrace();
+                    Log.w("PEMParser", "Failed to load private key", e);
                 }
             }
         }

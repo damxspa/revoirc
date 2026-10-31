@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
+import android.util.Log;
 import android.webkit.MimeTypeMap;
 
 import net.lingala.zip4j.exception.ZipException;
@@ -160,7 +161,7 @@ public class BackupProgressActivity extends SetupProgressActivity {
                         mExecutor.execute(new CopyFileTask(this, new CopyRequest(fis, fos, desc)));
                     }
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    Log.e("BackupProgressActivity", "Failed to open file descriptor", e);
                     setDone(R.string.error_generic);
                 }
             } else {
@@ -199,7 +200,7 @@ public class BackupProgressActivity extends SetupProgressActivity {
             try {
                 BackupManager.createBackup(mContext, backupFile, mRequest.password);
             } catch (IOException e) {
-                e.printStackTrace();
+                Log.e("BackupProgressActivity", "Failed to create backup", e);
                 backupFile.delete();
                 backupFile = null;
             }
@@ -243,7 +244,7 @@ public class BackupProgressActivity extends SetupProgressActivity {
                     request.file.delete();
                 result = RESULT_OK;
             } catch (IOException e) {
-                e.printStackTrace();
+                Log.e("BackupProgressActivity", "Failed to restore backup", e);
                 if (e.getCause() != null && e.getCause() instanceof ZipException &&
                         ((ZipException) e.getCause()).getCode() == ZipExceptionConstants.WRONG_PASSWORD)
                     result = RESULT_INVALID_PASSWORD;
@@ -296,7 +297,7 @@ public class BackupProgressActivity extends SetupProgressActivity {
                 fos.close();
                 success = true;
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e("BackupProgressActivity", "Failed to copy file", e);
             } finally {
                 try {
                     if (mRequest.fd != null)

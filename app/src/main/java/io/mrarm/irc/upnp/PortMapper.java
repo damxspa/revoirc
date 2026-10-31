@@ -48,8 +48,7 @@ public class PortMapper {
                 try {
                     controlDescription.loadFromUrl(controlDescURL.toString());
                 } catch (IOException | SAXException e) {
-                    Log.w("PortMapper", "Failed to fetch service control description");
-                    e.printStackTrace();
+                    Log.w("PortMapper", "Failed to fetch service control description", e);
                     controlDescription = null;
                 }
 
@@ -67,8 +66,7 @@ public class PortMapper {
                         continue;
                     }
                 } catch (Exception e) {
-                    Log.w("PortMapper", "Failed to send GetExternalIPAddressCall request");
-                    e.printStackTrace();
+                    Log.w("PortMapper", "Failed to send GetExternalIPAddressCall request", e);
                     continue;
                 }
 
@@ -83,8 +81,7 @@ public class PortMapper {
                         return new PortMappingResult(request, externalIP, resp.getNewReservedPort(),
                                 service.getServiceType(), serviceURL);
                     } catch (Exception e) {
-                        Log.w("PortMapper", "Failed to send AddAnyPortMapping request");
-                        e.printStackTrace();
+                        Log.w("PortMapper", "Failed to send AddAnyPortMapping request", e);
                     }
                 }
                 // Then try to bind using AddPortMapping on the desired point, and if that fails try to
@@ -106,8 +103,7 @@ public class PortMapper {
                                     ((UPnPRPCError) e).getErrorCode() + " " +
                                     ((UPnPRPCError) e).getErrorDescription());
                         }
-                        Log.w("PortMapper", "Failed to send AddPortMapping request");
-                        e.printStackTrace();
+                        Log.w("PortMapper", "Failed to send AddPortMapping request", e);
                     }
                     attempt++;
                 } while (attempt < 3);
@@ -151,8 +147,7 @@ public class PortMapper {
         try {
             description.loadFromUrl(ssdpResponese.getDescriptionLocation());
         } catch (Exception ex) {
-            Log.w("PortMapper", "Failed to fetch description");
-            ex.printStackTrace();
+            Log.w("PortMapper", "Failed to fetch description", ex);
             return null;
         }
         UPnPDeviceDescription wanDevice = description

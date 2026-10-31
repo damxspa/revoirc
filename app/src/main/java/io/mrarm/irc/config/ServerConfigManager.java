@@ -118,8 +118,8 @@ public class ServerConfigManager {
         for (File f : files) {
             if (!f.isFile() || !f.getName().startsWith(SERVER_FILE_PREFIX) || !f.getName().endsWith(SERVER_FILE_SUFFIX))
                 continue;
-            try {
-                ServerConfigData data = SettingsHelper.getGson().fromJson(new BufferedReader(new FileReader(f)), ServerConfigData.class);
+            try (BufferedReader reader = new BufferedReader(new FileReader(f))) {
+                ServerConfigData data = SettingsHelper.getGson().fromJson(reader, ServerConfigData.class);
                 if (data == null) {
                     result.errors.add(new LoadError(f.getName(), "Server config parsed as null", null));
                 } else if (data.uuid == null) {

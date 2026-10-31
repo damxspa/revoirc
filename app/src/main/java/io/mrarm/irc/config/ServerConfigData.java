@@ -68,8 +68,7 @@ public class ServerConfigData {
             return (X509Certificate) factory.generateCertificate(
                     new ByteArrayInputStream(authCertData));
         } catch (CertificateException e) {
-            Log.e("ServerConfigData", "Failed to load cert data");
-            e.printStackTrace();
+            Log.e("ServerConfigData", "Failed to load cert data", e);
         }
         return null;
     }
@@ -82,8 +81,7 @@ public class ServerConfigData {
             PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(authCertPrivKey);
             return factory.generatePrivate(keySpec);
         } catch (GeneralSecurityException e) {
-            Log.w("ServerConfigData", "Failed to load private key");
-            e.printStackTrace();
+            Log.w("ServerConfigData", "Failed to load private key", e);
         }
         return null;
     }

@@ -113,8 +113,8 @@ public class ServerConnectionManager {
 
         mConnectedServersFile = new File(context.getFilesDir(), CONNECTED_SERVERS_FILE_PATH);
         ConnectedServersList servers = null;
-        try {
-            servers = SettingsHelper.getGson().fromJson(new BufferedReader(new FileReader(mConnectedServersFile)), ConnectedServersList.class);
+        try (BufferedReader reader = new BufferedReader(new FileReader(mConnectedServersFile))) {
+            servers = SettingsHelper.getGson().fromJson(reader, ConnectedServersList.class);
         } catch (Exception e) {
             Log.e(TAG, "Failed to load connected servers list", e);
         }
