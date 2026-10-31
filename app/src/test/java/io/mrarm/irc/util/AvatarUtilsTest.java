@@ -20,7 +20,6 @@ public class AvatarUtilsTest {
     @Test
     public void testIsChateagratisServer() {
         assertTrue(AvatarUtils.isChateagratisServer("irc.chatsfree.net"));
-        assertTrue(AvatarUtils.isChateagratisServer("chat.zona"));
         assertTrue(AvatarUtils.isChateagratisServer("irc.chatzona.org"));
         assertTrue(AvatarUtils.isChateagratisServer("irc.chateagratis.net"));
         assertTrue(AvatarUtils.isChateagratisServer("5.39.71.48"));
@@ -146,5 +145,50 @@ public class AvatarUtilsTest {
         assertEquals(2, resultWithWait5.size());
         assertEquals("wait 5", resultWithWait5.get(0));
         assertEquals("/join #amistad", resultWithWait5.get(1));
+    }
+
+    @Test
+    public void testEnsureWaitCommand_ChateagratisServers() {
+        // Test with Chateagratis server hosts - should use wait 10
+        java.util.List<String> cmds = new java.util.ArrayList<>();
+        cmds.add("/join #amistad");
+        
+        // Test all Chateagratis hosts
+        String[] chateagratisHosts = {
+            "irc.chatsfree.net",
+            "irc.chatzona.org",
+            "irc.chateagratis.net",
+            "5.39.71.48",
+            "51.255.67.106",
+            "54.36.122.39"
+        };
+        
+        for (String host : chateagratisHosts) {
+            java.util.List<String> result = AvatarUtils.ensureWaitCommand(cmds, host);
+            assertEquals(2, result.size());
+            assertEquals("wait 10", result.get(0));
+            assertEquals("/join #amistad", result.get(1));
+        }
+        
+        // Test with non-Chateagratis host - should use default wait 3
+        java.util.List<String> resultDefault = AvatarUtils.ensureWaitCommand(cmds, "irc.libera.chat");
+        assertEquals(2, resultDefault.size());
+        assertEquals("wait 3", resultDefault.get(0));
+        assertEquals("/join #amistad", resultDefault.get(1));
+        
+        // Test with null host - should use default wait 3
+        java.util.List<String> resultNull = AvatarUtils.ensureWaitCommand(cmds, null);
+        assertEquals(2, resultNull.size());
+        assertEquals("wait 3", resultNull.get(0));
+        assertEquals("/join #amistad", resultNull.get(1));
+        
+        // Test with existing wait command - should not override
+        java.util.List<String> cmdsWithWait = new java.util.ArrayList<>();
+        cmdsWithWait.add("wait 5");
+        cmdsWithWait.add("/join #test");
+        java.util.List<String> resultExistingWait = AvatarUtils.ensureWaitCommand(cmdsWithWait, "irc.chatsfree.net");
+        assertEquals(2, resultExistingWait.size());
+        assertEquals("wait 5", resultExistingWait.get(0));
+        assertEquals("/join #test", resultExistingWait.get(1));
     }
 }

@@ -272,7 +272,7 @@ public class ServerConnectionInfo {
                         if (mServerConfig.execCommandsConnected != null) {
                             if (mAutoRunHelper == null)
                                 mAutoRunHelper = new UserAutoRunCommandHelper(this);
-                            mAutoRunHelper.executeUserCommands(AvatarUtils.ensureWaitCommand(mServerConfig.execCommandsConnected));
+                            mAutoRunHelper.executeUserCommands(AvatarUtils.ensureWaitCommand(mServerConfig.execCommandsConnected, getHost()));
                         }
                     }
 

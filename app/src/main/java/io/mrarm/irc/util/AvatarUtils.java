@@ -74,7 +74,6 @@ public class AvatarUtils {
         }
         String h = host.toLowerCase(Locale.ROOT).trim();
         return h.equalsIgnoreCase("irc.chatsfree.net") ||
-                h.equalsIgnoreCase("chat.zona") ||
                 h.equalsIgnoreCase("irc.chatzona.org") ||
                 h.equalsIgnoreCase("irc.chateagratis.net") ||
                 h.equals("5.39.71.48") ||
@@ -637,6 +636,10 @@ public class AvatarUtils {
     }
 
     public static List<String> ensureWaitCommand(List<String> cmds) {
+        return ensureWaitCommand(cmds, null);
+    }
+
+    public static List<String> ensureWaitCommand(List<String> cmds, String host) {
         if (cmds == null || cmds.isEmpty())
             return cmds;
         String first = cmds.get(0).trim().replaceAll("^/", "");
@@ -644,7 +647,8 @@ public class AvatarUtils {
             return cmds;
         }
         List<String> modified = new ArrayList<>();
-        modified.add("wait 3");
+        int waitTime = (host != null && isChateagratisServer(host)) ? 10 : 3;
+        modified.add("wait " + waitTime);
         modified.addAll(cmds);
         return modified;
     }
