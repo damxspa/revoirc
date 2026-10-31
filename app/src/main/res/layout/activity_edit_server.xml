@@ -407,29 +407,6 @@
 
         </RelativeLayout>
 
-        <RelativeLayout style="@style/EditServerItemContainer"
-            android:layout_marginTop="14dp"
-            android:visibility="gone">
-
-            <ImageView
-                android:id="@+id/server_avatar_url_icon"
-                app:srcCompat="@drawable/ic_translate"
-                style="@style/EditServerIcon.TextInput" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/server_avatar_url_ctr"
-                style="@style/EditServerTextInput"
-                android:hint="@string/server_avatar_url">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/server_avatar_url"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textUri"/>
-
-            </com.google.android.material.textfield.TextInputLayout>
-
-        </RelativeLayout>
 
         <RelativeLayout style="@style/EditServerItemContainer"
             android:layout_marginTop="14dp">

@@ -50,7 +50,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 import io.mrarm.chatlib.ChatApi;
-import io.mrarm.irc.util.AvatarUtils;
 import io.mrarm.chatlib.dto.NickWithPrefix;
 import io.mrarm.chatlib.dto.WhoisInfo;
 import io.mrarm.chatlib.irc.ServerConnectionApi;
@@ -522,13 +521,6 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
             if (menu.findItem(R.id.action_check_connection) != null) {
                 menu.findItem(R.id.action_check_connection).setVisible(connected && inDirectChat);
             }
-            String host = connInfo.getHost();
-            boolean isChatzona = AvatarUtils.isChateagratisServer(host);
-            boolean hasAvatarUrl = connInfo.getServerConfig() != null && connInfo.getServerConfig().avatarUrl != null;
-            if (menu.findItem(R.id.action_view_avatar) != null) {
-                menu.findItem(R.id.action_view_avatar).setVisible(
-                        connected && inDirectChat && (isChatzona || hasAvatarUrl));
-            }
             MenuItem dccSendItem = menu.findItem(R.id.action_dcc_send);
             if (dccSendItem != null) {
                 boolean wasDccSendVisible = dccSendItem.isVisible();
@@ -661,44 +653,6 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
                     dialog.setConnection(chat.getConnectionInfo());
                     dialog.requestData(nick, chat.getConnectionInfo().getApiInstance());
                     setFragmentDialog(dialog.show());
-                }
-            }
-        } else if (id == R.id.action_view_avatar) {
-            if (f instanceof ChatFragment) {
-                ChatFragment chat = (ChatFragment) f;
-                String nick = chat.getCurrentChannel();
-                if (nick != null && chat.getConnectionInfo() != null && chat.getConnectionInfo().getApiInstance() != null) {
-                    chat.getConnectionInfo().getApiInstance().sendWhois(nick, (WhoisInfo info) -> {
-                        String account = info.getLoggedInAsAccount();
-                        runOnUiThread(() -> {
-                            // Use unified avatar URL resolution (same as UserBottomSheetDialog)
-                            String url = AvatarUtils.getAvatarUrl(chat.getConnectionInfo(), info.getRealName(), nick, account);
-                            if (url == null || url.isEmpty()) {
-                                url = AvatarUtils.getAvatarUrlForNick(nick);
-                            }
-                            if (url != null) {
-                                AvatarUtils.clearImageCache(MainActivity.this);
-                                url = AvatarUtils.ensureTimestamp(url);
-                                Intent intent = new Intent(MainActivity.this, ImageActivity.class);
-                                intent.putExtra(ImageActivity.EXTRA_URL, url);
-                                startActivity(intent);
-                            } else {
-                                Toast.makeText(MainActivity.this, R.string.user_no_avatar, Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                    }, (Exception e) -> runOnUiThread(() -> {
-                        // Fallback: try to open avatar using just the nick
-                        String url = AvatarUtils.getAvatarUrlForNick(nick);
-                        if (url != null) {
-                            AvatarUtils.clearImageCache(MainActivity.this);
-                            url = AvatarUtils.ensureTimestamp(url);
-                            Intent intent = new Intent(MainActivity.this, ImageActivity.class);
-                            intent.putExtra(ImageActivity.EXTRA_URL, url);
-                            startActivity(intent);
-                        } else {
-                            Toast.makeText(MainActivity.this, R.string.user_disconnected, Toast.LENGTH_SHORT).show();
-                        }
-                    }));
                 }
             }
         } else if (id == R.id.action_dcc_transfers) {

@@ -3,7 +3,6 @@ package io.mrarm.irc.dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.Intent;
 
 import androidx.core.content.ContextCompat;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
@@ -29,7 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import coil.Coil;
 import coil.request.ImageRequest;
 import coil.transform.CircleCropTransformation;
 import io.mrarm.chatlib.ChatApi;
@@ -39,7 +37,6 @@ import io.mrarm.irc.MainActivity;
 import io.mrarm.irc.R;
 import io.mrarm.irc.ServerConnectionInfo;
 import io.mrarm.irc.util.AdvancedDividerItemDecoration;
-import io.mrarm.irc.util.AvatarUtils;
 
 public class UserBottomSheetDialog {
 
@@ -176,7 +173,6 @@ public class UserBottomSheetDialog {
         view.findViewById(R.id.message_button).setOnClickListener((View v) -> {
             PopupMenu menu = new PopupMenu(mContext, v);
             menu.getMenu().add(0, 1, 0, mContext.getString(R.string.action_message_user));
-            menu.getMenu().add(0, 2, 0, mContext.getString(R.string.action_view_avatar));
             menu.setOnMenuItemClickListener(item -> {
                 if (item.getItemId() == 1) {
                     List<String> l = new ArrayList<>();
@@ -193,18 +189,6 @@ public class UserBottomSheetDialog {
                             Toast.makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT).show();
                         });
                     });
-                    return true;
-                }
-                if (item.getItemId() == 2) {
-                    Intent intent = new Intent(mContext, ImageActivity.class);
-                    String url = AvatarUtils.getAvatarUrl(mConnection, mRealName, mNick, mAccount);
-                    if (url == null || url.isEmpty()) {
-                        url = AvatarUtils.getAvatarUrlForNick(mNick);
-                    }
-                    AvatarUtils.clearImageCache(mContext);
-                    url = AvatarUtils.ensureTimestamp(url);
-                    intent.putExtra(ImageActivity.EXTRA_URL, url);
-                    mContext.startActivity(intent);
                     return true;
                 }
                 return false;
@@ -331,7 +315,6 @@ public class UserBottomSheetDialog {
         private int mMinHeight;
         private int mElevation;
         private boolean mCompactMode = false;
-        private boolean mBottomAvatarMode = false;
 
         public HeaderHelper(View itemView) {
             mContainer = itemView;
@@ -364,120 +347,32 @@ public class UserBottomSheetDialog {
             mNick.setText(UserBottomSheetDialog.this.mNick);
             mUser.setText(UserBottomSheetDialog.this.mUser);
 
-            String host = mConnection != null ? mConnection.getHost() : null;
-            boolean isAllowedServer = host != null && AvatarUtils.isChateagratisServer(host);
+            mName.setVisibility(View.VISIBLE);
+            mMessageButton.setVisibility(View.VISIBLE);
+            mStatus.setVisibility(View.VISIBLE);
+            mRightInfoContainer.setVisibility(View.GONE);
 
-            if (mAvatar != null && UserBottomSheetDialog.this.mNick != null) {
-                String baseUrl = mConnection != null ? mConnection.getServerConfig().avatarUrl : null;
-                String url = null;
-                if (baseUrl != null) {
-                    url = baseUrl;
-                    if (url.contains("%nick%")) {
-                        url = url.replace("%nick%", UserBottomSheetDialog.this.mNick);
-                    }
-                    if (mAccount != null && url.contains("%account%")) {
-                        url = url.replace("%account%", mAccount);
-                    } else if (mAccount == null && url.contains("%account%")) {
-                        url = null;
-                    } else if (!baseUrl.contains("%nick%")) {
-                        url = baseUrl + (mAccount != null ? mAccount : UserBottomSheetDialog.this.mNick);
-                    }
-                } else if (isAllowedServer) {
-                    url = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
-                }
-
-                mBottomAvatarMode = isAllowedServer;
-
-                if (mBottomAvatarMode) {
-                    mName.setVisibility(View.GONE);
-                    mMessageButton.setVisibility(View.GONE);
-                    mStatus.setVisibility(View.GONE);
-                    mRightInfoContainer.setVisibility(View.VISIBLE);
-
-                    mSendMessageNew.setOnClickListener(v -> {
-                        List<String> l = new ArrayList<>();
-                        l.add(UserBottomSheetDialog.this.mNick);
-                        mConnection.getApiInstance().joinChannels(l, (Void vo) -> {
-                            mContainer.post(() -> {
-                                if (mContext instanceof MainActivity)
-                                    ((MainActivity) mContext).openServer(mConnection, UserBottomSheetDialog.this.mNick);
-                                mDialog.cancel();
-                            });
-                        }, (Exception e) -> {
-                            // Handle error in joining channels
-                            mContainer.post(() -> {
-                                Toast.makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT).show();
-                            });
-                        });
-                    });
-
-                    // Safe casting of LayoutParams
-                    ViewGroup.LayoutParams params = mAvatar.getLayoutParams();
-                    if (params instanceof RelativeLayout.LayoutParams) {
-                        RelativeLayout.LayoutParams avatarParams = (RelativeLayout.LayoutParams) params;
-                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
-                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_START);
-                        avatarParams.removeRule(RelativeLayout.CENTER_IN_PARENT);
-                        avatarParams.width = mMaxHeight;
-                        avatarParams.height = mMaxHeight;
-                        avatarParams.topMargin = 0;
-                        avatarParams.leftMargin = 0;
-                        avatarParams.setMarginStart(0);
-                        mAvatar.setLayoutParams(avatarParams);
-                    }
-                } else {
-                    mName.setVisibility(View.VISIBLE);
-                    mMessageButton.setVisibility(View.VISIBLE);
-                    mStatus.setVisibility(View.VISIBLE);
-                    mRightInfoContainer.setVisibility(View.GONE);
-
-                    // Safe casting of LayoutParams
-                    ViewGroup.LayoutParams params = mAvatar.getLayoutParams();
-                    if (params instanceof RelativeLayout.LayoutParams) {
-                        RelativeLayout.LayoutParams avatarParams = (RelativeLayout.LayoutParams) params;
-                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-                        avatarParams.removeRule(RelativeLayout.CENTER_IN_PARENT);
-                        avatarParams.removeRule(RelativeLayout.ALIGN_PARENT_LEFT);
-                        avatarParams.removeRule(RelativeLayout.ALIGN_PARENT_START);
-                        avatarParams.width = (int) (128 * mContext.getResources().getDisplayMetrics().density);
-                        avatarParams.height = avatarParams.width;
-                        avatarParams.topMargin = (int) (16 * mContext.getResources().getDisplayMetrics().density);
-                        avatarParams.leftMargin = (int) (16 * mContext.getResources().getDisplayMetrics().density);
-                        avatarParams.setMarginStart(avatarParams.leftMargin);
-                        mAvatar.setLayoutParams(avatarParams);
-                    }
-                    mNameBottomMargin = mContext.getResources().getDimensionPixelSize(mCompactMode ?
-                            R.dimen.dialog_bottom_user_header_name_bottom_margin_compact :
-                            R.dimen.dialog_bottom_user_header_name_bottom_margin);
-                }
-
-                if (url == null || url.isEmpty()) {
-                    url = AvatarUtils.getAvatarUrlForNick(UserBottomSheetDialog.this.mNick);
-                }
-
-                if (url != null) {
-                    mAvatar.setVisibility(View.VISIBLE);
-                    mAvatar.setImageTintList(null);
-                    mAvatar.setColorFilter(null);
-                    AvatarUtils.loadAvatar(mContext, mConnection, mAvatar, mRealName, UserBottomSheetDialog.this.mNick, mAccount, !mBottomAvatarMode);
-
-                    mAvatar.setOnClickListener(v -> {
-                        Intent intent = new Intent(mContext, ImageActivity.class);
-                        String currentUrl = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
-                        if (currentUrl == null || currentUrl.isEmpty()) {
-                            currentUrl = AvatarUtils.getAvatarUrlForNick(UserBottomSheetDialog.this.mNick);
-                        }
-                        AvatarUtils.clearImageCache(mContext);
-                        currentUrl = AvatarUtils.ensureTimestamp(currentUrl);
-                        intent.putExtra(ImageActivity.EXTRA_URL, currentUrl);
-                        mContext.startActivity(intent);
-                    });
-                } else {
-                    mAvatar.setVisibility(View.GONE);
-                    mAvatar.setOnClickListener(null);
+            if (mAvatar != null) {
+                mAvatar.setVisibility(View.GONE);
+                mAvatar.setOnClickListener(null);
+                ViewGroup.LayoutParams params = mAvatar.getLayoutParams();
+                if (params instanceof RelativeLayout.LayoutParams) {
+                    RelativeLayout.LayoutParams avatarParams = (RelativeLayout.LayoutParams) params;
+                    avatarParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+                    avatarParams.removeRule(RelativeLayout.CENTER_IN_PARENT);
+                    avatarParams.removeRule(RelativeLayout.ALIGN_PARENT_LEFT);
+                    avatarParams.removeRule(RelativeLayout.ALIGN_PARENT_START);
+                    avatarParams.width = (int) (128 * mContext.getResources().getDisplayMetrics().density);
+                    avatarParams.height = avatarParams.width;
+                    avatarParams.topMargin = (int) (16 * mContext.getResources().getDisplayMetrics().density);
+                    avatarParams.leftMargin = (int) (16 * mContext.getResources().getDisplayMetrics().density);
+                    avatarParams.setMarginStart(avatarParams.leftMargin);
+                    mAvatar.setLayoutParams(avatarParams);
                 }
             }
+            mNameBottomMargin = mContext.getResources().getDimensionPixelSize(mCompactMode ?
+                    R.dimen.dialog_bottom_user_header_name_bottom_margin_compact :
+                    R.dimen.dialog_bottom_user_header_name_bottom_margin);
             updateScrollY();
         }
 
@@ -497,8 +392,6 @@ public class UserBottomSheetDialog {
             } else {
                 mNick.setVisibility(View.VISIBLE);
                 mUser.setVisibility(View.VISIBLE);
-                if (mBottomAvatarMode && mRightInfoContainer != null)
-                    mRightInfoContainer.setVisibility(View.VISIBLE);
                 
                 // Safe casting of LayoutParams
                 ViewGroup.LayoutParams nickParams = mNick.getLayoutParams();
@@ -513,10 +406,6 @@ public class UserBottomSheetDialog {
                     RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) userParams;
                     params.bottomMargin = mBottomMargin - y;
                     mUser.setLayoutParams(params);
-                }
-
-                if (mBottomAvatarMode) {
-                    // Avatar is centered, so it stays centered relative to the changing height of the container.
                 }
             }
             if (mAvatar != null)
@@ -572,26 +461,11 @@ public class UserBottomSheetDialog {
                 mMinHeight = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_min_height);
                 mBottomMargin = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_bottom_margin);
                 mNameBottomMargin = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_name_bottom_margin);
-                if (mBottomAvatarMode) {
-                    // FIXED: Use float for density calculation to avoid truncation
-                    float density = mContext.getResources().getDisplayMetrics().density;
-                    mNameBottomMargin = (int) (166 * density);
-                }
                 mTargetNameBottomMargin = mContext.getResources().getDimensionPixelSize(R.dimen.dialog_bottom_user_header_name_bottom_margin_target);
             }
             RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mContainer.getLayoutParams();
             params.height = mMaxHeight;
             mContainer.setLayoutParams(params);
-            if (mBottomAvatarMode && mAvatar != null) {
-                // Safe casting of LayoutParams for avatar
-                ViewGroup.LayoutParams avatarParamsObj = mAvatar.getLayoutParams();
-                if (avatarParamsObj instanceof RelativeLayout.LayoutParams) {
-                    RelativeLayout.LayoutParams avatarParams = (RelativeLayout.LayoutParams) avatarParamsObj;
-                    avatarParams.width = mMaxHeight;
-                    avatarParams.height = mMaxHeight;
-                    mAvatar.setLayoutParams(avatarParams);
-                }
-            }
             mRecyclerView.setPadding(0, mMaxHeight, 0, 0);
             RecyclerView.LayoutManager layoutManager = mRecyclerView.getLayoutManager();
             if (layoutManager instanceof LinearLayoutManager) {

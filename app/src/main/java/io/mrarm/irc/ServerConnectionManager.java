@@ -31,7 +31,6 @@ import javax.net.ssl.TrustManager;
 
 import io.mrarm.chatlib.irc.IRCConnectionRequest;
 import io.mrarm.chatlib.irc.cap.SASLOptions;
-import io.mrarm.irc.util.AvatarUtils;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ServerConfigData;
 import io.mrarm.irc.config.ServerConfigManager;
@@ -218,11 +217,6 @@ public class ServerConnectionManager {
         else
             request.setRealName(request.getNickList().get(0));
 
-        if (AvatarUtils.isChateagratisServer(data.address)) {
-            String username = data.authUser != null && !data.authUser.trim().isEmpty() ? data.authUser.trim() :
-                    (data.user != null && !data.user.trim().isEmpty() ? data.user.trim() : request.getNickList().get(0));
-            request.setRealName(AvatarUtils.buildGecosFromAvatarUrl(AvatarUtils.AVATAR_URL_PREFIX + username.toLowerCase(java.util.Locale.ROOT)));
-        }
 
         if (data.pass != null)
             request.setServerPass(data.pass);
