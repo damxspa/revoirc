@@ -249,10 +249,11 @@ public class ServerConnectionInfo {
                 setConnected(true);
                 mCurrentReconnectAttempt = 0;
 
-                if (mServerConfig.execCommandsConnected != null) {
+                List<String> execCmds = AvatarUtils.ensureWaitCommand(mServerConfig.execCommandsConnected, getHost());
+                if (execCmds != null && !execCmds.isEmpty()) {
                     if (mAutoRunHelper == null)
                         mAutoRunHelper = new UserAutoRunCommandHelper(this);
-                    mAutoRunHelper.executeUserCommands(AvatarUtils.ensureWaitCommand(mServerConfig.execCommandsConnected, getHost()));
+                    mAutoRunHelper.executeUserCommands(execCmds);
                 }
             }
 
@@ -261,8 +262,19 @@ public class ServerConnectionInfo {
                 joinChannels.addAll(mServerConfig.autojoinChannels);
             if (rejoinChannels != null && mServerConfig.rejoinChannels)
                 joinChannels.addAll(rejoinChannels);
-            if (joinChannels.size() > 0)
-                fConnection.joinChannels(joinChannels, null, null);
+            if (joinChannels.size() > 0) {
+                if (AvatarUtils.isChateagratisServer(getHost())) {
+                    mReconnectHandler.postDelayed(() -> {
+                        synchronized (mLock) {
+                            if (!isConnected())
+                                return;
+                        }
+                        fConnection.joinChannels(joinChannels, null, null);
+                    }, 10000);
+                } else {
+                    fConnection.joinChannels(joinChannels, null, null);
+                }
+            }
 
         }, (Exception e) -> {
             if (e instanceof UserOverrideTrustManager.UserRejectedCertificateException ||

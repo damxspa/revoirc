@@ -24,8 +24,14 @@ public class AvatarUtils {
     }
 
     public static List<String> ensureWaitCommand(List<String> cmds, String host) {
-        if (cmds == null || cmds.isEmpty())
+        if (cmds == null || cmds.isEmpty()) {
+            if (host != null && isChateagratisServer(host)) {
+                List<String> modified = new ArrayList<>();
+                modified.add("wait 10");
+                return modified;
+            }
             return cmds;
+        }
         String first = cmds.get(0).trim().replaceAll("^/", "");
         if (first.toLowerCase(Locale.ROOT).startsWith("wait")) {
             return cmds;
