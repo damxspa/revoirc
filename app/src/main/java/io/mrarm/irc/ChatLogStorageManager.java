@@ -74,7 +74,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
 
     private final ServerConnectionManager mConnectionManager;
     private final ServerConfigManager mServerConfigManager;
-    private long mBlockSize = 0L;
+    private volatile long mBlockSize = 0L;
     private final Map<UUID, ServerManager> mServerManagers = new ConcurrentHashMap<>();
     private final AtomicInteger mGlobalMessageCounter = new AtomicInteger(0);
     private final TreeSet<DeletionCandidate> mGlobalDeletionCandidates = new TreeSet<>();
@@ -283,14 +283,17 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     }
 
     private long getBlockSize() {
-        if (mBlockSize == 0L) {
-            File chatLogDir = mServerConfigManager.getChatLogDir();
-            if (!chatLogDir.exists())
-                return 0L;
-            StatFs statFs = new StatFs(chatLogDir.getAbsolutePath());
-            mBlockSize = statFs.getBlockSizeLong();
+        File chatLogDir = mServerConfigManager.getChatLogDir();
+        if (chatLogDir != null && chatLogDir.exists()) {
+            try {
+                StatFs statFs = new StatFs(chatLogDir.getAbsolutePath());
+                long size = statFs.getBlockSizeLong();
+                if (size > 0L)
+                    mBlockSize = size;
+            } catch (Exception ignored) {
+            }
         }
-        return mBlockSize;
+        return mBlockSize > 0L ? mBlockSize : 4096L;
     }
 
     private long getFileSize(File file) {

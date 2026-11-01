@@ -313,6 +313,13 @@ public class NotificationCountStorage implements AutoCloseable {
         }
     }
 
+    public void flushImmediately() {
+        mHandler.post(() -> {
+            mHandler.removeCallbacks(mFlushQueuedChangesRunnable);
+            flushQueuedChanges();
+        });
+    }
+
     public void requestGetChannelCounter(UUID server, String channel, WeakReference<OnChannelCounterResult> result) {
         mHandler.post(() -> {
             mHandler.removeCallbacks(mFlushQueuedChangesRunnable);

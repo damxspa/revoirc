@@ -141,18 +141,24 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
             return false;
         }
         try {
-            synchronized (UserOverrideTrustManager.this) {
-                if (mTempTrustedCertificates != null && mTempTrustedCertificates.contains(cert)) {
-                    Log.i(TAG, "Accepting hostname as a temporarily trusted certificate is being used");
+            ServerConfigData serverConfig = ServerConfigManager.getInstance(mContext).findServer(mServerUUID);
+            boolean isServerTargetHost = serverConfig != null && serverConfig.address != null
+                    && serverConfig.address.equalsIgnoreCase(hostname);
+            boolean appliesToCert = ServerCertificateManager.certAppliesToHostname(cert, hostname);
+            if (appliesToCert || isServerTargetHost) {
+                synchronized (UserOverrideTrustManager.this) {
+                    if (mTempTrustedCertificates != null && mTempTrustedCertificates.contains(cert)) {
+                        Log.i(TAG, "Accepting hostname as a temporarily trusted certificate is being used");
+                        return true;
+                    }
+                }
+                if (mManager.hasCertificate(cert)) {
+                    Log.i(TAG, "Accepting hostname as a custom cert is being used");
                     return true;
                 }
             }
-            if (mManager.hasCertificate(cert)) {
-                Log.i(TAG, "Accepting hostname as a custom cert is being used");
-                return true;
-            }
         } catch (Exception e) {
-            Log.e(TAG, "Failed to find the certificate in the custom key store");
+            Log.e(TAG, "Failed to find the certificate in the custom key store", e);
         }
         Log.i(TAG, "Failed to verify hostname, asking user");
         try {

@@ -64,35 +64,43 @@ public class SSDPDiscovery {
     public Response receive() throws IOException {
         if (mDiscoverySocket == null)
             return null;
-        int timeout = 0;
-        if (mReceiveTimeout > 0)
-            timeout = Math.max((int) (mReceiveTimeout - System.currentTimeMillis()), 1);
-        mDiscoverySocket.setSoTimeout(timeout);
-        try {
-            mReceivePacket.setLength(mReceiveBuffer.length);
-            mDiscoverySocket.receive(mReceivePacket);
-        } catch (SocketTimeoutException ignored) {
-            return null;
-        }
-        String decoded = new String(mReceiveBuffer, 0, mReceivePacket.getLength(), StandardCharsets.UTF_8);
-        if (!decoded.startsWith("HTTP/1.1 200 OK\r\n")) {
-            Log.w("SSDP", "Invalid response");
-            return null;
-        }
-        int i = 17;
-        Map<String, String> headers = new HashMap<>();
         while (true) {
-            int j = decoded.indexOf("\r\n", i);
-            if (j == -1)
-                break;
-            String ent = decoded.substring(i, j);
-            int s = ent.indexOf(": ");
-            if (s != -1) {
-                headers.put(ent.substring(0, s).toUpperCase(Locale.US), ent.substring(s + 2));
+            int timeout = 0;
+            if (mReceiveTimeout > 0) {
+                long remaining = mReceiveTimeout - System.currentTimeMillis();
+                if (remaining <= 0)
+                    return null;
+                timeout = (int) Math.max(remaining, 1L);
             }
-            i = j + 2;
+            mDiscoverySocket.setSoTimeout(timeout);
+            try {
+                mReceivePacket.setLength(mReceiveBuffer.length);
+                mDiscoverySocket.receive(mReceivePacket);
+            } catch (SocketTimeoutException ignored) {
+                return null;
+            }
+            String decoded = new String(mReceiveBuffer, 0, mReceivePacket.getLength(), StandardCharsets.UTF_8);
+            if (!decoded.startsWith("HTTP/1.1 200 OK\r\n")) {
+                Log.w("SSDP", "Ignoring non-search SSDP response");
+                if (mReceiveTimeout <= 0)
+                    return null;
+                continue;
+            }
+            int i = 17;
+            Map<String, String> headers = new HashMap<>();
+            while (true) {
+                int j = decoded.indexOf("\r\n", i);
+                if (j == -1)
+                    break;
+                String ent = decoded.substring(i, j);
+                int s = ent.indexOf(": ");
+                if (s != -1) {
+                    headers.put(ent.substring(0, s).toUpperCase(Locale.US), ent.substring(s + 2));
+                }
+                i = j + 2;
+            }
+            return new Response(headers);
         }
-        return new Response(headers);
     }
 
     public static class Response {

@@ -34,12 +34,12 @@ public class PortMapper {
                 Log.d("PortMapper", "Found device using SSDP: " +
                         response.getDescriptionLocation());
                 UPnPDeviceDescription.Service service = getWANService(response);
-                if (service == null) {
-                    Log.d("PortMapper", "Skipping device");
+                if (service == null || service.getControlURL() == null || service.getControlURL().isEmpty()
+                        || service.getSCPDURL() == null || service.getSCPDURL().isEmpty()) {
+                    Log.w("PortMapper", "Skipping device due to missing service or URLs");
                     continue;
                 }
                 Log.d("DCCManager", "Found a valid service: " + service.getControlURL());
-
 
                 URL controlDescURL = new URL(new URL(response.getDescriptionLocation()),
                         service.getSCPDURL());

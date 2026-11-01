@@ -318,6 +318,53 @@ public class ServerCertificateManager {
         return TextUtils.join(",", elements.toArray());
     }
 
+    public static boolean certAppliesToHostname(X509Certificate cert, String hostname) {
+        if (cert == null || hostname == null || hostname.isEmpty())
+            return false;
+        String hostLower = hostname.toLowerCase(java.util.Locale.US);
+        try {
+            Collection<List<?>> altNames = cert.getSubjectAlternativeNames();
+            if (altNames != null && !altNames.isEmpty()) {
+                for (List<?> altName : altNames) {
+                    Integer altNameType = (Integer) altName.get(0);
+                    if (altNameType == 2 || altNameType == 7) { // dns or ip
+                        String pattern = ((String) altName.get(1)).toLowerCase(java.util.Locale.US);
+                        if (matchDomain(pattern, hostLower))
+                            return true;
+                    }
+                }
+            }
+        } catch (CertificateParsingException ignored) {
+        }
+        try {
+            String dn = cert.getSubjectX500Principal().getName();
+            for (String part : dn.split(",")) {
+                part = part.trim();
+                if (part.toUpperCase(java.util.Locale.US).startsWith("CN=")) {
+                    String cn = part.substring(3).trim().toLowerCase(java.util.Locale.US);
+                    if (matchDomain(cn, hostLower))
+                        return true;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    private static boolean matchDomain(String pattern, String hostname) {
+        if (pattern.equals(hostname))
+            return true;
+        if (pattern.startsWith("*.")) {
+            String suffix = pattern.substring(1);
+            int firstDot = hostname.indexOf('.');
+            if (firstDot != -1) {
+                String hostSuffix = hostname.substring(firstDot);
+                return hostSuffix.equals(suffix);
+            }
+        }
+        return false;
+    }
+
     public static X509TrustManager createKeyStoreTrustManager(KeyStore keyStore) {
         try {
             TrustManagerFactory factory = TrustManagerFactory.getInstance(

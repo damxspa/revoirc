@@ -32,6 +32,8 @@ public class UPnPDeviceDescription {
 
     public void loadFromUrl(String url) throws IOException, SAXException {
         URLConnection connection = new URL(url).openConnection();
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
         XMLReader reader;
         try {
             SAXParserFactory factory = SAXParserFactory.newInstance();

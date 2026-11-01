@@ -274,6 +274,8 @@ public class DCCHistory {
         }
 
         byte[] getServerUUIDBytes() {
+            if (serverUUID == null)
+                return null;
             ByteBuffer b = ByteBuffer.wrap(new byte[16]);
             b.putLong(serverUUID.getMostSignificantBits());
             b.putLong(serverUUID.getLeastSignificantBits());
@@ -281,6 +283,10 @@ public class DCCHistory {
         }
 
         void setServerUUID(byte[] bytes) {
+            if (bytes == null || bytes.length < 16) {
+                serverUUID = null;
+                return;
+            }
             ByteBuffer b = ByteBuffer.wrap(bytes);
             serverUUID = new UUID(b.getLong(), b.getLong());
         }
