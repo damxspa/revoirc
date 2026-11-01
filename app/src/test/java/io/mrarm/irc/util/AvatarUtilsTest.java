@@ -128,7 +128,7 @@ public class AvatarUtilsTest {
         cmds.add("/join #amistad");
         java.util.List<String> result = AvatarUtils.ensureWaitCommand(cmds);
         assertEquals(2, result.size());
-        assertEquals("wait 3", result.get(0));
+        assertEquals("wait 6", result.get(0));
         assertEquals("/join #amistad", result.get(1));
 
         java.util.List<String> cmdsWithWait = new java.util.ArrayList<>();

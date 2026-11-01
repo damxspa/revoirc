@@ -644,7 +644,7 @@ public class AvatarUtils {
             return cmds;
         }
         List<String> modified = new ArrayList<>();
-        modified.add("wait 3");
+        modified.add("wait 6");
         modified.addAll(cmds);
         return modified;
     }
