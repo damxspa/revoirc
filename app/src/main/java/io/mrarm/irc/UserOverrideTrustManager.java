@@ -41,15 +41,38 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
 
     private static final X509TrustManager sDefaultTrustManager = ServerCertificateManager.createKeyStoreTrustManager(null);
 
+    private static final java.util.Map<UUID, List<X509Certificate>> sTempTrustedCertificates = new java.util.HashMap<>();
+
     private final Context mContext;
     private final UUID mServerUUID;
     private final ServerCertificateManager mManager;
-    private List<X509Certificate> mTempTrustedCertificates;
 
     public UserOverrideTrustManager(Context context, UUID serverUUID) {
         mContext = context;
         mServerUUID = serverUUID;
         mManager = ServerCertificateManager.get(context, serverUUID);
+    }
+
+    public static void addTempTrustedCertificate(UUID serverUUID, X509Certificate certificate) {
+        if (serverUUID == null || certificate == null) return;
+        synchronized (sTempTrustedCertificates) {
+            List<X509Certificate> certs = sTempTrustedCertificates.get(serverUUID);
+            if (certs == null) {
+                certs = new ArrayList<>();
+                sTempTrustedCertificates.put(serverUUID, certs);
+            }
+            if (!certs.contains(certificate)) {
+                certs.add(certificate);
+            }
+        }
+    }
+
+    public static boolean isTempTrustedCertificate(UUID serverUUID, X509Certificate certificate) {
+        if (serverUUID == null || certificate == null) return false;
+        synchronized (sTempTrustedCertificates) {
+            List<X509Certificate> certs = sTempTrustedCertificates.get(serverUUID);
+            return certs != null && certs.contains(certificate);
+        }
     }
 
     private String getServerName() {
@@ -67,11 +90,7 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
 
     public void addCertificateException(X509Certificate certificate, boolean temporary) {
         if (temporary) {
-            synchronized (this) {
-                if (mTempTrustedCertificates == null)
-                    mTempTrustedCertificates = new ArrayList<>();
-                mTempTrustedCertificates.add(certificate);
-            }
+            addTempTrustedCertificate(mServerUUID, certificate);
         } else {
             mManager.addCertificateException(certificate);
         }
@@ -94,18 +113,16 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
             try {
                 mManager.checkServerTrusted(chain, authType);
             } catch (Exception e2) {
-                synchronized (UserOverrideTrustManager.this) {
-                    if (mTempTrustedCertificates != null && mTempTrustedCertificates.contains(chain[0])) {
-                        Log.i(TAG, "A temporarily trusted certificate is being used - trusting the server");
-                        return;
-                    }
+                if (isTempTrustedCertificate(mServerUUID, chain[0])) {
+                    Log.i(TAG, "A temporarily trusted certificate is being used - trusting the server");
+                    return;
                 }
                 Log.i(TAG, "Unrecognized certificate");
                 try {
                     X509Certificate cert = chain[0];
                     Boolean result;
                     try {
-                        result = askUser(cert, R.string.certificate_bad_cert).get(120, TimeUnit.SECONDS);
+                        result = askUser(cert, R.string.certificate_bad_cert).get(60, TimeUnit.SECONDS);
                     } catch (java.util.concurrent.TimeoutException e4) {
                         Log.w(TAG, "User did not respond to certificate prompt in time");
                         result = false;
@@ -146,11 +163,9 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
                     && serverConfig.address.equalsIgnoreCase(hostname);
             boolean appliesToCert = ServerCertificateManager.certAppliesToHostname(cert, hostname);
             if (appliesToCert || isServerTargetHost) {
-                synchronized (UserOverrideTrustManager.this) {
-                    if (mTempTrustedCertificates != null && mTempTrustedCertificates.contains(cert)) {
-                        Log.i(TAG, "Accepting hostname as a temporarily trusted certificate is being used");
-                        return true;
-                    }
+                if (isTempTrustedCertificate(mServerUUID, cert)) {
+                    Log.i(TAG, "Accepting hostname as a temporarily trusted certificate is being used");
+                    return true;
                 }
                 if (mManager.hasCertificate(cert)) {
                     Log.i(TAG, "Accepting hostname as a custom cert is being used");
@@ -162,7 +177,7 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
         }
         Log.i(TAG, "Failed to verify hostname, asking user");
         try {
-            return askUser(cert, R.string.certificate_bad_hostname, ServerCertificateManager.buildCertAppliesToString(cert), hostname).get(120, TimeUnit.SECONDS);
+            return askUser(cert, R.string.certificate_bad_hostname, ServerCertificateManager.buildCertAppliesToString(cert), hostname).get(60, TimeUnit.SECONDS);
         } catch (java.util.concurrent.TimeoutException e) {
             Log.w(TAG, "User did not respond to hostname verification prompt in time");
             return false;

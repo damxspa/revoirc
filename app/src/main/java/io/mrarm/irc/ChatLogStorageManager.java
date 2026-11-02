@@ -233,6 +233,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
             for (Iterator<DeletionCandidate> iterator = mGlobalDeletionCandidates.iterator(); iterator.hasNext(); ) {
                 DeletionCandidate candidate = iterator.next();
                 mGlobalTotalSize -= candidate.size;
+                if (mGlobalTotalSize < 0L) mGlobalTotalSize = 0L;
                 File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
                 size -= getFileSize(file);
                 SettingsHelper.deleteSQLiteDatabase(file);
@@ -432,6 +433,9 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
                 for (Iterator<DeletionCandidate> iterator = mDeletionCandidates.iterator(); iterator.hasNext(); ) {
                     DeletionCandidate candidate = iterator.next();
                     mGlobalTotalSize -= candidate.size;
+                    if (mGlobalTotalSize < 0L) mGlobalTotalSize = 0L;
+                    mTotalSize -= candidate.size;
+                    if (mTotalSize < 0L) mTotalSize = 0L;
                     File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
                     size -= getFileSize(file);
                     SettingsHelper.deleteSQLiteDatabase(file);
