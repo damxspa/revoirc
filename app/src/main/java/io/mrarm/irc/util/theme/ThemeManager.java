@@ -36,11 +36,16 @@ public class ThemeManager {
 
     private static final String PREF_THEME_CUSTOM_PREFIX = "custom:";
 
-    private static ThemeManager instance;
+    private static volatile ThemeManager instance;
 
     public static ThemeManager getInstance(Context context) {
-        if (instance == null)
-            instance = new ThemeManager(context.getApplicationContext());
+        if (instance == null) {
+            synchronized (ThemeManager.class) {
+                if (instance == null) {
+                    instance = new ThemeManager(context.getApplicationContext());
+                }
+            }
+        }
         return instance;
     }
 

@@ -18,11 +18,16 @@ public class ServerPingScheduler {
 
     public static final int JOB_ID = 1;
 
-    private static ServerPingScheduler instance;
+    private static volatile ServerPingScheduler instance;
 
     public static ServerPingScheduler getInstance(Context ctx) {
-        if (instance == null)
-            instance = new ServerPingScheduler(ctx.getApplicationContext());
+        if (instance == null) {
+            synchronized (ServerPingScheduler.class) {
+                if (instance == null) {
+                    instance = new ServerPingScheduler(ctx.getApplicationContext());
+                }
+            }
+        }
         return instance;
     }
 

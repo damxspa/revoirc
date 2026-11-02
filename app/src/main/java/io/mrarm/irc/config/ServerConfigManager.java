@@ -21,7 +21,7 @@ import io.mrarm.irc.ServerConnectionManager;
 
 public class ServerConfigManager {
 
-    private static ServerConfigManager mInstance;
+    private static volatile ServerConfigManager mInstance;
 
     private static final String TAG = "ServerConfigManager";
 
@@ -35,8 +35,13 @@ public class ServerConfigManager {
     private static final String SERVER_MISC_DATA_FILENAME = BackupPaths.SERVER_MISC_DATA_FILENAME;
 
     public static ServerConfigManager getInstance(Context context) {
-        if (mInstance == null)
-            mInstance = new ServerConfigManager(context.getApplicationContext());
+        if (mInstance == null) {
+            synchronized (ServerConfigManager.class) {
+                if (mInstance == null) {
+                    mInstance = new ServerConfigManager(context.getApplicationContext());
+                }
+            }
+        }
         return mInstance;
     }
 
