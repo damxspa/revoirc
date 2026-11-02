@@ -52,7 +52,7 @@ public class NotificationRuleManager {
         sDefaultTopRules = new ArrayList<>();
         sDefaultBottomRules = new ArrayList<>();
         sNickMentionRule = new NotificationRule(R.string.notification_rule_nick, NotificationRule.AppliesToEntry.channelEvents(), "(^|[ ,:;@])${nick}($|[ ,:;'?])", true);
-        sDirectMessageRule = new NotificationRule(R.string.notification_rule_direct, NotificationRule.AppliesToEntry.directMessages(), null);
+        sDirectMessageRule = new NotificationRule(R.string.notification_rule_direct, NotificationRule.AppliesToEntry.directEvents(), null);
         sDirectMessageRule.settings.mentionFormatting = false;
         sDirectNoticeRule = new NotificationRule(R.string.notification_rule_notice, NotificationRule.AppliesToEntry.directNotices(), null);
         sDirectNoticeRule.settings.mentionFormatting = false;

@@ -101,9 +101,16 @@ public class NotificationManager {
     private NotificationRule findNotificationRule(ServerConnectionInfo connection, String channel,
                                                   MessageInfo message) {
         ChatApi api = connection.getApiInstance();
+        boolean isChannel = false;
         if (api instanceof ServerConnectionApi && channel != null && !channel.isEmpty() &&
-                !((ServerConnectionApi) api).getServerConnectionData().getSupportList()
-                        .getSupportedChannelTypes().contains(channel.charAt(0)))
+                ((ServerConnectionApi) api).getServerConnectionData() != null &&
+                ((ServerConnectionApi) api).getServerConnectionData().getSupportList() != null) {
+            isChannel = ((ServerConnectionApi) api).getServerConnectionData().getSupportList()
+                    .getSupportedChannelTypes().contains(channel.charAt(0));
+        } else if (channel != null) {
+            isChannel = io.mrarm.irc.util.IRCUtils.isChannel(channel);
+        }
+        if (!isChannel)
             channel = null;
 
         ConnectionManager connData = connection.getNotificationManager();
