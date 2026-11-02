@@ -19,7 +19,7 @@ gradlePlugin {
 }
 
 dependencies {
-    compileOnly 'com.android.tools.build:gradle:9.4.0'
+    compileOnly 'com.android.tools.build:gradle:9.5.0'
     implementation 'org.yaml:snakeyaml:1.23'
     implementation 'com.squareup:javawriter:2.5.1'
 }
