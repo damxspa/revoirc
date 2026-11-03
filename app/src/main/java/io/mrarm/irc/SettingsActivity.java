@@ -23,6 +23,7 @@ import io.mrarm.irc.setting.fragment.CommandSettingsFragment;
 import io.mrarm.irc.setting.fragment.InterfaceSettingsFragment;
 import io.mrarm.irc.setting.fragment.NamedSettingsFragment;
 import io.mrarm.irc.setting.fragment.NotificationSettingsFragment;
+import io.mrarm.irc.setting.fragment.TemplateSettingsFragment;
 import io.mrarm.irc.setting.fragment.ReconnectSettingsFragment;
 import io.mrarm.irc.setting.fragment.StorageSettingsFragment;
 import io.mrarm.irc.setting.fragment.UserSettingsFragment;
@@ -166,6 +167,7 @@ public class SettingsActivity extends ThemedActivity {
             ret.add(new Item(R.string.pref_header_reconnect, R.drawable.ic_refresh, ReconnectSettingsFragment.class));
             ret.add(new Item(R.string.pref_header_interface, R.drawable.ic_appearance, InterfaceSettingsFragment.class));
             ret.add(new Item(R.string.pref_header_notifications, R.drawable.ic_notifications, NotificationSettingsFragment.class));
+            ret.add(new Item(R.string.pref_header_templates, R.drawable.ic_template, TemplateSettingsFragment.class));
             ret.add(new Item(R.string.pref_header_command_aliases, R.drawable.ic_keyboard, CommandSettingsFragment.class));
             ret.add(new Item(R.string.pref_header_backup, R.drawable.ic_settings_backup, (View v) -> {
                 v.getContext().startActivity(new Intent(v.getContext(), BackupActivity.class));

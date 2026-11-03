@@ -100,6 +100,9 @@
             android:name=".EditCommandAliasActivity"
             android:label="@string/title_activity_edit_command_alias" />
         <activity
+            android:name=".EditTemplateActivity"
+            android:label="@string/title_activity_edit_template" />
+        <activity
             android:name=".IgnoreListActivity"
             android:label="@string/title_activity_ignore_list" />
         <activity

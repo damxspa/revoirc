@@ -598,6 +598,15 @@
     <string name="pref_title_ping_interval">Intervalo de latido</string>
     <string name="pref_title_ping_interval_mobile">Intervalo de latido (datos móviles)</string>
 
+    <!-- Template settings -->
+
+    <string name="pref_header_templates">Plantillas</string>
+    <string name="template_no_template">Sin plantilla</string>
+    <string name="title_activity_add_template">Añadir plantilla</string>
+    <string name="title_activity_edit_template">Editar plantilla</string>
+    <string name="edit_template_hint">Mensaje de plantilla</string>
+    <string name="edit_template_error_empty">La plantilla no puede estar vacía</string>
+
     <!-- Command aliases settings -->
 
     <string name="pref_header_command_aliases">Alias de comandos</string>
