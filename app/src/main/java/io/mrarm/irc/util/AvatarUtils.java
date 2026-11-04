@@ -73,6 +73,10 @@ public class AvatarUtils {
             return false;
         }
         String h = host.toLowerCase(Locale.ROOT).trim();
+        int colonIdx = h.indexOf(':');
+        if (colonIdx != -1) {
+            h = h.substring(0, colonIdx);
+        }
         return h.equalsIgnoreCase("irc.chatsfree.net") ||
                 h.equalsIgnoreCase("chat.zona") ||
                 h.equalsIgnoreCase("irc.chatzona.org") ||
@@ -329,6 +333,10 @@ public class AvatarUtils {
      */
     public static void loadAvatar(Context context, ServerConnectionInfo info, ImageView imageView, String gecos, String nick, String account, boolean circleCrop) {
         if (context == null || imageView == null) {
+            return;
+        }
+        if (info != null && !isChateagratisServer(info.getHost())) {
+            imageView.setVisibility(View.GONE);
             return;
         }
         String primaryUrl = getAvatarUrl(info, gecos, nick, account);

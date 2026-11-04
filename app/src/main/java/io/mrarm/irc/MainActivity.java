@@ -524,10 +524,9 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
             }
             String host = connInfo.getHost();
             boolean isChatzona = AvatarUtils.isChateagratisServer(host);
-            boolean hasAvatarUrl = connInfo.getServerConfig() != null && connInfo.getServerConfig().avatarUrl != null;
             if (menu.findItem(R.id.action_view_avatar) != null) {
                 menu.findItem(R.id.action_view_avatar).setVisible(
-                        connected && inDirectChat && (isChatzona || hasAvatarUrl));
+                        connected && inDirectChat && isChatzona);
             }
             MenuItem dccSendItem = menu.findItem(R.id.action_dcc_send);
             if (dccSendItem != null) {
@@ -668,6 +667,9 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
                 ChatFragment chat = (ChatFragment) f;
                 String nick = chat.getCurrentChannel();
                 if (nick != null && chat.getConnectionInfo() != null && chat.getConnectionInfo().getApiInstance() != null) {
+                    if (!AvatarUtils.isChateagratisServer(chat.getConnectionInfo().getHost())) {
+                        return true;
+                    }
                     chat.getConnectionInfo().getApiInstance().sendWhois(nick, (WhoisInfo info) -> {
                         String account = info.getLoggedInAsAccount();
                         runOnUiThread(() -> {
