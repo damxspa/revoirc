@@ -51,7 +51,6 @@ public class BackupManager {
     private static final String BACKUP_SERVER_CERTS_SUFFIX = BackupPaths.BACKUP_SERVER_CERTS_SUFFIX;
     private static final String BACKUP_NOTIFICATION_RULES_PATH = BackupPaths.BACKUP_NOTIFICATION_RULES_PATH;
     private static final String BACKUP_COMMAND_ALIASES_PATH = BackupPaths.BACKUP_COMMAND_ALIASES_PATH;
-    private static final String BACKUP_TEMPLATES_PATH = BackupPaths.BACKUP_TEMPLATES_PATH;
     private static final String NOTIFICATION_COUNT_DB_PATH = BackupPaths.NOTIFICATION_COUNT_DB_PATH;
     private static final String BACKUP_THEME_PREFIX = BackupPaths.BACKUP_THEME_PREFIX;
     private static final String BACKUP_THEME_SUFFIX = BackupPaths.BACKUP_THEME_SUFFIX;
@@ -104,11 +103,6 @@ public class BackupManager {
             writer = new StringWriter();
             CommandAliasManager.getInstance(context).saveUserSettings(writer);
             params.setFileNameInZip(BACKUP_COMMAND_ALIASES_PATH);
-            zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes()), params);
-
-            writer = new StringWriter();
-            TemplateManager.getInstance(context).saveUserSettings(writer);
-            params.setFileNameInZip(BACKUP_TEMPLATES_PATH);
             zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes()), params);
 
             NotificationCountStorage.getInstance(context).close();
@@ -662,15 +656,6 @@ public class BackupManager {
                 }
             }
 
-            File templatesFile = new File(stagingDir, BACKUP_TEMPLATES_PATH);
-            if (templatesFile.exists()) {
-                try (BufferedReader reader = new BufferedReader(new FileReader(templatesFile))) {
-                    TemplateManager templateManager = TemplateManager.getInstance(context);
-                    templateManager.loadUserSettings(reader);
-                    templateManager.saveUserSettings();
-                }
-            }
-            
             // 4. Backup current server list for potential rollback
             List<ServerConfigData> currentServers = new ArrayList<>(configManager.getServers());
             

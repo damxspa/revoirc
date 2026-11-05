@@ -10,7 +10,6 @@ import androidx.fragment.app.Fragment;
 
 import io.mrarm.irc.MainActivity;
 import io.mrarm.irc.chat.ChatFragment;
-import io.mrarm.irc.config.TemplateManager;
 
 public class NickSpan extends ClickableSpan {
 
@@ -36,13 +35,7 @@ public class NickSpan extends ClickableSpan {
         Fragment fragment = activity.getCurrentFragment();
         if (fragment instanceof ChatFragment) {
             ChatFragment chatFragment = (ChatFragment) fragment;
-            String template = TemplateManager.getInstance(widget.getContext()).getActiveTemplate();
-            String command;
-            if (template != null && !template.trim().isEmpty()) {
-                command = "/msg " + mNick + " " + template;
-            } else {
-                command = "/msg " + mNick + " ";
-            }
+            String command = "/msg " + mNick + " ";
             chatFragment.getSendMessageHelper().setMessageText(command);
             chatFragment.getSendMessageHelper().setSelection(command.length());
         }

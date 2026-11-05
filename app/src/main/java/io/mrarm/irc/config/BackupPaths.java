@@ -19,7 +19,6 @@ public final class BackupPaths {
     public static final String BACKUP_SERVER_CERTS_SUFFIX = ".jks";
     public static final String BACKUP_NOTIFICATION_RULES_PATH = "notification_rules.json";
     public static final String BACKUP_COMMAND_ALIASES_PATH = "command_aliases.json";
-    public static final String BACKUP_TEMPLATES_PATH = "templates.json";
     public static final String NOTIFICATION_COUNT_DB_PATH = "notification-count.db";
     public static final String BACKUP_THEME_PREFIX = "themes/theme-";
     public static final String BACKUP_THEME_SUFFIX = ".json";
