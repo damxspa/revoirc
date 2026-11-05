@@ -103,7 +103,6 @@ public class EditServerActivity extends ThemedActivity {
     private ChipsEditText mServerChannels;
     private CheckBox mServerRejoinChannels;
     private AutoRunCommandListEditText mServerCommands;
-    private EditText mServerAvatarUrl;
     private Spinner mServerEncoding;
 
     private View mServerUserExpandIcon;
@@ -173,7 +172,6 @@ public class EditServerActivity extends ThemedActivity {
         mServerChannels = findViewById(R.id.server_channels);
         mServerRejoinChannels = findViewById(R.id.server_rejoin_channels);
         mServerCommands = findViewById(R.id.server_commands);
-        mServerAvatarUrl = findViewById(R.id.server_avatar_url);
         mServerEncoding = findViewById(R.id.server_encoding);
 
         mServerUserExpandIcon = findViewById(R.id.server_user_expand);
@@ -306,7 +304,6 @@ public class EditServerActivity extends ThemedActivity {
                 }
                 mServerCommands.setText(b.toString());
             }
-            mServerAvatarUrl.setText(mEditServer.avatarUrl);
             mServerEncoding.setSelection(0);
             for (int i = 0; i < mServerEncodingValues.length; i++) {
                 if (Objects.equals(mServerEncodingValues[i], mEditServer.charset))
@@ -429,7 +426,6 @@ public class EditServerActivity extends ThemedActivity {
         Editable commandsText = mServerCommands.getText();
         mEditServer.execCommandsConnected = (commandsText != null && commandsText.length() > 0)
                 ? Arrays.asList(mServerCommands.getTextWithPasswords().split("\n")) : null;
-        mEditServer.avatarUrl = nullifyIfEmpty(mServerAvatarUrl.getText().toString());
         mEditServer.charset = mServerEncodingValues[mServerEncoding.getSelectedItemPosition()];
         try {
             ServerConfigManager.getInstance(this).saveServer(mEditServer);

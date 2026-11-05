@@ -33,12 +33,10 @@ import coil.request.ImageRequest;
 import coil.transform.CircleCropTransformation;
 import io.mrarm.chatlib.ChatApi;
 import io.mrarm.chatlib.dto.WhoisInfo;
-import io.mrarm.irc.ImageActivity;
 import io.mrarm.irc.MainActivity;
 import io.mrarm.irc.R;
 import io.mrarm.irc.ServerConnectionInfo;
 import io.mrarm.irc.util.AdvancedDividerItemDecoration;
-import io.mrarm.irc.util.AvatarUtils;
 
 public class UserBottomSheetDialog {
 
@@ -175,11 +173,6 @@ public class UserBottomSheetDialog {
         view.findViewById(R.id.message_button).setOnClickListener((View v) -> {
             PopupMenu menu = new PopupMenu(mContext, v);
             menu.getMenu().add(0, 1, 0, mContext.getString(R.string.action_message_user));
-            String host = mConnection != null ? mConnection.getHost() : null;
-            boolean isAllowedServer = host != null && AvatarUtils.isChateagratisServer(host);
-            if (isAllowedServer) {
-                menu.getMenu().add(0, 2, 0, mContext.getString(R.string.action_view_avatar));
-            }
             menu.setOnMenuItemClickListener(item -> {
                 if (item.getItemId() == 1) {
                     List<String> l = new ArrayList<>();
@@ -196,21 +189,6 @@ public class UserBottomSheetDialog {
                             Toast.makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT).show();
                         });
                     });
-                    return true;
-                }
-                if (item.getItemId() == 2) {
-                    if (!isAllowedServer) {
-                        return true;
-                    }
-                    Intent intent = new Intent(mContext, ImageActivity.class);
-                    String url = AvatarUtils.getAvatarUrl(mConnection, mRealName, mNick, mAccount);
-                    if (url == null || url.isEmpty()) {
-                        url = AvatarUtils.getAvatarUrlForNick(mNick);
-                    }
-                    AvatarUtils.clearImageCache(mContext);
-                    url = AvatarUtils.ensureTimestamp(url);
-                    intent.putExtra(ImageActivity.EXTRA_URL, url);
-                    mContext.startActivity(intent);
                     return true;
                 }
                 return false;
@@ -370,90 +348,19 @@ public class UserBottomSheetDialog {
             mNick.setText(UserBottomSheetDialog.this.mNick);
             mUser.setText(UserBottomSheetDialog.this.mUser);
 
-            String host = mConnection != null ? mConnection.getHost() : null;
-            boolean isAllowedServer = host != null && AvatarUtils.isChateagratisServer(host);
-
+            // Hide avatar view since avatar functionality has been removed
             if (mAvatar != null) {
-                if (!isAllowedServer || UserBottomSheetDialog.this.mNick == null) {
-                    mBottomAvatarMode = false;
-                    mAvatar.setVisibility(View.GONE);
-                    mAvatar.setOnClickListener(null);
-                    mName.setVisibility(View.VISIBLE);
-                    mMessageButton.setVisibility(View.VISIBLE);
-                    mStatus.setVisibility(View.VISIBLE);
-                    if (mRightInfoContainer != null) {
-                        mRightInfoContainer.setVisibility(View.GONE);
-                    }
-                } else {
-                    String url = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
-                    if (url == null || url.isEmpty()) {
-                        url = AvatarUtils.getAvatarUrlForNick(UserBottomSheetDialog.this.mNick);
-                    }
-
-                    mBottomAvatarMode = true;
-                    mName.setVisibility(View.GONE);
-                    mMessageButton.setVisibility(View.GONE);
-                    mStatus.setVisibility(View.GONE);
-                    if (mRightInfoContainer != null) {
-                        mRightInfoContainer.setVisibility(View.VISIBLE);
-                    }
-
-                    mSendMessageNew.setOnClickListener(v -> {
-                        List<String> l = new ArrayList<>();
-                        l.add(UserBottomSheetDialog.this.mNick);
-                        mConnection.getApiInstance().joinChannels(l, (Void vo) -> {
-                            mContainer.post(() -> {
-                                if (mContext instanceof MainActivity)
-                                    ((MainActivity) mContext).openServer(mConnection, UserBottomSheetDialog.this.mNick);
-                                mDialog.cancel();
-                            });
-                        }, (Exception e) -> {
-                            // Handle error in joining channels
-                            mContainer.post(() -> {
-                                Toast.makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT).show();
-                            });
-                        });
-                    });
-
-                    // Safe casting of LayoutParams
-                    ViewGroup.LayoutParams params = mAvatar.getLayoutParams();
-                    if (params instanceof RelativeLayout.LayoutParams) {
-                        RelativeLayout.LayoutParams avatarParams = (RelativeLayout.LayoutParams) params;
-                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
-                        avatarParams.addRule(RelativeLayout.ALIGN_PARENT_START);
-                        avatarParams.removeRule(RelativeLayout.CENTER_IN_PARENT);
-                        avatarParams.width = mMaxHeight;
-                        avatarParams.height = mMaxHeight;
-                        avatarParams.topMargin = 0;
-                        avatarParams.leftMargin = 0;
-                        avatarParams.setMarginStart(0);
-                        mAvatar.setLayoutParams(avatarParams);
-                    }
-
-                    if (url != null) {
-                        mAvatar.setVisibility(View.VISIBLE);
-                        mAvatar.setImageTintList(null);
-                        mAvatar.setColorFilter(null);
-                        AvatarUtils.loadAvatar(mContext, mConnection, mAvatar, mRealName, UserBottomSheetDialog.this.mNick, mAccount, false);
-
-                        mAvatar.setOnClickListener(v -> {
-                            Intent intent = new Intent(mContext, ImageActivity.class);
-                            String currentUrl = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
-                            if (currentUrl == null || currentUrl.isEmpty()) {
-                                currentUrl = AvatarUtils.getAvatarUrlForNick(UserBottomSheetDialog.this.mNick);
-                            }
-                            AvatarUtils.clearImageCache(mContext);
-                            currentUrl = AvatarUtils.ensureTimestamp(currentUrl);
-                            intent.putExtra(ImageActivity.EXTRA_URL, currentUrl);
-                            mContext.startActivity(intent);
-                        });
-                    } else {
-                        mAvatar.setVisibility(View.GONE);
-                        mAvatar.setOnClickListener(null);
-                    }
-                }
+                mAvatar.setVisibility(View.GONE);
+                mAvatar.setOnClickListener(null);
             }
+            mBottomAvatarMode = false;
+            mName.setVisibility(View.VISIBLE);
+            mMessageButton.setVisibility(View.VISIBLE);
+            mStatus.setVisibility(View.VISIBLE);
+            if (mRightInfoContainer != null) {
+                mRightInfoContainer.setVisibility(View.GONE);
+            }
+
             updateScrollY();
         }
 
