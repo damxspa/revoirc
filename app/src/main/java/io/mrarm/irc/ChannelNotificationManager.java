@@ -83,14 +83,18 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
         }
     }
 
-    public boolean addNotificationMessage(MessageInfo messageInfo, MessageId messageId) {
+    public boolean addNotificationMessage(MessageInfo messageInfo, MessageId messageId, boolean ignoreOpened) {
         synchronized (this) {
-            if (mOpened)
+            if (mOpened && !ignoreOpened)
                 return false;
             NotificationMessage ret = new NotificationMessage(messageInfo, messageId);
             mMessages.add(ret);
         }
         return true;
+    }
+
+    public boolean addNotificationMessage(MessageInfo messageInfo, MessageId messageId) {
+        return addNotificationMessage(messageInfo, messageId, false);
     }
 
     public void addUnreadMessage(MessageId msgId) {

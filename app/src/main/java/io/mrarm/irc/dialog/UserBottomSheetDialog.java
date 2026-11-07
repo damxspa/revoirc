@@ -176,7 +176,10 @@ public class UserBottomSheetDialog {
         view.findViewById(R.id.message_button).setOnClickListener((View v) -> {
             PopupMenu menu = new PopupMenu(mContext, v);
             menu.getMenu().add(0, 1, 0, mContext.getString(R.string.action_message_user));
-            menu.getMenu().add(0, 2, 0, mContext.getString(R.string.action_view_avatar));
+            String host = mConnection != null ? mConnection.getHost() : null;
+            if (host != null && AvatarUtils.isChateagratisServer(host)) {
+                menu.getMenu().add(0, 2, 0, mContext.getString(R.string.action_view_avatar));
+            }
             menu.setOnMenuItemClickListener(item -> {
                 if (item.getItemId() == 1) {
                     List<String> l = new ArrayList<>();
@@ -368,21 +371,8 @@ public class UserBottomSheetDialog {
             boolean isAllowedServer = host != null && AvatarUtils.isChateagratisServer(host);
 
             if (mAvatar != null && UserBottomSheetDialog.this.mNick != null) {
-                String baseUrl = mConnection != null ? mConnection.getServerConfig().avatarUrl : null;
                 String url = null;
-                if (baseUrl != null) {
-                    url = baseUrl;
-                    if (url.contains("%nick%")) {
-                        url = url.replace("%nick%", UserBottomSheetDialog.this.mNick);
-                    }
-                    if (mAccount != null && url.contains("%account%")) {
-                        url = url.replace("%account%", mAccount);
-                    } else if (mAccount == null && url.contains("%account%")) {
-                        url = null;
-                    } else if (!baseUrl.contains("%nick%")) {
-                        url = baseUrl + (mAccount != null ? mAccount : UserBottomSheetDialog.this.mNick);
-                    }
-                } else if (isAllowedServer) {
+                if (isAllowedServer) {
                     url = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
                 }
 
@@ -452,11 +442,7 @@ public class UserBottomSheetDialog {
                             R.dimen.dialog_bottom_user_header_name_bottom_margin);
                 }
 
-                if (url == null || url.isEmpty()) {
-                    url = AvatarUtils.getAvatarUrlForNick(UserBottomSheetDialog.this.mNick);
-                }
-
-                if (url != null) {
+                if (isAllowedServer && url != null && !url.isEmpty()) {
                     mAvatar.setVisibility(View.VISIBLE);
                     mAvatar.setImageTintList(null);
                     mAvatar.setColorFilter(null);

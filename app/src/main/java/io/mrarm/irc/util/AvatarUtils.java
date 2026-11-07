@@ -74,7 +74,6 @@ public class AvatarUtils {
         }
         String h = host.toLowerCase(Locale.ROOT).trim();
         return h.equalsIgnoreCase("irc.chatsfree.net") ||
-                h.equalsIgnoreCase("chat.zona") ||
                 h.equalsIgnoreCase("irc.chatzona.org") ||
                 h.equalsIgnoreCase("irc.chateagratis.net") ||
                 h.equals("5.39.71.48") ||

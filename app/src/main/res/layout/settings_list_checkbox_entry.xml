@@ -46,6 +46,8 @@
         android:layout_alignTop="@id/name"
         android:layout_above="@id/divider"
         android:layout_marginRight="@dimen/setting_horizontal_padding"
-        android:layout_marginEnd="@dimen/setting_horizontal_padding" />
+        android:layout_marginEnd="@dimen/setting_horizontal_padding"
+        android:clickable="false"
+        android:focusable="false" />
 
 </RelativeLayout>

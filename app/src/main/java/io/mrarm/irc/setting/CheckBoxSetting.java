@@ -18,11 +18,13 @@ public class CheckBoxSetting extends SimpleSetting {
     public CheckBoxSetting(String name, boolean checked) {
         super(name, null);
         mChecked = checked;
+        setUpdatesDirectly(true);
     }
 
     public CheckBoxSetting(String name, String desc, boolean checked) {
         super(name, desc);
         mChecked = checked;
+        setUpdatesDirectly(true);
     }
 
     public CheckBoxSetting(String name, String desc) {
@@ -69,11 +71,14 @@ public class CheckBoxSetting extends SimpleSetting {
         public Holder(View itemView, SettingsListAdapter adapter) {
             super(itemView, adapter);
             mCheckBox = itemView.findViewById(R.id.check);
+            mCheckBox.setClickable(false);
+            mCheckBox.setFocusable(false);
         }
 
         @Override
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-            getEntry().setChecked(!getEntry().isChecked());
+            if (getEntry().isChecked() != isChecked)
+                getEntry().setChecked(isChecked);
         }
 
         @Override

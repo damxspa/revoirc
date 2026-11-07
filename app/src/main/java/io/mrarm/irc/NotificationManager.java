@@ -66,8 +66,9 @@ public class NotificationManager {
             return;
         if (info.getType() == MessageInfo.MessageType.QUIT && !IRCUtils.isChannel(channel) && !AppSettings.isNotifyPrivateQuitEnabled())
             return;
+        boolean isChannel = isChannel(connection, channel);
         synchronized (channelManager) {
-            if (channelManager.addNotificationMessage(info, messageId)) {
+            if (channelManager.addNotificationMessage(info, messageId, !isChannel)) {
                 if (rule.settings.notificationChannelId == null)
                     ChannelNotificationManager.createChannel(context, rule);
                 updateSummaryNotification(context, rule.settings.notificationChannelId);
@@ -98,18 +99,22 @@ public class NotificationManager {
         updateSummaryNotification(context, null);
     }
 
-    private NotificationRule findNotificationRule(ServerConnectionInfo connection, String channel,
-                                                  MessageInfo message) {
+    private static boolean isChannel(ServerConnectionInfo connection, String channel) {
         ChatApi api = connection.getApiInstance();
-        boolean isChannel = false;
         if (api instanceof ServerConnectionApi && channel != null && !channel.isEmpty() &&
                 ((ServerConnectionApi) api).getServerConnectionData() != null &&
                 ((ServerConnectionApi) api).getServerConnectionData().getSupportList() != null) {
-            isChannel = ((ServerConnectionApi) api).getServerConnectionData().getSupportList()
+            return ((ServerConnectionApi) api).getServerConnectionData().getSupportList()
                     .getSupportedChannelTypes().contains(channel.charAt(0));
         } else if (channel != null) {
-            isChannel = io.mrarm.irc.util.IRCUtils.isChannel(channel);
+            return io.mrarm.irc.util.IRCUtils.isChannel(channel);
         }
+        return false;
+    }
+
+    private NotificationRule findNotificationRule(ServerConnectionInfo connection, String channel,
+                                                  MessageInfo message) {
+        boolean isChannel = isChannel(connection, channel);
         if (!isChannel)
             channel = null;
 

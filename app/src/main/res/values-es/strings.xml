@@ -511,7 +511,7 @@
     <string name="notification_rule_direct">Mensajes privados</string>
     <string name="notification_rule_notice">Avisos privados</string>
     <string name="notification_rule_chan_notice">Avisos de canal</string>
-    <string name="notification_rule_zncplayback">Desactivar notificaciones de reproducción ZNC</string>
+    <string name="notification_rule_zncplayback">Desactivar notificaciones ZNC</string>
 
     <string name="title_activity_edit_notification_settings">Ajustes de notificaciones</string>
 

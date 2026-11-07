@@ -524,10 +524,9 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
             }
             String host = connInfo.getHost();
             boolean isChatzona = AvatarUtils.isChateagratisServer(host);
-            boolean hasAvatarUrl = connInfo.getServerConfig() != null && connInfo.getServerConfig().avatarUrl != null;
             if (menu.findItem(R.id.action_view_avatar) != null) {
                 menu.findItem(R.id.action_view_avatar).setVisible(
-                        connected && inDirectChat && (isChatzona || hasAvatarUrl));
+                        connected && inDirectChat && isChatzona);
             }
             MenuItem dccSendItem = menu.findItem(R.id.action_dcc_send);
             if (dccSendItem != null) {

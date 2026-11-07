@@ -20,7 +20,6 @@ public class AvatarUtilsTest {
     @Test
     public void testIsChateagratisServer() {
         assertTrue(AvatarUtils.isChateagratisServer("irc.chatsfree.net"));
-        assertTrue(AvatarUtils.isChateagratisServer("chat.zona"));
         assertTrue(AvatarUtils.isChateagratisServer("irc.chatzona.org"));
         assertTrue(AvatarUtils.isChateagratisServer("irc.chateagratis.net"));
         assertTrue(AvatarUtils.isChateagratisServer("5.39.71.48"));

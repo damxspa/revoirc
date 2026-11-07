@@ -539,7 +539,7 @@
     <string name="notification_vibration_duration_hint">Vibration duration (ms)</string>
     <string name="notification_vibration_test">Test</string>
     <string name="notification_reply_header">%1$s (%2$s)</string>
-    <string name="notification_rule_zncplayback">Disable ZNC playback notifications</string>
+    <string name="notification_rule_zncplayback">Disable ZNC notifications</string>
 
     <string name="title_activity_edit_notification_settings">Notification settings</string>
 

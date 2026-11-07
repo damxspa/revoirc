@@ -82,7 +82,6 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
     RecyclerView mRecyclerView;
     BasicEntry mBasicEntry;
     MatchEntry mMatchEntry;
-    CheckBoxSetting mShowNotificationEntry;
     CheckBoxSetting mUseMentionFormattingEntry;
     RingtoneSetting mSoundEntry;
     VibrationSetting mVibrationEntry;
@@ -122,7 +121,6 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         mBasicEntry = new BasicEntry();
         mMatchEntry = new MatchEntry();
         mUseMentionFormattingEntry = new CheckBoxSetting(getString(R.string.notification_mention), true);
-        mShowNotificationEntry = new CheckBoxSetting(getString(R.string.notification_show), true);
         mSoundEntry = new RingtoneSetting(mAdapter, getString(R.string.notification_sound), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION));
         mVibrationEntry = new VibrationSetting(0);
         mPriorityEntry = new ListSetting(getString(R.string.notification_priority), getResources().getStringArray(R.array.notification_priority_options), 1);
@@ -155,7 +153,6 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
 
             mMatchEntry.mCaseSensitive = !mEditingRule.isRegexCaseInsensitive();
             mUseMentionFormattingEntry.setChecked(mEditingRule.settings.mentionFormatting);
-            mShowNotificationEntry.setChecked(!mEditingRule.settings.noNotification);
 
             loadOptions();
         }
@@ -175,7 +172,6 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         }
         mAdapter.add(new SettingsHeader(getString(R.string.notification_header_options)));
         mAdapter.add(mUseMentionFormattingEntry);
-        mAdapter.add(mShowNotificationEntry);
         mAdapter.add(mSoundEntry);
         mAdapter.add(mVibrationEntry);
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
@@ -198,12 +194,9 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         }
         mRecyclerView.setAdapter(mAdapter);
 
-        onShowNotificationSettingUpdated();
-        mShowNotificationEntry.addListener((EntryRecyclerViewAdapter.Entry entry) -> {
-            onShowNotificationSettingUpdated();
-        });
+        onColorEntryUpdated();
         mColorEntry.addListener((EntryRecyclerViewAdapter.Entry entry) -> {
-            onShowNotificationSettingUpdated();
+            onColorEntryUpdated();
         });
     }
 
@@ -313,13 +306,8 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
         return str.toString();
     }
 
-    private void onShowNotificationSettingUpdated() {
-        boolean checked = mShowNotificationEntry.isChecked();
-        mSoundEntry.setEnabled(checked);
-        mVibrationEntry.setEnabled(checked);
-        mPriorityEntry.setEnabled(checked);
-        mColorEntry.setEnabled(checked);
-        mLightPulseEntry.setEnabled(checked && mColorEntry.getSelectedColorIndex() != 0);
+    private void onColorEntryUpdated() {
+        mLightPulseEntry.setEnabled(mColorEntry.getSelectedColorIndex() != 0);
     }
 
     @Override
@@ -399,7 +387,6 @@ public class EditNotificationSettingsActivity extends ThemedActivity {
 
         // options
         mEditingRule.settings.mentionFormatting = mUseMentionFormattingEntry.isChecked();
-        mEditingRule.settings.noNotification = !mShowNotificationEntry.isChecked();
         rule.settings.lightEnabled = (mColorEntry.getSelectedColorIndex() != 0);
         if (rule.settings.lightEnabled)
             rule.settings.light = (mColorEntry.getSelectedColorIndex() == -1 ? 0 : mColorEntry.getSelectedColor());
