@@ -1,4 +1,4 @@
-Version 1.4 - 7 November 2026<br>
+Version 1.5<br>
 Info: https://github.com/MCMrARM/revolution-irc/issues/378<br>
 
 ### **AVISO SI TE CONECTAS EN CHATZONA/CHATEAGRATIS USANDO REVOIRC**

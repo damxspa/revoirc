@@ -376,7 +376,7 @@ public class UserBottomSheetDialog {
                     url = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
                 }
 
-                mBottomAvatarMode = isAllowedServer;
+                mBottomAvatarMode = true;
 
                 if (mBottomAvatarMode) {
                     mName.setVisibility(View.GONE);
