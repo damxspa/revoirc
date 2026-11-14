@@ -42,6 +42,7 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     private boolean mCreatedChannel = false;
 
     private final Map<ServerConnectionInfo, MessageListener> messageListeners = new HashMap<>();
+    private final Map<ServerConnectionInfo, ServerConnectionInfo.StorageChangeListener> storageChangeListeners = new HashMap<>();
 
     public static void start(Context context) {
         Intent intent = new Intent(context, IRCService.class);
@@ -201,6 +202,9 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     @Override
     public void onConnectionAdded(ServerConnectionInfo connection) {
         if (connection == null) return;
+        ServerConnectionInfo.StorageChangeListener storageListener = (conn) -> onStorageApiChanged(conn);
+        storageChangeListeners.put(connection, storageListener);
+        connection.addStorageChangeListener(storageListener);
         if (messageListeners.containsKey(connection)) {
             onConnectionRemoved(connection);
         }
@@ -215,6 +219,10 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     @Override
     public void onConnectionRemoved(ServerConnectionInfo connection) {
         if (connection == null) return;
+        ServerConnectionInfo.StorageChangeListener storageListener = storageChangeListeners.remove(connection);
+        if (storageListener != null) {
+            connection.removeStorageChangeListener(storageListener);
+        }
         MessageListener listener = messageListeners.remove(connection);
         if (listener != null && connection.getApiInstance() != null && connection.getApiInstance().getMessageStorageApi() != null) {
             connection.getApiInstance().getMessageStorageApi().unsubscribeChannelMessages(null, listener, null, null);
