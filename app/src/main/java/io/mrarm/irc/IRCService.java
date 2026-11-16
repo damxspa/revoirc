@@ -41,6 +41,8 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
     private boolean mCreatedChannel = false;
 
+    private android.os.PowerManager.WakeLock mWakeLock;
+
     private final Map<ServerConnectionInfo, MessageListener> messageListeners = new HashMap<>();
     private final Map<ServerConnectionInfo, ServerConnectionInfo.StorageChangeListener> storageChangeListeners = new HashMap<>();
 
@@ -100,6 +102,12 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
         sInstance = this;
 
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm != null) {
+            mWakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "revolution-irc:IRCServiceWakeLock");
+            mWakeLock.acquire();
+        }
+
         WarningHelper.setAppContext(getApplicationContext());
 
         ChatLogStorageManager.getInstance(getApplicationContext());
@@ -123,6 +131,15 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         super.onDestroy();
 
         sInstance = null;
+
+        if (mWakeLock != null && mWakeLock.isHeld()) {
+            try {
+                mWakeLock.release();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to release wake lock", e);
+            }
+            mWakeLock = null;
+        }
 
         if (ServerConnectionManager.hasInstance()) {
             for (ServerConnectionInfo connection : ServerConnectionManager.getInstance(this)
