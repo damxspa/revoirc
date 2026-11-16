@@ -78,16 +78,21 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         mgr.createNotificationChannel(channel);
     }
 
-    private static IRCService sInstance;
+    private static volatile IRCService sInstance;
+
+    public static synchronized IRCService getInstance() {
+        return sInstance;
+    }
 
     public static void onStorageApiChanged(ServerConnectionInfo connection) {
-        if (sInstance != null && connection != null && connection.isConnected()) {
+        IRCService instance = getInstance();
+        if (instance != null && connection != null && connection.isConnected()) {
             try {
                 ChatApi api = connection.getApiInstance();
                 if (api != null && api instanceof ServerConnectionApi) {
                     ServerConnectionData connectionData = ((ServerConnectionApi) api).getServerConnectionData();
                     if (connectionData.getMessageStorageApi() != null) {
-                        sInstance.onConnectionAdded(connection);
+                        instance.onConnectionAdded(connection);
                     }
                 }
             } catch (Exception e) {
@@ -219,12 +224,10 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     @Override
     public void onConnectionAdded(ServerConnectionInfo connection) {
         if (connection == null) return;
+        onConnectionRemoved(connection);
         ServerConnectionInfo.StorageChangeListener storageListener = (conn) -> onStorageApiChanged(conn);
         storageChangeListeners.put(connection, storageListener);
         connection.addStorageChangeListener(storageListener);
-        if (messageListeners.containsKey(connection)) {
-            onConnectionRemoved(connection);
-        }
         if (connection.getApiInstance() == null || connection.getApiInstance().getMessageStorageApi() == null) {
             return;
         }
