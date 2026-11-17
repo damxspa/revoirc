@@ -11,8 +11,12 @@ import android.net.ConnectivityManager;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.lifecycle.DefaultLifecycleObserver;
+import androidx.lifecycle.LifecycleOwner;
+import androidx.lifecycle.ProcessLifecycleOwner;
 import android.util.Log;
 
 import java.util.HashMap;
@@ -42,10 +46,24 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
     private boolean mCreatedChannel = false;
 
-    private android.os.PowerManager.WakeLock mWakeLock;
+    private PowerManager.WakeLock mWakeLock;
+    private boolean mWakeLockHeld = false;
 
     private final Map<ServerConnectionInfo, MessageListener> messageListeners = new ConcurrentHashMap<>();
     private final Map<ServerConnectionInfo, ServerConnectionInfo.StorageChangeListener> storageChangeListeners = new ConcurrentHashMap<>();
+    private final DefaultLifecycleObserver mLifecycleObserver = new DefaultLifecycleObserver() {
+        @Override
+        public void onStop(LifecycleOwner owner) {
+            // App moved to background - release wake lock
+            releaseWakeLock();
+        }
+
+        @Override
+        public void onDestroy(LifecycleOwner owner) {
+            // Process terminating - release wake lock
+            releaseWakeLock();
+        }
+    };
 
     public static void start(Context context) {
         Intent intent = new Intent(context, IRCService.class);
@@ -69,13 +87,16 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     public static void createNotificationChannel(Context ctx) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
             return;
+        android.app.NotificationManager mgr = (android.app.NotificationManager)
+                ctx.getSystemService(NOTIFICATION_SERVICE);
+        if (mgr.getNotificationChannel(IDLE_NOTIFICATION_CHANNEL) != null) {
+            return; // Channel already exists
+        }
         NotificationChannel channel = new NotificationChannel(IDLE_NOTIFICATION_CHANNEL,
                 ctx.getString(R.string.notification_channel_idle),
                 android.app.NotificationManager.IMPORTANCE_MIN);
         channel.setGroup(NotificationManager.getSystemNotificationChannelGroup(ctx));
         channel.setShowBadge(false);
-        android.app.NotificationManager mgr = (android.app.NotificationManager)
-                ctx.getSystemService(NOTIFICATION_SERVICE);
         mgr.createNotificationChannel(channel);
     }
 
@@ -108,11 +129,15 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
         sInstance = this;
 
-        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) {
-            mWakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "revolution-irc:IRCServiceWakeLock");
+            mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "revolution-irc:IRCServiceWakeLock");
             mWakeLock.acquire();
+            mWakeLockHeld = true;
         }
+
+        // Register lifecycle observer to release wake lock when app goes to background
+        ProcessLifecycleOwner.get().getLifecycle().addObserver(mLifecycleObserver);
 
         WarningHelper.setAppContext(getApplicationContext());
 
@@ -132,20 +157,28 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         ServerPingScheduler.getInstance(this).startIfEnabled();
     }
 
+    private void releaseWakeLock() {
+        if (mWakeLock != null && mWakeLockHeld) {
+            try {
+                mWakeLock.release();
+                mWakeLockHeld = false;
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to release wake lock", e);
+            }
+        }
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();
 
         sInstance = null;
 
-        if (mWakeLock != null && mWakeLock.isHeld()) {
-            try {
-                mWakeLock.release();
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to release wake lock", e);
-            }
-            mWakeLock = null;
-        }
+        // Unregister lifecycle observer
+        ProcessLifecycleOwner.get().getLifecycle().removeObserver(mLifecycleObserver);
+
+        releaseWakeLock();
+        mWakeLock = null;
 
         if (ServerConnectionManager.hasInstance()) {
             for (ServerConnectionInfo connection : ServerConnectionManager.getInstance(this)
@@ -157,6 +190,13 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         unregisterReceiver(mConnectivityReceiver);
 
         ServerPingScheduler.getInstance(this).stop();
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        // App removed from recents - release wake lock
+        releaseWakeLock();
     }
 
     @Override

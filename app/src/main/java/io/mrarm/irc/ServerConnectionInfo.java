@@ -250,6 +250,10 @@ public class ServerConnectionInfo {
 
         if (AvatarUtils.isChateagratisServer(getHost()) || (mServerConfig != null && AvatarUtils.isChateagratisServer(mServerConfig.address))) {
             sAvatarExecutor.execute(() -> {
+                synchronized (mLock) {
+                    if (mIsClosed)
+                        return;
+                }
                 String username = mServerConfig != null && mServerConfig.authUser != null && !mServerConfig.authUser.trim().isEmpty() ? mServerConfig.authUser.trim() :
                         (mServerConfig != null && mServerConfig.user != null && !mServerConfig.user.trim().isEmpty() ? mServerConfig.user.trim() :
                         (mServerConfig != null && mServerConfig.nicks != null && !mServerConfig.nicks.isEmpty() && mServerConfig.nicks.get(0) != null ? mServerConfig.nicks.get(0) : "unknown"));
@@ -392,11 +396,17 @@ public class ServerConnectionInfo {
             mDisconnecting = true;
             if (api instanceof IRCConnection) {
                 sAvatarExecutor.execute(() -> {
+                    synchronized (mLock) {
+                        if (mIsClosed)
+                            return;
+                    }
                     try {
                         ((IRCConnection) api).disconnect(true);
                     } catch (Exception ignored) {}
                     mReconnectHandler.post(() -> {
                         synchronized (mLock) {
+                            if (mIsClosed)
+                                return;
                             setConnected(false);
                             mConnecting = false;
                             mDisconnecting = false;
@@ -725,8 +735,10 @@ public class ServerConnectionInfo {
     }
 
     private final Runnable mReconnectRunnable = () -> {
-        if (mIsClosed)
-            return;
+        synchronized (mLock) {
+            if (mIsClosed)
+                return;
+        }
         mReconnectQueueTime = -1L;
         if (!AppSettings.isReconnectEnabled())
             return;

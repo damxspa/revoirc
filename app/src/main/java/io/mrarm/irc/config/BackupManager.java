@@ -22,11 +22,13 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringWriter;
+import java.lang.reflect.Type;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -34,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+
+import com.google.gson.reflect.TypeToken;
 
 import io.mrarm.irc.ServerConnectionManager;
 import io.mrarm.irc.setting.ListWithCustomSetting;
@@ -629,17 +633,92 @@ public class BackupManager {
 
     /**
      * Applies the validated staged restore. This is the only phase that makes destructive changes.
-     * If any step fails, we attempt to rollback but log the inconsistency.
+     * All original data is backed up BEFORE any destructive operations.
+     * If any step fails, ALL original data is restored from backups.
      */
     private static void applyStagedRestore(Context context, File stagingDir, ValidationResult validation) throws IOException {
         ServerConfigManager configManager = ServerConfigManager.getInstance(context);
         ThemeManager themeManager = ThemeManager.getInstance(context);
+        NotificationCountStorage notifStorage = NotificationCountStorage.getInstance(context);
+        
+        // Backup directory for rollback
+        File backupDir = new File(context.getCacheDir(), "backup_restore_rollback_" + System.currentTimeMillis());
+        if (!backupDir.mkdirs()) {
+            throw new IOException("Failed to create rollback backup directory");
+        }
         
         // Track what we've successfully applied for potential rollback
         List<UUID> restoredServerUuids = new ArrayList<>();
         
         try {
-            // 1. Restore preferences (use commit() for synchronous persistence)
+            // ========== PHASE 1: BACKUP ALL ORIGINAL DATA ==========
+            Log.d("BackupManager", "Backing up original data for rollback...");
+            
+            // Backup preferences
+            File originalPrefsBackup = new File(backupDir, "prefs_backup.json");
+            try (FileWriter writer = new FileWriter(originalPrefsBackup)) {
+                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+                writer.write(SettingsHelper.getGson().toJson(prefs.getAll()));
+            }
+            
+            // Backup notification rules
+            File originalNotifRulesBackup = new File(backupDir, "notif_rules_backup.json");
+            try (FileWriter writer = new FileWriter(originalNotifRulesBackup)) {
+                StringWriter sw = new StringWriter();
+                NotificationRuleManager.saveUserRuleSettings(context, sw);
+                writer.write(sw.toString());
+            }
+            
+            // Backup command aliases
+            File originalAliasesBackup = new File(backupDir, "aliases_backup.json");
+            try (FileWriter writer = new FileWriter(originalAliasesBackup)) {
+                StringWriter sw = new StringWriter();
+                CommandAliasManager.getInstance(context).saveUserSettings(sw);
+                writer.write(sw.toString());
+            }
+            
+            // Backup templates
+            File originalTemplatesBackup = new File(backupDir, "templates_backup.json");
+            try (FileWriter writer = new FileWriter(originalTemplatesBackup)) {
+                StringWriter sw = new StringWriter();
+                TemplateManager.getInstance(context).saveUserSettings(sw);
+                writer.write(sw.toString());
+            }
+            
+            // Backup themes
+            File originalThemesBackup = new File(backupDir, "themes_backup");
+            File targetThemeDir = themeManager.getThemesDir();
+            if (targetThemeDir.exists()) {
+                copyDirectory(targetThemeDir, originalThemesBackup);
+            }
+            
+            // Backup notification DB
+            File originalNotifDbBackup = new File(backupDir, NOTIFICATION_COUNT_DB_PATH);
+            File notifDbFile = NotificationCountStorage.getFile(context);
+            if (notifDbFile.exists()) {
+                notifStorage.close();
+                copyFile(notifDbFile, originalNotifDbBackup);
+                notifStorage.open();
+            }
+            
+            // Backup custom files
+            File originalCustomBackup = new File(backupDir, "pref_values_backup");
+            File targetCustomDir = ListWithCustomSetting.getCustomFilesDir(context);
+            if (targetCustomDir.exists()) {
+                copyDirectory(targetCustomDir, originalCustomBackup);
+            }
+            
+            // Backup servers list
+            File originalServersBackup = new File(backupDir, "servers_backup.json");
+            try (FileWriter writer = new FileWriter(originalServersBackup)) {
+                writer.write(SettingsHelper.getGson().toJson(configManager.getServers()));
+            }
+            
+            Log.d("BackupManager", "Original data backed up successfully");
+            
+            // ========== PHASE 2: APPLY RESTORE ==========
+            
+            // 1. Restore preferences
             File prefsFile = new File(stagingDir, BACKUP_PREFERENCES_PATH);
             if (prefsFile.exists()) {
                 try (BufferedReader reader = new BufferedReader(new FileReader(prefsFile))) {
@@ -679,7 +758,6 @@ public class BackupManager {
             List<ServerConfigData> currentServers = new ArrayList<>(configManager.getServers());
             
             // 5. Restore servers (delete all first, then restore from backup)
-            // We delete existing servers ONLY after we know the backup servers are valid
             configManager.deleteAllServers(false);
             ServerConnectionManager.getInstance(context).disconnectAndRemoveAllConnections(true);
             
@@ -723,22 +801,13 @@ public class BackupManager {
                 }
             }
             
-            // 7. Restore themes (atomic swap)
+            // 7. Restore themes
             File themesDir = new File(stagingDir, "themes");
-            File targetThemeDir = themeManager.getThemesDir();
-            File backupThemeDir = new File(context.getCacheDir(), "themes_backup_" + System.currentTimeMillis());
-            
-            // Backup current themes
-            if (targetThemeDir.exists()) {
-                if (!copyDirectory(targetThemeDir, backupThemeDir)) {
-                    Log.w("BackupManager", "Failed to backup current themes, proceeding anyway");
-                }
-            }
-            
+            File targetThemeDirForRestore = themeManager.getThemesDir();
             try {
                 // Clear target theme directory
-                if (targetThemeDir.exists()) {
-                    File[] existingThemes = targetThemeDir.listFiles();
+                if (targetThemeDirForRestore.exists()) {
+                    File[] existingThemes = targetThemeDirForRestore.listFiles();
                     if (existingThemes != null) {
                         for (File f : existingThemes) {
                             if (!f.delete()) {
@@ -747,8 +816,8 @@ public class BackupManager {
                         }
                     }
                 }
-                if (!targetThemeDir.mkdirs()) {
-                    Log.w("BackupManager", "Failed to create themes directory: " + targetThemeDir.getAbsolutePath());
+                if (!targetThemeDirForRestore.mkdirs()) {
+                    Log.w("BackupManager", "Failed to create themes directory: " + targetThemeDirForRestore.getAbsolutePath());
                 }
                 
                 // Copy validated themes
@@ -756,7 +825,7 @@ public class BackupManager {
                     File[] themeFiles = themesDir.listFiles((dir, name) -> name.startsWith("theme-") && name.endsWith(".json"));
                     if (themeFiles != null) {
                         for (File themeFile : themeFiles) {
-                            File destFile = new File(targetThemeDir, themeFile.getName());
+                            File destFile = new File(targetThemeDirForRestore, themeFile.getName());
                             if (!copyFile(themeFile, destFile)) {
                                 Log.e("BackupManager", "Failed to copy theme: " + themeFile.getName());
                             }
@@ -764,56 +833,30 @@ public class BackupManager {
                     }
                 }
             } catch (Exception e) {
-                // Rollback themes from backup
-                Log.e("BackupManager", "Theme restore failed, rolling back", e);
-                if (backupThemeDir.exists()) {
-                    deleteRecursive(targetThemeDir);
-                    copyDirectory(backupThemeDir, targetThemeDir);
-                }
                 throw new IOException("Theme restore failed: " + e.getMessage(), e);
-            } finally {
-                // Cleanup backup
-                deleteRecursive(backupThemeDir);
             }
             
-            // 8. Restore notification database (atomic replace)
-            File notifDbFile = new File(stagingDir, NOTIFICATION_COUNT_DB_PATH);
-            if (notifDbFile.exists()) {
+            // 8. Restore notification database
+            File notifDbFileForRestore = new File(stagingDir, NOTIFICATION_COUNT_DB_PATH);
+            if (notifDbFileForRestore.exists()) {
                 NotificationCountStorage storage = NotificationCountStorage.getInstance(context);
                 storage.close();
                 File destDbFile = NotificationCountStorage.getFile(context);
-                File backupDbFile = new File(destDbFile.getAbsolutePath() + ".bak");
-                
-                // Backup current DB
-                if (destDbFile.exists()) {
-                    if (!destDbFile.renameTo(backupDbFile)) {
-                        Log.w("BackupManager", "Failed to backup current notification DB");
-                    }
-                }
-                
                 try {
-                    if (!copyFile(notifDbFile, destDbFile)) {
+                    if (!copyFile(notifDbFileForRestore, destDbFile)) {
                         throw new IOException("Failed to copy notification DB");
                     }
                     storage.open();
                     storage.validateDatabase();
-                    // Remove backup on success
-                    if (backupDbFile.exists()) backupDbFile.delete();
                 } catch (Exception e) {
-                    Log.e("BackupManager", "Notification DB restore failed, rolling back", e);
-                    // Rollback
-                    if (backupDbFile.exists()) {
-                        if (destDbFile.exists()) destDbFile.delete();
-                        backupDbFile.renameTo(destDbFile);
-                    }
-                    storage.open(); // Reopen with rolled-back DB
+                    storage.open(); // Reopen with original DB (restored in rollback)
                     throw new IOException("Notification DB restore failed: " + e.getMessage(), e);
                 }
             }
             
             // 9. Restore custom preference files
             File prefValuesDir = new File(stagingDir, "pref_values");
-            File targetCustomDir = ListWithCustomSetting.getCustomFilesDir(context);
+            File targetCustomDirForRestore = ListWithCustomSetting.getCustomFilesDir(context);
             if (prefValuesDir.exists() && prefValuesDir.isDirectory()) {
                 File[] customFiles = prefValuesDir.listFiles();
                 if (customFiles != null) {
@@ -824,7 +867,7 @@ public class BackupManager {
                             Log.w("BackupManager", "Skipping suspicious custom file name: " + name);
                             continue;
                         }
-                        File destFile = new File(targetCustomDir, name);
+                        File destFile = new File(targetCustomDirForRestore, name);
                         copyFile(customFile, destFile);
                     }
                 }
@@ -848,42 +891,116 @@ public class BackupManager {
             // 11. Reload themes
             themeManager.reloadThemes();
             
+            // Clean up backup directory on success
+            deleteRecursive(backupDir);
+            
         } catch (IOException e) {
-            // Attempt rollback of what we can
-            attemptRollback(configManager, themeManager, restoredServerUuids);
+            // Full rollback from backups
+            rollbackFromBackup(context, backupDir, configManager, themeManager, notifStorage);
+            // Clean up backup directory
+            deleteRecursive(backupDir);
             throw e;
         }
     }
 
     /**
-     * Attempts to rollback changes if restore fails mid-way.
-     * Best effort - logs what couldn't be rolled back.
+     * Performs full rollback from the backup directory created before restore.
+     * Restores ALL original data: preferences, notification rules, aliases, templates,
+     * themes, notification DB, custom files, and servers list.
      */
-    private static void attemptRollback(ServerConfigManager configManager, ThemeManager themeManager,
-                                       List<UUID> restoredServerUuids) {
-        Log.w("BackupManager", "Attempting rollback of partial restore...");
+    private static void rollbackFromBackup(Context context, File backupDir,
+                                          ServerConfigManager configManager,
+                                          ThemeManager themeManager,
+                                          NotificationCountStorage notifStorage) {
+        Log.w("BackupManager", "Performing full rollback from backup...");
         
-        // Rollback servers - delete restored ones
-        for (UUID uuid : restoredServerUuids) {
-            try {
-                ServerConfigData data = configManager.findServer(uuid);
-                if (data != null) {
-                    configManager.deleteServer(data, false);
-                }
-            } catch (Exception e) {
-                Log.e("BackupManager", "Rollback failed for server: " + uuid, e);
-            }
-        }
-        
-        // Note: Full rollback of preferences, notification rules, aliases, custom files, notification DB
-        // would require keeping backups of the originals, which we don't do for simplicity.
-        // In practice, the validation phase should catch issues before we reach this point.
-        
-        // Reload themes to ensure consistency
         try {
+            // Rollback servers list
+            File originalServersBackup = new File(backupDir, "servers_backup.json");
+            if (originalServersBackup.exists()) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(originalServersBackup))) {
+                    // Delete current servers
+                    configManager.deleteAllServers(false);
+                    ServerConnectionManager.getInstance(context).disconnectAndRemoveAllConnections(true);
+                    // Restore original servers
+                    Type listType = new TypeToken<List<ServerConfigData>>(){}.getType();
+                    List<ServerConfigData> servers = SettingsHelper.getGson().fromJson(reader, listType);
+                    if (servers != null) {
+                        for (ServerConfigData data : servers) {
+                            configManager.saveServer(data);
+                        }
+                    }
+                }
+            }
+            
+            // Rollback preferences
+            File originalPrefsBackup = new File(backupDir, "prefs_backup.json");
+            if (originalPrefsBackup.exists()) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(originalPrefsBackup))) {
+                    importPreferencesFromJsonSync(context, reader);
+                }
+            }
+            
+            // Rollback notification rules
+            File originalNotifRulesBackup = new File(backupDir, "notif_rules_backup.json");
+            if (originalNotifRulesBackup.exists()) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(originalNotifRulesBackup))) {
+                    NotificationRuleManager.loadUserRuleSettings(reader);
+                    NotificationRuleManager.saveUserRuleSettings(context);
+                }
+            }
+            
+            // Rollback command aliases
+            File originalAliasesBackup = new File(backupDir, "aliases_backup.json");
+            if (originalAliasesBackup.exists()) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(originalAliasesBackup))) {
+                    CommandAliasManager aliasManager = CommandAliasManager.getInstance(context);
+                    aliasManager.loadUserSettings(reader);
+                    aliasManager.saveUserSettings();
+                }
+            }
+            
+            // Rollback templates
+            File originalTemplatesBackup = new File(backupDir, "templates_backup.json");
+            if (originalTemplatesBackup.exists()) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(originalTemplatesBackup))) {
+                    TemplateManager templateManager = TemplateManager.getInstance(context);
+                    templateManager.loadUserSettings(reader);
+                    templateManager.saveUserSettings();
+                }
+            }
+            
+            // Rollback themes
+            File originalThemesBackup = new File(backupDir, "themes_backup");
+            File targetThemeDir = themeManager.getThemesDir();
+            if (originalThemesBackup.exists()) {
+                deleteRecursive(targetThemeDir);
+                copyDirectory(originalThemesBackup, targetThemeDir);
+            }
+            
+            // Rollback notification DB
+            File originalNotifDbBackup = new File(backupDir, NOTIFICATION_COUNT_DB_PATH);
+            File notifDbFile = NotificationCountStorage.getFile(context);
+            if (originalNotifDbBackup.exists()) {
+                notifStorage.close();
+                if (notifDbFile.exists()) notifDbFile.delete();
+                copyFile(originalNotifDbBackup, notifDbFile);
+                notifStorage.open();
+            }
+            
+            // Rollback custom files
+            File originalCustomBackup = new File(backupDir, "pref_values_backup");
+            File targetCustomDir = ListWithCustomSetting.getCustomFilesDir(context);
+            if (originalCustomBackup.exists()) {
+                deleteRecursive(targetCustomDir);
+                copyDirectory(originalCustomBackup, targetCustomDir);
+            }
+            
             themeManager.reloadThemes();
+            
+            Log.d("BackupManager", "Rollback completed successfully");
         } catch (Exception e) {
-            Log.e("BackupManager", "Failed to reload themes after rollback", e);
+            Log.e("BackupManager", "Rollback failed", e);
         }
     }
 

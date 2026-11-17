@@ -31,7 +31,7 @@ import io.mrarm.chatlib.message.WritableMessageStorageApi;
 
 import java.util.concurrent.TimeUnit;
 
-public class ChatLogStorageManager implements ServerConfigManager.ConnectionsListener {
+public class ChatLogStorageManager implements ServerConfigManager.ConnectionsListener, AutoCloseable {
 
     private static final int MIN_GLOBAL_MESSAGES_UPDATE = 1024;
     private static final int MIN_SERVER_MESSAGES_UPDATE = 128;
@@ -75,6 +75,8 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     private final ServerConnectionManager mConnectionManager;
     private final ServerConfigManager mServerConfigManager;
     private volatile long mBlockSize = 0L;
+    private long mLastBlockSizeRefresh = 0L;
+    private static final long BLOCK_SIZE_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
     private final Map<UUID, ServerManager> mServerManagers = new ConcurrentHashMap<>();
     private final AtomicInteger mGlobalMessageCounter = new AtomicInteger(0);
     private final TreeSet<DeletionCandidate> mGlobalDeletionCandidates = new TreeSet<>();
@@ -100,12 +102,21 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
                 mServerManagers.put(data.uuid, new ServerManager(data));
             performUpdate(null);
         });
+        // Register for shutdown on app exit
+        if (context instanceof IRCApplication) {
+            ((IRCApplication) context).registerCloseable(this);
+        }
     }
 
     /**
      * Destroys this manager, unregistering callbacks and shutting down the executor.
      * Should be called when the application is terminating.
      */
+    @Override
+    public void close() {
+        destroy();
+    }
+
     public void destroy() {
         mDestroyed = true;
         SettingsHelper.unregisterCallbacks(this);
@@ -284,13 +295,19 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     }
 
     private long getBlockSize() {
+        long now = System.currentTimeMillis();
+        if (mBlockSize > 0L && (now - mLastBlockSizeRefresh) < BLOCK_SIZE_REFRESH_INTERVAL_MS) {
+            return mBlockSize;
+        }
         File chatLogDir = mServerConfigManager.getChatLogDir();
         if (chatLogDir != null && chatLogDir.exists()) {
             try {
                 StatFs statFs = new StatFs(chatLogDir.getAbsolutePath());
                 long size = statFs.getBlockSizeLong();
-                if (size > 0L)
+                if (size > 0L) {
                     mBlockSize = size;
+                    mLastBlockSizeRefresh = now;
+                }
             } catch (Exception ignored) {
             }
         }
@@ -300,6 +317,15 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     private long getFileSize(File file) {
         long blockSize = getBlockSize();
         return (file.length() + blockSize - 1) / blockSize * blockSize;
+    }
+
+    /**
+     * Invalidates the cached block size, forcing a refresh on next access.
+     * Should be called if the storage path may have changed (e.g., adoptable storage).
+     */
+    public void invalidateBlockSizeCache() {
+        mBlockSize = 0L;
+        mLastBlockSizeRefresh = 0L;
     }
 
     @Override

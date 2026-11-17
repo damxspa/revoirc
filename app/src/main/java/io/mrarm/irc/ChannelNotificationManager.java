@@ -25,6 +25,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import io.mrarm.chatlib.dto.MessageId;
 import io.mrarm.chatlib.dto.MessageInfo;
@@ -49,7 +50,7 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
     private final int mNotificationId = mNextChatNotificationId++;
     private boolean mShowingNotification = false;
     private static final Object mShowingNotificationLock = new Object();
-    private List<NotificationMessage> mMessages = new ArrayList<>();
+    private final List<NotificationMessage> mMessages = new CopyOnWriteArrayList<>();
     private boolean mOpened = false;
     private int mUnreadMessageCount;
     private MessageId mFirstUnreadMessage;
@@ -78,18 +79,14 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
     }
 
     public NotificationMessage getNotificationMessage(int index) {
-        synchronized (this) {
-            return mMessages.get(index);
-        }
+        return mMessages.get(index);
     }
 
     public boolean addNotificationMessage(MessageInfo messageInfo, MessageId messageId, boolean ignoreOpened) {
-        synchronized (this) {
-            if (mOpened && !ignoreOpened)
-                return false;
-            NotificationMessage ret = new NotificationMessage(messageInfo, messageId);
-            mMessages.add(ret);
-        }
+        if (mOpened && !ignoreOpened)
+            return false;
+        NotificationMessage ret = new NotificationMessage(messageInfo, messageId);
+        mMessages.add(ret);
         return true;
     }
 
@@ -164,11 +161,9 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
 
     void showNotification(Context context, NotificationRule rule) {
         NotificationMessage lastMessage;
-        synchronized (this) {
-            if (mMessages.isEmpty())
-                return;
-            lastMessage = mMessages.get(mMessages.size() - 1);
-        }
+        if (mMessages.isEmpty())
+            return;
+        lastMessage = mMessages.get(mMessages.size() - 1);
 
         createChannel(context, rule);
 
@@ -326,16 +321,15 @@ public class ChannelNotificationManager implements NotificationCountStorage.OnCh
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.notification_layout);
         int[] messageIds = new int[] { R.id.message_0, R.id.message_1, R.id.message_2, R.id.message_3, R.id.message_4, R.id.message_5 };
         views.setTextViewText(R.id.message_channel, header);
-        synchronized (this) {
-            for (int i = messageIds.length - 1; i >= 0; i--) {
-                int ii = mMessages.size() - messageIds.length + i;
-                if (ii < 0) {
-                    views.setViewVisibility(messageIds[i], View.GONE);
-                    continue;
-                }
-                views.setViewVisibility(messageIds[i], View.VISIBLE);
-                views.setTextViewText(messageIds[i], mMessages.get(ii).getNotificationText(context));
+        // CopyOnWriteArrayList is thread-safe for iteration
+        for (int i = messageIds.length - 1; i >= 0; i--) {
+            int ii = mMessages.size() - messageIds.length + i;
+            if (ii < 0) {
+                views.setViewVisibility(messageIds[i], View.GONE);
+                continue;
             }
+            views.setViewVisibility(messageIds[i], View.VISIBLE);
+            views.setTextViewText(messageIds[i], mMessages.get(ii).getNotificationText(context));
         }
         return views;
     }

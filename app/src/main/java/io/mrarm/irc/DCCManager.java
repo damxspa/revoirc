@@ -66,7 +66,7 @@ import io.mrarm.irc.upnp.rpc.AddPortMappingCall;
 import io.mrarm.irc.util.FormatUtils;
 
 public class DCCManager implements DCCServerManager.UploadListener, DCCClient.CloseListener,
-        DCCReverseClient.StateListener {
+        DCCReverseClient.StateListener, AutoCloseable {
 
     private static DCCManager sInstance;
 
@@ -122,7 +122,8 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
      * Shuts down the executor service gracefully.
      * Should be called when the application is terminating.
      */
-    public void shutdown() {
+    @Override
+    public void close() {
         mExecutor.shutdown();
         try {
             if (!mExecutor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
@@ -155,6 +156,10 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                     PREF_DCC_DIRECTORY_OVERRIDE_URI_SYSTEM, false);
         }
         checkSystemDownloadsDirectoryAccess();
+        // Register executor for shutdown on app exit
+        if (context instanceof IRCApplication) {
+            ((IRCApplication) context).registerCloseable(this);
+        }
     }
 
     public void setAlwaysUseApplicationDownloadDirectory(boolean value) {
@@ -1050,7 +1055,7 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
     }
 
     /**
-     * Checks if an IPv4 address is non-routable (private, link-local, etc.)
+     * Checks if an IPv4 address is non-routable (private, link-local, CGNAT, etc.)
      * @param ip IPv4 address string
      * @return true if the address should not be used for DCC connections
      */
@@ -1063,7 +1068,7 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             int octet2 = Integer.parseInt(parts[1]);
             // 10.0.0.0/8 - Private
             if (octet1 == 10) return true;
-            // 172.16.0.0/12 - Private
+            // 172.16.0.0/12 - Private (includes Docker default 172.17.0.0/16)
             if (octet1 == 172 && octet2 >= 16 && octet2 <= 31) return true;
             // 192.168.0.0/16 - Private
             if (octet1 == 192 && octet2 == 168) return true;
@@ -1073,6 +1078,8 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             if (octet1 == 127) return true;
             // 0.0.0.0/8 - Current network
             if (octet1 == 0) return true;
+            // 100.64.0.0/10 - CGNAT (Carrier-Grade NAT)
+            if (octet1 == 100 && octet2 >= 64 && octet2 <= 127) return true;
             // 224.0.0.0/4 - Multicast
             if (octet1 >= 224 && octet1 <= 239) return true;
             // 240.0.0.0/4 - Reserved

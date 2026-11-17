@@ -3,6 +3,7 @@ package io.mrarm.irc.util;
 import android.os.AsyncTask;
 import androidx.annotation.NonNull;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -12,6 +13,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -116,41 +118,101 @@ public class PoolSerialExecutor implements ExecutorService {
 
     @Override
     public <T> Future<T> submit(Callable<T> task) {
-        return mParentExecutor.submit(task);
+        if (mShutdown.get()) {
+            throw new IllegalStateException("Executor has been shutdown");
+        }
+        return mParentExecutor.submit(() -> {
+            synchronized (this) {
+                mQueue.add(() -> {}
+); // dummy to trigger execution
+            }
+            return task.call();
+        });
     }
 
     @Override
     public <T> Future<T> submit(Runnable task, T result) {
-        return mParentExecutor.submit(task, result);
+        return submit(() -> {
+            task.run();
+            return result;
+        });
     }
 
     @Override
     public Future<?> submit(Runnable task) {
-        return mParentExecutor.submit(task);
+        return submit(task, null);
     }
 
     @Override
     public <T> List<Future<T>> invokeAll(
             java.util.Collection<? extends Callable<T>> tasks) throws InterruptedException {
-        return mParentExecutor.invokeAll(tasks);
+        if (mShutdown.get()) {
+            throw new IllegalStateException("Executor has been shutdown");
+        }
+        List<Future<T>> futures = new ArrayList<>();
+        for (Callable<T> task : tasks) {
+            futures.add(submit(task));
+        }
+        return futures;
     }
 
     @Override
     public <T> List<Future<T>> invokeAll(
             java.util.Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
             throws InterruptedException {
-        return mParentExecutor.invokeAll(tasks, timeout, unit);
+        List<Future<T>> futures = invokeAll(tasks);
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        for (Future<T> future : futures) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) {
+                // Cancel remaining futures
+                for (Future<T> f : futures) {
+                    f.cancel(true);
+                }
+                throw new InterruptedException("Timeout");
+            }
+            try {
+                future.get(remaining, TimeUnit.NANOSECONDS);
+            } catch (TimeoutException | java.util.concurrent.ExecutionException e) {
+                throw new InterruptedException(e.getMessage());
+            }
+        }
+        return futures;
     }
 
     @Override
     public <T> T invokeAny(java.util.Collection<? extends Callable<T>> tasks)
             throws InterruptedException, java.util.concurrent.ExecutionException {
-        return mParentExecutor.invokeAny(tasks);
+        if (mShutdown.get()) {
+            throw new IllegalStateException("Executor has been shutdown");
+        }
+        List<Future<T>> futures = invokeAll(tasks);
+        for (Future<T> future : futures) {
+            try {
+                return future.get();
+            } catch (java.util.concurrent.ExecutionException ignored) {
+                // Try next
+            }
+        }
+        throw new java.util.concurrent.ExecutionException(new Exception("All tasks failed"));
     }
 
     @Override
     public <T> T invokeAny(java.util.Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
             throws InterruptedException, java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
-        return mParentExecutor.invokeAny(tasks, timeout, unit);
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        List<Future<T>> futures = invokeAll(tasks);
+        for (Future<T> future : futures) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) {
+                throw new java.util.concurrent.TimeoutException();
+            }
+            try {
+                return future.get(remaining, TimeUnit.NANOSECONDS);
+            } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException ignored) {
+                // Try next
+            }
+        }
+        throw new java.util.concurrent.ExecutionException(new Exception("All tasks failed or timed out"));
     }
 }

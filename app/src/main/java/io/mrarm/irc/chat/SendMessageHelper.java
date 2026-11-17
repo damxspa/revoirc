@@ -24,7 +24,11 @@ public class SendMessageHelper {
         if (IRCUtils.isChannel(target))
             return 0;
         try {
-            return Integer.parseInt(AppSettings.getPrivateMessageDelay());
+            String delayStr = AppSettings.getPrivateMessageDelay();
+            if (delayStr == null || delayStr.isEmpty()) {
+                return 0;
+            }
+            return Integer.parseInt(delayStr);
         } catch (NumberFormatException e) {
             return 0;
         }

@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.mrarm.irc.setting.ListWithCustomSetting;
@@ -303,6 +304,8 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     private static final WeakHashMap<Object, WeakReference<ListenerHandle>> sRegisteredListeners = new WeakHashMap<>();
     private static final ReferenceQueue<Object> sReferenceQueue = new ReferenceQueue<>();
     private static final Handler sUiHandler = new Handler(Looper.getMainLooper());
+    private static final AtomicInteger sRegistrationCounter = new AtomicInteger(0);
+    private static final int CLEANUP_INTERVAL = 100; // Run cleanup every 100 registrations
 
     private static synchronized ClassCallbackInfo resolveCallbacks(Class<?> c) {
         ClassCallbackInfo i = sCallbacks.get(c);
@@ -328,7 +331,10 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     public static synchronized void registerCallbacks(Object o) {
         if (sRegisteredListeners.containsKey(o))
             return;
-        cleanupStaleEntries();
+        // Run cleanup periodically to prevent unbounded growth of stale entries
+        if (sRegistrationCounter.incrementAndGet() % CLEANUP_INTERVAL == 0) {
+            cleanupStaleEntries();
+        }
         ClassCallbackInfo c = resolveCallbacks(o.getClass());
         ListenerHandle handle = changeEvent();
         for (ClassCallbackInfo.MethodInfo m : c.methods) {

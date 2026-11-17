@@ -39,12 +39,12 @@ import io.mrarm.irc.config.BackupPaths;
 import io.mrarm.irc.config.SettingsHelper;
 import io.mrarm.irc.setting.ReconnectIntervalSetting;
 
-public class ServerConnectionManager {
+public class ServerConnectionManager implements AutoCloseable {
 
     private static final String TAG = "ServerConnectionManager";
     public static final String CONNECTED_SERVERS_FILE_PATH = BackupPaths.CONNECTED_SERVERS_FILE_PATH;
 
-    private static ServerConnectionManager instance;
+    private static volatile ServerConnectionManager instance;
 
     private final Context mContext;
     private final File mConnectedServersFile;
@@ -59,6 +59,7 @@ public class ServerConnectionManager {
     private boolean mExecutorShutdown = false;
     // Timer for periodic cleanup of disconnected connections
     private final java.util.Timer mCleanupTimer = new java.util.Timer("ServerConnectionManager-Cleanup", true);
+    private java.util.TimerTask mCleanupTask = null;
 
     public static boolean hasInstance() {
         return instance != null;
@@ -108,6 +109,18 @@ public class ServerConnectionManager {
         }
     }
 
+    @Override
+    public void close() {
+        shutdownExecutor();
+        if (mCleanupTimer != null) {
+            mCleanupTimer.cancel();
+        }
+        if (mCleanupTask != null) {
+            mCleanupTask.cancel();
+            mCleanupTask = null;
+        }
+    }
+
     public ServerConnectionManager(Context context) {
         mContext = context;
 
@@ -131,6 +144,10 @@ public class ServerConnectionManager {
                     }
                 }
             }
+        }
+        // Register for shutdown on app exit
+        if (context instanceof IRCApplication) {
+            ((IRCApplication) context).registerCloseable(this);
         }
     }
 
@@ -318,12 +335,17 @@ public class ServerConnectionManager {
     }
 
     private void scheduleCleanupCheck() {
-        mCleanupTimer.schedule(new java.util.TimerTask() {
+        // Cancel any existing cleanup task
+        if (mCleanupTask != null) {
+            mCleanupTask.cancel();
+        }
+        mCleanupTask = new java.util.TimerTask() {
             @Override
             public void run() {
                 cleanupDisconnectingConnections();
             }
-        }, 30000); // Check after 30 seconds
+        };
+        mCleanupTimer.schedule(mCleanupTask, 30000); // Check after 30 seconds
     }
 
     private void cleanupDisconnectingConnections() {
@@ -339,6 +361,7 @@ public class ServerConnectionManager {
                 }
                 mDisconnectingConnections.clear();
             }
+            mCleanupTask = null;
         }
     }
 

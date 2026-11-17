@@ -15,6 +15,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,7 +39,14 @@ public class AvatarUtils {
     public static final String AVATAR_CDN = "https://chat-avatars.chateagratis.net";
     public static final String AVATAR_URL_PREFIX = "https://chat-avatars.chateagratis.net/avatar/Chat/";
 
-    private static final Map<String, String> sOwnAvatarUrls = new ConcurrentHashMap<>();
+    // LRU cache for own avatar URLs (max 50 entries)
+    private static final int MAX_AVATAR_CACHE_SIZE = 50;
+    private static final Map<String, String> sOwnAvatarUrls = new LinkedHashMap<>(MAX_AVATAR_CACHE_SIZE, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return size() > MAX_AVATAR_CACHE_SIZE;
+        }
+    };
     // Shared executor for avatar operations
     private static final ExecutorService sAvatarExecutor = Executors.newSingleThreadExecutor();
 
