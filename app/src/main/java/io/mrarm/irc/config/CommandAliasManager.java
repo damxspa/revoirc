@@ -88,7 +88,11 @@ public class CommandAliasManager {
     public void loadUserSettings(Reader reader) {
         UserAliasesSettings settings = SettingsHelper.getGson().fromJson(reader,
                 UserAliasesSettings.class);
-        mUserAliases = settings.userAliases;
+        if (settings != null && settings.userAliases != null) {
+            mUserAliases = settings.userAliases;
+        } else {
+            mUserAliases = new ArrayList<>();
+        }
     }
 
     public void loadUserSettings() {

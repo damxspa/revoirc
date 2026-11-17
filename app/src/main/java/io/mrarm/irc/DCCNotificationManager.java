@@ -12,9 +12,9 @@ import android.os.Looper;
 import androidx.core.app.NotificationCompat;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import io.mrarm.chatlib.irc.dcc.DCCClient;
 import io.mrarm.chatlib.irc.dcc.DCCServer;
@@ -34,11 +34,11 @@ public class DCCNotificationManager implements DCCServerManager.UploadListener,
     private Context mContext;
     private NotificationManager mNotificationManager;
     private int mNextNotificationId = DCC_NOTIFICATION_ID_START;
-    private final Map<DCCServer, List<DCCServer.UploadSession>> mUploadSessions = new HashMap<>();
-    private final Map<DCCServer, Integer> mUploadNotificationIds = new HashMap<>();
-    private final Map<DCCServer.UploadSession, Integer> mSessionNotificationIds = new HashMap<>();
-    private final Map<DCCManager.DownloadInfo, Integer> mDownloadNotificationIds = new HashMap<>();
-    private final Map<Integer, Object> mDisplayedNotificationIds = new HashMap<>();
+    private final Map<DCCServer, List<DCCServer.UploadSession>> mUploadSessions = new ConcurrentHashMap<>();
+    private final Map<DCCServer, Integer> mUploadNotificationIds = new ConcurrentHashMap<>();
+    private final Map<DCCServer.UploadSession, Integer> mSessionNotificationIds = new ConcurrentHashMap<>();
+    private final Map<DCCManager.DownloadInfo, Integer> mDownloadNotificationIds = new ConcurrentHashMap<>();
+    private final Map<Integer, Object> mDisplayedNotificationIds = new ConcurrentHashMap<>();
     private boolean mNotificationUpdateQueued = false;
     private final Runnable mNotificationUpdateRunnable = this::updateNotifications;
     private PendingIntent mOpenTransfersIntent;
@@ -117,7 +117,6 @@ public class DCCNotificationManager implements DCCServerManager.UploadListener,
     @Override
     public synchronized void onDownloadDestroyed(DCCManager.DownloadInfo download) {
         Integer nid = mDownloadNotificationIds.remove(download);
-        mDownloadNotificationIds.remove(download);
         if (nid != null)
             mHandler.post(() -> cancelNotification(nid));
     }

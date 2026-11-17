@@ -441,6 +441,7 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
                     SettingsHelper.deleteSQLiteDatabase(file);
                     deletedAnyFile = true;
                     iterator.remove();
+                    mGlobalDeletionCandidates.remove(candidate);
                     if (size <= 0L) {
                         if (mGlobalDeletionCandidates.isEmpty())
                             reload();

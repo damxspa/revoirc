@@ -52,12 +52,12 @@ public class NotificationCountStorage implements AutoCloseable {
     private SQLiteStatement mGetFirstMessageIdStatement;
     private SQLiteStatement mSetFirstMessageIdStatement;
     private SQLiteStatement mResetFirstMessageIdStatement;
-    private final Handler mHandler;
-    private final HandlerThread mHandlerThread;
+    private Handler mHandler;
+    private HandlerThread mHandlerThread;
     private Map<UUID, Map<String, Integer>> mChangeQueue;
     private boolean mClosed = false;
     // Latch for database initialization synchronization
-    private final CountDownLatch mDatabaseInitLatch = new CountDownLatch(1);
+    private CountDownLatch mDatabaseInitLatch = new CountDownLatch(1);
 
     public NotificationCountStorage(String path) {
         mPath = path;
@@ -70,7 +70,16 @@ public class NotificationCountStorage implements AutoCloseable {
 
     public void open() {
         synchronized (mDatabaseLock) {
-            if (mDatabase != null) {
+            mClosed = false;
+            if (mHandlerThread == null || !mHandlerThread.isAlive()) {
+                mHandlerThread = new HandlerThread("NotificationCountStorage Thread");
+                mHandlerThread.start();
+                mHandler = new Handler(mHandlerThread.getLooper());
+            }
+            if (mDatabaseInitLatch == null || mDatabaseInitLatch.getCount() == 0) {
+                mDatabaseInitLatch = new CountDownLatch(1);
+            }
+            if (mDatabase != null && mDatabase.isOpen()) {
                 mDatabaseInitLatch.countDown();
                 return;
             }

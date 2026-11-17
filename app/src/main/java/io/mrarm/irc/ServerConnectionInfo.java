@@ -387,10 +387,11 @@ public class ServerConnectionInfo {
         synchronized (mLock) {
             mReconnectHandler.removeCallbacks(mReconnectRunnable);
             ChatApi api = getApiInstance();
+            mApi = null;
+            mConnecting = false;
+            mDisconnecting = true;
             if (api instanceof IRCConnection) {
-                mConnecting = false;
-                mDisconnecting = true;
-                Thread disconnectThread = new Thread(() -> {
+                sAvatarExecutor.execute(() -> {
                     try {
                         ((IRCConnection) api).disconnect(true);
                     } catch (Exception ignored) {}
@@ -400,17 +401,17 @@ public class ServerConnectionInfo {
                             mConnecting = false;
                             mDisconnecting = false;
                             mUserDisconnectRequest = false;
-                            mApi = null;
                         }
                         connect();
                     });
                 });
-                disconnectThread.setName("Server Recreate Thread");
-                disconnectThread.start();
                 return;
             }
+            setConnected(false);
+            mConnecting = false;
+            mDisconnecting = false;
+            mUserDisconnectRequest = false;
         }
-        mApi = null;
         connect();
     }
 

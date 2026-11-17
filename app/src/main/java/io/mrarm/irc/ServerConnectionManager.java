@@ -287,8 +287,12 @@ public class ServerConnectionManager {
             }
             if (isDisconnecting) {
                 synchronized (mDisconnectingConnections) {
-                    if (mDisconnectingConnections.containsKey(connection.getUUID()))
-                        throw new RuntimeException("mDisconnectingConnections already contains a disconnecting connection with this UUID");
+                    ServerConnectionInfo existing = mDisconnectingConnections.get(connection.getUUID());
+                    if (existing != null) {
+                        if (existing != connection) {
+                            existing.close();
+                        }
+                    }
                     mDisconnectingConnections.put(connection.getUUID(), connection);
                     // Schedule cleanup check
                     scheduleCleanupCheck();

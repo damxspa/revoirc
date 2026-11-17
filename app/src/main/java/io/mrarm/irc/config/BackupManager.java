@@ -255,11 +255,15 @@ public class BackupManager {
                 }
             }
             
+            File baseDir = (file.getParentFile() != null && file.getParentFile().canWrite())
+                    ? file.getParentFile()
+                    : new File("/tmp");
+
             // Validate themes
             for (FileHeader themeHeader : themeHeaders) {
                 File themeTempDir = null;
                 try {
-                    themeTempDir = new File(file.getParentFile(), "backup_verify_temp_" + System.currentTimeMillis());
+                    themeTempDir = new File(baseDir, "backup_verify_temp_" + UUID.randomUUID());
                     themeTempDir.mkdirs();
                     tempDirsToCleanup.add(themeTempDir);
                     File extractedFile = new File(themeTempDir, themeHeader.getFileName());
@@ -281,7 +285,7 @@ public class BackupManager {
                 FileHeader dbHeader = zipFile.getFileHeader(NOTIFICATION_COUNT_DB_PATH);
                 File dbTempDir = null;
                 try {
-                    dbTempDir = new File(file.getParentFile(), "backup_verify_temp_" + System.currentTimeMillis());
+                    dbTempDir = new File(baseDir, "backup_verify_temp_" + UUID.randomUUID());
                     dbTempDir.mkdirs();
                     tempDirsToCleanup.add(dbTempDir);
                     File extractedDb = new File(dbTempDir, NOTIFICATION_COUNT_DB_PATH);

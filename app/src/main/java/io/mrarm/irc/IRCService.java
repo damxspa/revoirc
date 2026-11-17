@@ -17,6 +17,7 @@ import android.util.Log;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import io.mrarm.chatlib.ChatApi;
 import io.mrarm.chatlib.irc.ServerConnectionApi;
@@ -43,8 +44,8 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
     private android.os.PowerManager.WakeLock mWakeLock;
 
-    private final Map<ServerConnectionInfo, MessageListener> messageListeners = new HashMap<>();
-    private final Map<ServerConnectionInfo, ServerConnectionInfo.StorageChangeListener> storageChangeListeners = new HashMap<>();
+    private final Map<ServerConnectionInfo, MessageListener> messageListeners = new ConcurrentHashMap<>();
+    private final Map<ServerConnectionInfo, ServerConnectionInfo.StorageChangeListener> storageChangeListeners = new ConcurrentHashMap<>();
 
     public static void start(Context context) {
         Intent intent = new Intent(context, IRCService.class);
