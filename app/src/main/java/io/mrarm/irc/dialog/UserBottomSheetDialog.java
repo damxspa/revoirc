@@ -39,7 +39,6 @@ import io.mrarm.irc.MainActivity;
 import io.mrarm.irc.R;
 import io.mrarm.irc.ServerConnectionInfo;
 import io.mrarm.irc.util.AdvancedDividerItemDecoration;
-import io.mrarm.irc.util.AvatarUtils;
 
 public class UserBottomSheetDialog {
 
@@ -176,10 +175,6 @@ public class UserBottomSheetDialog {
         view.findViewById(R.id.message_button).setOnClickListener((View v) -> {
             PopupMenu menu = new PopupMenu(mContext, v);
             menu.getMenu().add(0, 1, 0, mContext.getString(R.string.action_message_user));
-            String host = mConnection != null ? mConnection.getHost() : null;
-            if (host != null && AvatarUtils.isChateagratisServer(host)) {
-                menu.getMenu().add(0, 2, 0, mContext.getString(R.string.action_view_avatar));
-            }
             menu.setOnMenuItemClickListener(item -> {
                 if (item.getItemId() == 1) {
                     List<String> l = new ArrayList<>();
@@ -196,18 +191,6 @@ public class UserBottomSheetDialog {
                             Toast.makeText(mContext, R.string.error_generic, Toast.LENGTH_SHORT).show();
                         });
                     });
-                    return true;
-                }
-                if (item.getItemId() == 2) {
-                    Intent intent = new Intent(mContext, ImageActivity.class);
-                    String url = AvatarUtils.getAvatarUrl(mConnection, mRealName, mNick, mAccount);
-                    if (url == null || url.isEmpty()) {
-                        url = AvatarUtils.getAvatarUrlForNick(mNick);
-                    }
-                    AvatarUtils.clearImageCache(mContext);
-                    url = AvatarUtils.ensureTimestamp(url);
-                    intent.putExtra(ImageActivity.EXTRA_URL, url);
-                    mContext.startActivity(intent);
                     return true;
                 }
                 return false;
@@ -367,15 +350,7 @@ public class UserBottomSheetDialog {
             mNick.setText(UserBottomSheetDialog.this.mNick);
             mUser.setText(UserBottomSheetDialog.this.mUser);
 
-            String host = mConnection != null ? mConnection.getHost() : null;
-            boolean isAllowedServer = host != null && AvatarUtils.isChateagratisServer(host);
-
             if (mAvatar != null && UserBottomSheetDialog.this.mNick != null) {
-                String url = null;
-                if (isAllowedServer) {
-                    url = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
-                }
-
                 mBottomAvatarMode = true;
 
                 if (mBottomAvatarMode) {
@@ -442,27 +417,8 @@ public class UserBottomSheetDialog {
                             R.dimen.dialog_bottom_user_header_name_bottom_margin);
                 }
 
-                if (isAllowedServer && url != null && !url.isEmpty()) {
-                    mAvatar.setVisibility(View.VISIBLE);
-                    mAvatar.setImageTintList(null);
-                    mAvatar.setColorFilter(null);
-                    AvatarUtils.loadAvatar(mContext, mConnection, mAvatar, mRealName, UserBottomSheetDialog.this.mNick, mAccount, !mBottomAvatarMode);
-
-                    mAvatar.setOnClickListener(v -> {
-                        Intent intent = new Intent(mContext, ImageActivity.class);
-                        String currentUrl = AvatarUtils.getAvatarUrl(mConnection, mRealName, UserBottomSheetDialog.this.mNick, mAccount);
-                        if (currentUrl == null || currentUrl.isEmpty()) {
-                            currentUrl = AvatarUtils.getAvatarUrlForNick(UserBottomSheetDialog.this.mNick);
-                        }
-                        AvatarUtils.clearImageCache(mContext);
-                        currentUrl = AvatarUtils.ensureTimestamp(currentUrl);
-                        intent.putExtra(ImageActivity.EXTRA_URL, currentUrl);
-                        mContext.startActivity(intent);
-                    });
-                } else {
-                    mAvatar.setVisibility(View.GONE);
-                    mAvatar.setOnClickListener(null);
-                }
+                mAvatar.setVisibility(View.GONE);
+                mAvatar.setOnClickListener(null);
             }
             updateScrollY();
         }

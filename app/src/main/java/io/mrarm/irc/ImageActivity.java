@@ -52,29 +52,9 @@ public class ImageActivity extends AppCompatActivity {
         PhotoView photoView = findViewById(R.id.photo_view);
         ProgressBar progressBar = findViewById(R.id.progress_bar);
 
-        java.util.List<String> candidates = io.mrarm.irc.util.AvatarUtils.getAvatarCandidates(url);
-        // Ensure each candidate URL has a timestamp to bypass cache
-        for (int idx = 0; idx < candidates.size(); idx++) {
-            String candidateUrl = candidates.get(idx);
-            if (candidateUrl != null && !candidateUrl.isEmpty()) {
-                String timedUrl = io.mrarm.irc.util.AvatarUtils.ensureTimestamp(candidateUrl);
-                if (timedUrl != null) {
-                    candidates.set(idx, timedUrl);
-                }
-            }
-        }
-        loadImageCandidates(photoView, progressBar, candidates, 0);
-    }
-
-    private void loadImageCandidates(PhotoView photoView, ProgressBar progressBar, java.util.List<String> candidates, int index) {
-        if (index >= candidates.size()) {
-            progressBar.setVisibility(View.GONE);
-            Toast.makeText(ImageActivity.this, R.string.image_load_failed, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String candidateUrl = candidates.get(index);
+        progressBar.setVisibility(View.VISIBLE);
         ImageRequest request = new ImageRequest.Builder(this)
-                .data(candidateUrl)
+                .data(url)
                 .target(new coil.target.Target() {
                     @Override
                     public void onStart(android.graphics.drawable.Drawable placeholder) {
@@ -89,12 +69,8 @@ public class ImageActivity extends AppCompatActivity {
 
                     @Override
                     public void onError(android.graphics.drawable.Drawable error) {
-                    }
-                })
-                .listener(new ImageRequest.Listener() {
-                    @Override
-                    public void onError(ImageRequest request, coil.request.ErrorResult result) {
-                        loadImageCandidates(photoView, progressBar, candidates, index + 1);
+                        progressBar.setVisibility(View.GONE);
+                        Toast.makeText(ImageActivity.this, R.string.image_load_failed, Toast.LENGTH_SHORT).show();
                     }
                 })
                 .build();

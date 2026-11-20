@@ -51,9 +51,6 @@ import io.mrarm.irc.util.UserAutoRunCommandHelper;
 
 public class ServerConnectionInfo {
 
-    // Shared executor for avatar preparation tasks (avoids thread leak from creating new executor per connection)
-    private static final ExecutorService sAvatarExecutor = Executors.newSingleThreadExecutor();
-
     private final Object mLock = new Object();
     private final Handler mReconnectHandler = new Handler(Looper.getMainLooper());
 
@@ -248,102 +245,51 @@ public class ServerConnectionInfo {
 
         List<String> rejoinChannels = getChannels();
 
-        if (AvatarUtils.isChateagratisServer(getHost()) || (mServerConfig != null && AvatarUtils.isChateagratisServer(mServerConfig.address))) {
-            sAvatarExecutor.execute(() -> {
-                synchronized (mLock) {
-                    if (mIsClosed)
-                        return;
+        boolean isChateagratis = AvatarUtils.isChateagratisServer(getHost()) || (mServerConfig != null && AvatarUtils.isChateagratisServer(mServerConfig.address));
+
+        fConnection.connect(mConnectionRequest, (Void v) -> {
+            synchronized (mLock) {
+                mConnecting = false;
+                setConnected(true);
+                mCurrentReconnectAttempt = 0;
+
+                if (mServerConfig.execCommandsConnected != null) {
+                    if (mAutoRunHelper == null)
+                        mAutoRunHelper = new UserAutoRunCommandHelper(this);
+                    mAutoRunHelper.executeUserCommands(mServerConfig.execCommandsConnected);
                 }
-                String username = mServerConfig != null && mServerConfig.authUser != null && !mServerConfig.authUser.trim().isEmpty() ? mServerConfig.authUser.trim() :
-                        (mServerConfig != null && mServerConfig.user != null && !mServerConfig.user.trim().isEmpty() ? mServerConfig.user.trim() :
-                        (mServerConfig != null && mServerConfig.nicks != null && !mServerConfig.nicks.isEmpty() && mServerConfig.nicks.get(0) != null ? mServerConfig.nicks.get(0) : "unknown"));
-                String password = mServerConfig != null && mServerConfig.authPass != null && !mServerConfig.authPass.trim().isEmpty() ? mServerConfig.authPass.trim() :
-                        (mServerConfig != null && mServerConfig.pass != null && !mServerConfig.pass.trim().isEmpty() ? mServerConfig.pass.trim() : null);
+            }
 
-                AvatarUtils.AvatarPreconnectResult result = AvatarUtils.prepareChateagratisAvatarGecosSync(username, password);
-                if (result.pictureUrl != null && !result.pictureUrl.isEmpty()) {
-                    AvatarUtils.setOwnAvatarUrl(this, result.pictureUrl);
-                }
-                mConnectionRequest.setRealName(result.gecosBase64);
-                Log.i("ChateaGratisAvatar", "realname enviado en USER: " + result.gecosBase64);
-
-                fConnection.connect(mConnectionRequest, (Void v) -> {
-                    synchronized (mLock) {
-                        mConnecting = false;
-                        setConnected(true);
-                        mCurrentReconnectAttempt = 0;
-
-                        if (mServerConfig.execCommandsConnected != null) {
-                            if (mAutoRunHelper == null)
-                                mAutoRunHelper = new UserAutoRunCommandHelper(this);
-                            mAutoRunHelper.executeUserCommands(AvatarUtils.ensureWaitCommand(mServerConfig.execCommandsConnected));
-                        }
-                    }
-
-                    AvatarUtils.sendSetnameAfterConnect(this, result.gecosBase64);
-
-                    List<String> joinChannels = new ArrayList<>();
-
-                    if (mServerConfig.autojoinChannels != null)
-                        joinChannels.addAll(mServerConfig.autojoinChannels);
-                    if (rejoinChannels != null && mServerConfig.rejoinChannels)
-                        joinChannels.addAll(rejoinChannels);
-                    if (joinChannels.size() > 0) {
-                        mReconnectHandler.postDelayed(() -> {
-                            synchronized (mLock) {
-                                if (!isConnected())
-                                    return;
-                            }
-                            fConnection.joinChannels(joinChannels, null, null);
-                        }, 3000);
-                    }
-
-                }, (Exception e) -> {
-                    if (e instanceof UserOverrideTrustManager.UserRejectedCertificateException ||
-                            (e.getCause() != null && e.getCause() instanceof
-                                    UserOverrideTrustManager.UserRejectedCertificateException)) {
-                        Log.d("ServerConnectionInfo", "User rejected the certificate");
+            List<String> joinChannels = new ArrayList<>();
+            if (mServerConfig.autojoinChannels != null)
+                joinChannels.addAll(mServerConfig.autojoinChannels);
+            if (rejoinChannels != null && mServerConfig.rejoinChannels)
+                joinChannels.addAll(rejoinChannels);
+            if (joinChannels.size() > 0) {
+                if (isChateagratis) {
+                    mReconnectHandler.postDelayed(() -> {
                         synchronized (mLock) {
-                            mUserDisconnectRequest = true;
+                            if (!isConnected())
+                                return;
                         }
-                    }
-                    notifyDisconnected();
-                });
-            });
-        } else {
-            fConnection.connect(mConnectionRequest, (Void v) -> {
-                synchronized (mLock) {
-                    mConnecting = false;
-                    setConnected(true);
-                    mCurrentReconnectAttempt = 0;
-
-                    if (mServerConfig.execCommandsConnected != null) {
-                        if (mAutoRunHelper == null)
-                            mAutoRunHelper = new UserAutoRunCommandHelper(this);
-                        mAutoRunHelper.executeUserCommands(mServerConfig.execCommandsConnected);
-                    }
-                }
-
-                List<String> joinChannels = new ArrayList<>();
-                if (mServerConfig.autojoinChannels != null)
-                    joinChannels.addAll(mServerConfig.autojoinChannels);
-                if (rejoinChannels != null && mServerConfig.rejoinChannels)
-                    joinChannels.addAll(rejoinChannels);
-                if (joinChannels.size() > 0)
+                        fConnection.joinChannels(joinChannels, null, null);
+                    }, 6000);
+                } else {
                     fConnection.joinChannels(joinChannels, null, null);
-
-            }, (Exception e) -> {
-                if (e instanceof UserOverrideTrustManager.UserRejectedCertificateException ||
-                        (e.getCause() != null && e.getCause() instanceof
-                                UserOverrideTrustManager.UserRejectedCertificateException)) {
-                    Log.d("ServerConnectionInfo", "User rejected the certificate");
-                    synchronized (mLock) {
-                        mUserDisconnectRequest = true;
-                    }
                 }
-                notifyDisconnected();
-            });
-        }
+            }
+
+        }, (Exception e) -> {
+            if (e instanceof UserOverrideTrustManager.UserRejectedCertificateException ||
+                    (e.getCause() != null && e.getCause() instanceof
+                            UserOverrideTrustManager.UserRejectedCertificateException)) {
+                Log.d("ServerConnectionInfo", "User rejected the certificate");
+                synchronized (mLock) {
+                    mUserDisconnectRequest = true;
+                }
+            }
+            notifyDisconnected();
+        });
 
         if (createdNewConnection) {
             setApi(connection);
@@ -395,7 +341,7 @@ public class ServerConnectionInfo {
             mConnecting = false;
             mDisconnecting = true;
             if (api instanceof IRCConnection) {
-                sAvatarExecutor.execute(() -> {
+                new Thread(() -> {
                     synchronized (mLock) {
                         if (mIsClosed)
                             return;
@@ -414,7 +360,7 @@ public class ServerConnectionInfo {
                         }
                         connect();
                     });
-                });
+                }, "Reconnect Disconnect Thread").start();
                 return;
             }
             setConnected(false);

@@ -1,4 +1,4 @@
-Version 1.5 Stable<br>
+Version 1.6 Stable<br>
 Info: https://github.com/MCMrARM/revolution-irc/issues/378<br>
 
 ### **AVISO SI TE CONECTAS EN CHATZONA/CHATEAGRATIS USANDO REVOIRC**
