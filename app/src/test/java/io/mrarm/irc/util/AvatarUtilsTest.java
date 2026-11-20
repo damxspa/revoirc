@@ -117,7 +117,7 @@ public class AvatarUtilsTest {
         String url = AvatarUtils.getAvatarUrl(null, garbageGecos, nick, null);
         assertEquals("https://chat-avatars.chateagratis.net/avatar/Chat/" + nick, url);
     }
-
+// Updated
     @Test
     public void testEnsureWaitCommand() {
         assertNull(AvatarUtils.ensureWaitCommand(null));
@@ -131,7 +131,7 @@ public class AvatarUtilsTest {
         assertEquals("/join #amistad", result.get(1));
 
         java.util.List<String> cmdsWithWait = new java.util.ArrayList<>();
-        cmdsWithWait.add("/wait 3");
+        cmdsWithWait.add("/wait 5");
         cmdsWithWait.add("/join #amistad");
         java.util.List<String> resultWithWait = AvatarUtils.ensureWaitCommand(cmdsWithWait);
         assertEquals(2, resultWithWait.size());
