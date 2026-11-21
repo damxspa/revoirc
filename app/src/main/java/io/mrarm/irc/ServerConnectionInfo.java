@@ -295,7 +295,7 @@ public class ServerConnectionInfo {
                                     return;
                             }
                             fConnection.joinChannels(joinChannels, null, null);
-                        }, 3000);
+                        }, 6000);
                     }
 
                 }, (Exception e) -> {

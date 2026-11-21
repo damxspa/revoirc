@@ -43,6 +43,40 @@ public class UserAutoRunCommandHelper implements ServerConnectionInfo.ChannelLis
             String cmd = cmds.get(i);
             if (cmd.length() == 0)
                 continue;
+
+            String cleanCmd = cmd.startsWith("/") ? cmd.substring(1) : cmd;
+            String[] cmdp = cleanCmd.split(" ");
+            if (cmdp[0].equalsIgnoreCase("wait")) {
+                float time = Float.parseFloat(cmdp[1]) * 1000.f;
+                int execStartI = i + 1;
+                sHandler.postAtTime(() -> {
+                    executeUserCommands(cmds.subList(execStartI, cmds.size()));
+                }, this, SystemClock.uptimeMillis() + Math.round(time));
+                return;
+            } else if (cmdp[0].equalsIgnoreCase("wait-for")) {
+                synchronized (mConnection) {
+                    String chan = cmdp[1].toLowerCase();
+                    if (mConnection.hasChannel(chan))
+                        continue;
+                    synchronized (mChannelRunnables) {
+                        int execStartI = i + 1;
+                        List<Runnable> runnables = mChannelRunnables.get(chan);
+                        if (runnables == null) {
+                            runnables = new ArrayList<>();
+                            mChannelRunnables.put(chan, runnables);
+                        }
+                        runnables.add(() -> {
+                            executeUserCommands(cmds.subList(execStartI, cmds.size()));
+                        });
+                        if (!mRegisteredChannelListener) {
+                            mRegisteredChannelListener = true;
+                            mConnection.addOnChannelListChangeListener(this);
+                        }
+                    }
+                }
+                return;
+            }
+
             if (!cmd.startsWith("/")) {
                 conn.sendCommandRaw(cmd, null, null);
                 continue;
@@ -52,38 +86,6 @@ public class UserAutoRunCommandHelper implements ServerConnectionInfo.ChannelLis
             SimpleTextVariableList vars = new SimpleTextVariableList();
             vars.set(CommandAliasManager.VAR_MYNICK, mConnection.getUserNick());
             try {
-                String[] cmdp = cmd.split(" ");
-                if (cmdp[0].equalsIgnoreCase("wait")) {
-                    float time = Float.parseFloat(cmdp[1]) * 1000.f;
-                    int execStartI = i + 1;
-                    sHandler.postAtTime(() -> {
-                        executeUserCommands(cmds.subList(execStartI, cmds.size()));
-                    }, this, SystemClock.uptimeMillis() + Math.round(time));
-                    return;
-                } else if (cmdp[0].equalsIgnoreCase("wait-for")) {
-                    synchronized (mConnection) {
-                        String chan = cmdp[1].toLowerCase();
-                        if (mConnection.hasChannel(chan))
-                            continue;
-                        synchronized (mChannelRunnables) {
-                            int execStartI = i + 1;
-                            List<Runnable> runnables = mChannelRunnables.get(chan);
-                            if (runnables == null) {
-                                runnables = new ArrayList<>();
-                                mChannelRunnables.put(chan, runnables);
-                            }
-                            runnables.add(() -> {
-                                executeUserCommands(cmds.subList(execStartI, cmds.size()));
-                            });
-                            if (!mRegisteredChannelListener) {
-                                mRegisteredChannelListener = true;
-                                mConnection.addOnChannelListChangeListener(this);
-                            }
-                        }
-                    }
-                    return;
-                }
-
                 CommandAliasManager.ProcessCommandResult result = CommandAliasManager
                         .getInstance(mConnection.getConnectionManager().getContext())
                         .processCommand(conn.getServerConnectionData(), cmd, vars);

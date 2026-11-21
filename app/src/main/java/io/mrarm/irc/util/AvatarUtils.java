@@ -646,9 +646,13 @@ public class AvatarUtils {
     public static List<String> ensureWaitCommand(List<String> cmds) {
         if (cmds == null || cmds.isEmpty())
             return cmds;
-        String first = cmds.get(0).trim().replaceAll("^/", "");
-        if (first.toLowerCase(Locale.ROOT).startsWith("wait")) {
-            return cmds;
+        String first = cmds.get(0).trim();
+        String firstClean = first.replaceAll("^/", "");
+        if (firstClean.toLowerCase(Locale.ROOT).startsWith("wait")) {
+            List<String> modified = new ArrayList<>(cmds);
+            boolean hasSlash = first.startsWith("/");
+            modified.set(0, hasSlash ? "/wait 6" : "wait 6");
+            return modified;
         }
         List<String> modified = new ArrayList<>();
         modified.add("wait 6");

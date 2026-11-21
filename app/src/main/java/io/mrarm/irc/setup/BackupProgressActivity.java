@@ -292,6 +292,10 @@ public class BackupProgressActivity extends SetupProgressActivity {
                 while ((c = fis.read(buf, 0, buf.length)) > 0) {
                     fos.write(buf, 0, c);
                 }
+                fos.flush();
+                try {
+                    fos.getFD().sync();
+                } catch (Exception ignored) {}
                 fis.close();
                 fos.close();
                 success = true;

@@ -60,67 +60,72 @@ public class BackupManager {
     private static final String BACKUP_THEME_PREFIX = BackupPaths.BACKUP_THEME_PREFIX;
     private static final String BACKUP_THEME_SUFFIX = BackupPaths.BACKUP_THEME_SUFFIX;
 
+    private static ZipParameters createZipParameters(String password, String fileNameInZip, boolean isStream) {
+        ZipParameters params = new ZipParameters();
+        params.setCompressionMethod(Zip4jConstants.COMP_DEFLATE);
+        params.setCompressionLevel(Zip4jConstants.DEFLATE_LEVEL_NORMAL);
+        if (password != null && !password.isEmpty()) {
+            params.setEncryptFiles(true);
+            params.setEncryptionMethod(Zip4jConstants.ENC_METHOD_AES);
+            params.setAesKeyStrength(Zip4jConstants.AES_STRENGTH_256);
+            params.setPassword(password);
+        }
+        params.setFileNameInZip(fileNameInZip);
+        if (isStream) {
+            params.setSourceExternalStream(true);
+        }
+        return params;
+    }
+
     public static void createBackup(Context context, File file, String password) throws IOException {
         try {
             Log.d("BackupManager", "createBackup: " + file.getAbsolutePath());
 
             ZipFile zipFile = new ZipFile(file);
-            ZipParameters params = new ZipParameters();
-            params.setCompressionMethod(Zip4jConstants.COMP_DEFLATE);
-            params.setCompressionLevel(Zip4jConstants.DEFLATE_LEVEL_NORMAL);
-            if (password != null) {
-                params.setEncryptFiles(true);
-                params.setEncryptionMethod(Zip4jConstants.ENC_METHOD_AES);
-                params.setAesKeyStrength(Zip4jConstants.AES_STRENGTH_256);
-                params.setPassword(password);
-            }
-            params.setSourceExternalStream(true);
-
-            params.setFileNameInZip(BACKUP_PREFERENCES_PATH);
-            zipFile.addStream(exportPreferencesToJson(context), params);
-
-            for (File f : SettingsHelper.getInstance(context).getCustomFiles()) {
-                params.setFileNameInZip(BACKUP_PREF_VALUES_PREFIX + f.getName());
-                zipFile.addFile(f, params);
-            }
 
             StringWriter writer;
             ServerConfigManager configManager = ServerConfigManager.getInstance(context);
+
+            zipFile.addStream(exportPreferencesToJson(context), createZipParameters(password, BACKUP_PREFERENCES_PATH, true));
+
+            for (File f : SettingsHelper.getInstance(context).getCustomFiles()) {
+                zipFile.addFile(f, createZipParameters(password, BACKUP_PREF_VALUES_PREFIX + f.getName(), false));
+            }
+
             for (ServerConfigData data : configManager.getServers()) {
                 writer = new StringWriter();
                 SettingsHelper.getGson().toJson(data, writer);
-                params.setFileNameInZip(BACKUP_SERVER_PREFIX + data.uuid + BACKUP_SERVER_SUFFIX);
-                zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes()), params);
+                zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        createZipParameters(password, BACKUP_SERVER_PREFIX + data.uuid + BACKUP_SERVER_SUFFIX, true));
+
                 File sslCertsFile = configManager.getServerSSLCertsFile(data.uuid);
                 if (sslCertsFile.exists()) {
                     synchronized (ServerCertificateManager.get(sslCertsFile)) { // lock the helper to prevent any writes to the file
-                        params.setFileNameInZip(BACKUP_SERVER_CERTS_PREFIX + data.uuid + BACKUP_SERVER_CERTS_SUFFIX);
-                        zipFile.addFile(sslCertsFile, params);
+                        zipFile.addFile(sslCertsFile, createZipParameters(password, BACKUP_SERVER_CERTS_PREFIX + data.uuid + BACKUP_SERVER_CERTS_SUFFIX, false));
                     }
                 }
             }
 
             writer = new StringWriter();
             NotificationRuleManager.saveUserRuleSettings(context, writer);
-            params.setFileNameInZip(BACKUP_NOTIFICATION_RULES_PATH);
-            zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes()), params);
+            zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                    createZipParameters(password, BACKUP_NOTIFICATION_RULES_PATH, true));
 
             writer = new StringWriter();
             CommandAliasManager.getInstance(context).saveUserSettings(writer);
-            params.setFileNameInZip(BACKUP_COMMAND_ALIASES_PATH);
-            zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes()), params);
+            zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                    createZipParameters(password, BACKUP_COMMAND_ALIASES_PATH, true));
 
             writer = new StringWriter();
             TemplateManager.getInstance(context).saveUserSettings(writer);
-            params.setFileNameInZip(BACKUP_TEMPLATES_PATH);
-            zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes()), params);
+            zipFile.addStream(new ByteArrayInputStream(writer.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                    createZipParameters(password, BACKUP_TEMPLATES_PATH, true));
 
             NotificationCountStorage.getInstance(context).close();
             try {
                 File notifDbFile = NotificationCountStorage.getFile(context);
                 if (notifDbFile.exists()) {
-                    params.setFileNameInZip(NOTIFICATION_COUNT_DB_PATH);
-                    zipFile.addFile(notifDbFile, params);
+                    zipFile.addFile(notifDbFile, createZipParameters(password, NOTIFICATION_COUNT_DB_PATH, false));
                 }
             } finally {
                 NotificationCountStorage.getInstance(context).open();
@@ -128,8 +133,10 @@ public class BackupManager {
 
             ThemeManager themeManager = ThemeManager.getInstance(context);
             for (ThemeInfo themeInfo : themeManager.getCustomThemes()) {
-                params.setFileNameInZip(BACKUP_THEME_PREFIX + themeInfo.uuid + BACKUP_THEME_SUFFIX);
-                zipFile.addFile(themeManager.getThemePath(themeInfo.uuid), params);
+                File themeFile = themeManager.getThemePath(themeInfo.uuid);
+                if (themeFile.exists()) {
+                    zipFile.addFile(themeFile, createZipParameters(password, BACKUP_THEME_PREFIX + themeInfo.uuid + BACKUP_THEME_SUFFIX, false));
+                }
             }
         } catch (ZipException e) {
             throw new IOException(e);
@@ -270,8 +277,8 @@ public class BackupManager {
                     themeTempDir = new File(baseDir, "backup_verify_temp_" + UUID.randomUUID());
                     themeTempDir.mkdirs();
                     tempDirsToCleanup.add(themeTempDir);
+                    zipFile.extractFile(themeHeader, themeTempDir.getAbsolutePath());
                     File extractedFile = new File(themeTempDir, themeHeader.getFileName());
-                    zipFile.extractFile(themeHeader, themeTempDir.getAbsolutePath(), null, extractedFile.getName());
                     validateThemeFile(extractedFile);
                     result.validThemeCount++;
                 } catch (Exception e) {
@@ -292,8 +299,8 @@ public class BackupManager {
                     dbTempDir = new File(baseDir, "backup_verify_temp_" + UUID.randomUUID());
                     dbTempDir.mkdirs();
                     tempDirsToCleanup.add(dbTempDir);
+                    zipFile.extractFile(dbHeader, dbTempDir.getAbsolutePath());
                     File extractedDb = new File(dbTempDir, NOTIFICATION_COUNT_DB_PATH);
-                    zipFile.extractFile(dbHeader, dbTempDir.getAbsolutePath(), null, extractedDb.getName());
                     // Validate by opening as SQLite database
                     android.database.sqlite.SQLiteDatabase db = android.database.sqlite.SQLiteDatabase.openDatabase(
                             extractedDb.getAbsolutePath(), null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY);
@@ -455,28 +462,15 @@ public class BackupManager {
      */
     private static void extractAllToStaging(ZipFile zipFile, File stagingDir) throws ZipException, IOException {
         for (Object header : zipFile.getFileHeaders()) {
-            if (!(header instanceof FileHeader)) continue;
-            FileHeader fileHeader = (FileHeader) header;
-            String fileName = fileHeader.getFileName();
-            
-            // Skip directory entries
-            if (fileHeader.isDirectory()) continue;
-            
-            // Prevent path traversal
-            if (fileName.contains("..") || fileName.startsWith("/") || fileName.startsWith("\\")) {
-                Log.w("BackupManager", "Skipping suspicious file name: " + fileName);
-                continue;
+            if (header instanceof FileHeader) {
+                FileHeader fh = (FileHeader) header;
+                String fileName = fh.getFileName();
+                if (fileName != null && (fileName.contains("..") || fileName.startsWith("/") || fileName.startsWith("\\"))) {
+                    throw new ZipException("Suspicious entry in zip file (zip slip attempt): " + fileName);
+                }
             }
-            
-            File destFile = new File(stagingDir, fileName);
-            File parentDir = destFile.getParentFile();
-            if (parentDir != null && !parentDir.mkdirs()) {
-                Log.w("BackupManager", "Failed to create parent directory: " + parentDir.getAbsolutePath());
-            }
-            
-            zipFile.extractFile(fileHeader, parentDir != null ? parentDir.getAbsolutePath() : stagingDir.getAbsolutePath(),
-                    null, destFile.getName());
         }
+        zipFile.extractAll(stagingDir.getAbsolutePath());
     }
 
     /**
@@ -843,6 +837,11 @@ public class BackupManager {
                 storage.close();
                 File destDbFile = NotificationCountStorage.getFile(context);
                 try {
+                    File walFile = new File(destDbFile.getPath() + "-wal");
+                    File shmFile = new File(destDbFile.getPath() + "-shm");
+                    if (walFile.exists()) walFile.delete();
+                    if (shmFile.exists()) shmFile.delete();
+                    if (destDbFile.exists()) destDbFile.delete();
                     if (!copyFile(notifDbFileForRestore, destDbFile)) {
                         throw new IOException("Failed to copy notification DB");
                     }
@@ -983,6 +982,10 @@ public class BackupManager {
             File notifDbFile = NotificationCountStorage.getFile(context);
             if (originalNotifDbBackup.exists()) {
                 notifStorage.close();
+                File walFile = new File(notifDbFile.getPath() + "-wal");
+                File shmFile = new File(notifDbFile.getPath() + "-shm");
+                if (walFile.exists()) walFile.delete();
+                if (shmFile.exists()) shmFile.delete();
                 if (notifDbFile.exists()) notifDbFile.delete();
                 copyFile(originalNotifDbBackup, notifDbFile);
                 notifStorage.open();
