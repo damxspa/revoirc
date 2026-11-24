@@ -79,6 +79,9 @@ ChatSettings:
       getter: isDccSendVisible
     - spec: boolean onlyMultiSelectMode = false
       getter: shouldUseOnlyMultiSelectMode
+    - spec: boolean scrollToBottomButton = true
+      pref: chat_scroll_to_bottom_button
+      getter: isScrollToBottomButtonEnabled
   helpers:
     - Typeface getFont()
 

@@ -190,6 +190,9 @@ public class InterfaceSettingsFragment extends SettingsListFragment
         a.add(new CheckBoxSetting(getString(R.string.pref_title_chat_multi_scroll_mode),
                 getString(R.string.pref_summary_chat_multi_scroll_mode))
                 .linkSetting(prefs, ChatSettings.PREF_ONLY_MULTI_SELECT_MODE));
+        a.add(new CheckBoxSetting(getString(R.string.pref_title_scroll_to_bottom_button),
+                getString(R.string.pref_summary_scroll_to_bottom_button))
+                .linkSetting(prefs, ChatSettings.PREF_SCROLL_TO_BOTTOM_BUTTON));
 
         a.add(new SettingsHeader(getString(R.string.pref_header_misc)));
         a.add(new CheckBoxSetting(getString(R.string.pref_title_drawer_always_show_server),

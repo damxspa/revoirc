@@ -80,6 +80,8 @@
     <string name="message_delete_confirm_note">Los mensajes solo se eliminarán en este dispositivo.</string>
     <string name="message_clear_history_confirm">¿Está seguro de que desea borrar el historial de este chat?</string>
 
+    <string name="action_scroll_to_bottom">Ir al final</string>
+
     <!-- Actions -->
 
     <string name="action_ok">OK</string>
@@ -348,6 +350,8 @@
     <string name="pref_title_chat_box_history_swipe_mode">Modo de navegación basado en deslizar el historial</string>
     <string name="pref_title_chat_multi_scroll_mode">Usar un modo de selección de mensajes por lotes</string>
     <string name="pref_summary_chat_multi_scroll_mode">Activar siempre el antiguo modo de selección de mensajes por lotes</string>
+    <string name="pref_title_scroll_to_bottom_button">Botón "Ir abajo"</string>
+    <string name="pref_summary_scroll_to_bottom_button">Mostrar un botón para ir al último mensaje al desplazarse hacia arriba.</string>
 
     <string name="pref_header_misc">Miscelánea</string>
     <string name="pref_title_drawer_always_show_server">Mostrar servidor en el menú</string>

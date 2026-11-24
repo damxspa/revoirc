@@ -13,6 +13,8 @@ import androidx.appcompat.view.ActionMode;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -99,6 +101,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     private View mUnreadCtr;
     private TextView mUnreadText;
     private View mUnreadDiscard;
+    private FloatingActionButton mScrollToBottomFab;
     private long mUnreadCheckedFirst = -1;
     private long mUnreadCheckedLast = -1;
     private MessageId mUnreadCheckFor;
@@ -272,6 +275,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mUnreadCtr = rootView.findViewById(R.id.unread_counter_ctr);
             mUnreadText = rootView.findViewById(R.id.unread_counter);
             mUnreadDiscard = rootView.findViewById(R.id.unread_counter_discard);
+            mScrollToBottomFab = rootView.findViewById(R.id.scroll_to_bottom);
+        }
+        if (mScrollToBottomFab != null) {
+            mScrollToBottomFab.setOnClickListener((v) -> jumpToBottom());
         }
         mLayoutManager = new ScrollPosLinearLayoutManager(getContext());
         mLayoutManager.setStackFromEnd(true);
@@ -280,6 +287,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         mRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                updateScrollToBottomButtonVisibility();
                 if (mAdapter == null)
                     return;
                 checkForUnreadMessages();
@@ -385,6 +393,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
         synchronized (this) {
             mRecyclerView = null;
+            mScrollToBottomFab = null;
         }
         if (mAdapter != null) {
             mAdapter.setSelectListener(null);
@@ -569,6 +578,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             ChatSettings.PREF_FONT_SIZE,
             ChatSettings.PREF_HIDE_JOIN_PART_MESSAGES,
             AppSettings.PREF_STORAGE_LIMIT_GLOBAL,
+            ChatSettings.PREF_SCROLL_TO_BOTTOM_BUTTON,
             // it's enough to only register to the last format preference, as all preferences are always rewritten
             MessageFormatSettings.PREF_MESSAGE_FORMAT_EVENT_HOSTNAME
     })
@@ -586,6 +596,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         if (hideJoinPart != isFiltering && mChannelName != null) {
             reloadMessages(null);
         }
+        updateScrollToBottomButtonVisibility();
     }
 
     private void updateParentCurrentChannel() {
@@ -602,7 +613,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     private void updateMessageList(Runnable r) {
         synchronized (this) {
             if (mRecyclerView != null) {
-                mRecyclerView.post(r);
+                mRecyclerView.post(() -> {
+                    r.run();
+                    updateScrollToBottomButtonVisibility();
+                });
             } else {
                 r.run();
             }
@@ -626,6 +640,39 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         int count = mAdapter == null ? mStatusAdapter.getItemCount() : mAdapter.getItemCount();
         if (i >= count - 2)
             mRecyclerView.scrollToPosition(count - 1);
+    }
+
+    public void jumpToBottom() {
+        if (mLoadNewerIdentifier != null && mChannelName != null) {
+            reloadMessages(null);
+        } else if (mRecyclerView != null) {
+            int count = mAdapter != null ? mAdapter.getItemCount() : (mStatusAdapter != null ? mStatusAdapter.getItemCount() : 0);
+            if (count > 0) {
+                mRecyclerView.scrollToPosition(count - 1);
+            }
+        }
+        updateScrollToBottomButtonVisibility();
+    }
+
+    private void updateScrollToBottomButtonVisibility() {
+        if (mScrollToBottomFab == null)
+            return;
+        if (!ChatSettings.isScrollToBottomButtonEnabled()) {
+            mScrollToBottomFab.setVisibility(View.GONE);
+            return;
+        }
+        if (mRecyclerView == null || (mAdapter == null && mStatusAdapter == null)) {
+            mScrollToBottomFab.setVisibility(View.GONE);
+            return;
+        }
+        boolean canScrollDown = mRecyclerView.canScrollVertically(1) || mLoadNewerIdentifier != null;
+        if (canScrollDown) {
+            if (mScrollToBottomFab.getVisibility() != View.VISIBLE)
+                mScrollToBottomFab.show();
+        } else {
+            if (mScrollToBottomFab.getVisibility() == View.VISIBLE)
+                mScrollToBottomFab.hide();
+        }
     }
 
     @Override
