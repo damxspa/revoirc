@@ -38,6 +38,7 @@ import io.mrarm.irc.R;
 import io.mrarm.irc.SettingsActivity;
 import io.mrarm.irc.ThemeEditorActivity;
 import io.mrarm.irc.ThemedActivity;
+import io.mrarm.irc.chat.ChatMessagesFragment;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ChatSettings;
 import io.mrarm.irc.config.NickAutocompleteSettings;
@@ -193,6 +194,16 @@ public class InterfaceSettingsFragment extends SettingsListFragment
         a.add(new CheckBoxSetting(getString(R.string.pref_title_scroll_to_bottom_button),
                 getString(R.string.pref_summary_scroll_to_bottom_button))
                 .linkSetting(prefs, ChatSettings.PREF_SCROLL_TO_BOTTOM_BUTTON));
+        a.add(new ClickableSetting(getString(R.string.pref_title_scroll_to_bottom_reset),
+                getString(R.string.pref_summary_scroll_to_bottom_reset))
+                .setOnClickListener((View v) -> {
+                    prefs.edit()
+                            .remove(ChatMessagesFragment.PREF_FAB_TRANSLATION_X)
+                            .remove(ChatMessagesFragment.PREF_FAB_TRANSLATION_Y)
+                            .remove(ChatMessagesFragment.PREF_FAB_SCALE)
+                            .apply();
+                    Toast.makeText(getContext(), R.string.fab_reset_success, Toast.LENGTH_SHORT).show();
+                }));
 
         a.add(new SettingsHeader(getString(R.string.pref_header_misc)));
         a.add(new CheckBoxSetting(getString(R.string.pref_title_drawer_always_show_server),

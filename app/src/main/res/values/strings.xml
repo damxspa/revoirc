@@ -364,6 +364,10 @@
     <string name="pref_summary_chat_multi_scroll_mode">Always enable the old batch message selection mode</string>
     <string name="pref_title_scroll_to_bottom_button">"Scroll to bottom" button</string>
     <string name="pref_summary_scroll_to_bottom_button">Show a button to scroll to the latest message when scrolled up.</string>
+    <string name="pref_title_scroll_to_bottom_reset">Reset "Scroll to bottom" button position</string>
+    <string name="pref_summary_scroll_to_bottom_reset">Reset the position and size of the button to default</string>
+    <string name="fab_drag_resize_hint">Drag to move, use 2 fingers to resize</string>
+    <string name="fab_reset_success">Button position and size reset</string>
 
     <string name="pref_header_misc">Miscellaneous</string>
     <string name="pref_title_drawer_always_show_server">Show Server in drawer</string>

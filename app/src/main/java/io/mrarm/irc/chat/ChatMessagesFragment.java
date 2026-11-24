@@ -5,6 +5,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import androidx.annotation.Nullable;
@@ -16,13 +17,17 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import android.util.Log;
+import android.view.HapticFeedbackConstants;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -87,6 +92,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     private MessageSenderInfo mChannelTopicSetBy;
     private Date mChannelTopicSetOn;
     private RecyclerView mRecyclerView;
+    public static final String PREF_FAB_TRANSLATION_X = "chat_scroll_to_bottom_fab_x";
+    public static final String PREF_FAB_TRANSLATION_Y = "chat_scroll_to_bottom_fab_y";
+    public static final String PREF_FAB_SCALE = "chat_scroll_to_bottom_fab_scale";
+
     private ScrollPosLinearLayoutManager mLayoutManager;
     private ChatMessagesAdapter mAdapter;
     private ServerStatusMessagesAdapter mStatusAdapter;
@@ -102,6 +111,9 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     private TextView mUnreadText;
     private View mUnreadDiscard;
     private FloatingActionButton mScrollToBottomFab;
+    private float mFabScaleFactor = 1.0f;
+    private boolean mIsFabDragging = false;
+    private ScaleGestureDetector mScaleGestureDetector;
     private long mUnreadCheckedFirst = -1;
     private long mUnreadCheckedLast = -1;
     private MessageId mUnreadCheckFor;
@@ -278,6 +290,79 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mScrollToBottomFab = rootView.findViewById(R.id.scroll_to_bottom);
         }
         if (mScrollToBottomFab != null) {
+            applySavedFabPositionAndScale();
+
+            mScaleGestureDetector = new ScaleGestureDetector(requireContext(),
+                    new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                        @Override
+                        public boolean onScale(ScaleGestureDetector detector) {
+                            if (!mIsFabDragging)
+                                return false;
+                            mFabScaleFactor *= detector.getScaleFactor();
+                            mFabScaleFactor = Math.max(0.5f, Math.min(mFabScaleFactor, 2.5f));
+                            if (mScrollToBottomFab != null) {
+                                mScrollToBottomFab.setScaleX(mFabScaleFactor);
+                                mScrollToBottomFab.setScaleY(mFabScaleFactor);
+                            }
+                            return true;
+                        }
+                    });
+
+            mScrollToBottomFab.setOnLongClickListener((v) -> {
+                v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                mIsFabDragging = true;
+                Toast.makeText(getContext(), R.string.fab_drag_resize_hint, Toast.LENGTH_SHORT).show();
+                return true;
+            });
+
+            mScrollToBottomFab.setOnTouchListener(new View.OnTouchListener() {
+                private float lastRawX, lastRawY;
+                private float startTransX, startTransY;
+                private float startScale;
+
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    if (mScaleGestureDetector != null && event.getPointerCount() > 1) {
+                        mScaleGestureDetector.onTouchEvent(event);
+                    }
+
+                    switch (event.getActionMasked()) {
+                        case MotionEvent.ACTION_DOWN:
+                            lastRawX = event.getRawX();
+                            lastRawY = event.getRawY();
+                            startTransX = v.getTranslationX();
+                            startTransY = v.getTranslationY();
+                            startScale = mFabScaleFactor;
+                            break;
+
+                        case MotionEvent.ACTION_MOVE:
+                            if (mIsFabDragging && event.getPointerCount() == 1) {
+                                float dx = event.getRawX() - lastRawX;
+                                float dy = event.getRawY() - lastRawY;
+                                v.setTranslationX(v.getTranslationX() + dx);
+                                v.setTranslationY(v.getTranslationY() + dy);
+                                lastRawX = event.getRawX();
+                                lastRawY = event.getRawY();
+                            }
+                            break;
+
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                            if (mIsFabDragging) {
+                                mIsFabDragging = false;
+                                saveFabPositionAndScale(v.getTranslationX(), v.getTranslationY(), mFabScaleFactor);
+                                float totalMove = Math.abs(v.getTranslationX() - startTransX) + Math.abs(v.getTranslationY() - startTransY);
+                                if (totalMove < 10 && Math.abs(mFabScaleFactor - startScale) < 0.05f) {
+                                    showFabResetDialog();
+                                }
+                                return true;
+                            }
+                            break;
+                    }
+                    return false;
+                }
+            });
+
             mScrollToBottomFab.setOnClickListener((v) -> jumpToBottom());
         }
         mLayoutManager = new ScrollPosLinearLayoutManager(getContext());
@@ -667,12 +752,72 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
         boolean canScrollDown = mRecyclerView.canScrollVertically(1) || mLoadNewerIdentifier != null;
         if (canScrollDown) {
+            applySavedFabPositionAndScale();
             if (mScrollToBottomFab.getVisibility() != View.VISIBLE)
                 mScrollToBottomFab.show();
         } else {
             if (mScrollToBottomFab.getVisibility() == View.VISIBLE)
                 mScrollToBottomFab.hide();
         }
+    }
+
+    private void applySavedFabPositionAndScale() {
+        if (mScrollToBottomFab == null)
+            return;
+        SharedPreferences prefs = SettingsHelper.getPreferences();
+        if (prefs == null)
+            return;
+        float x = prefs.getFloat(PREF_FAB_TRANSLATION_X, 0.0f);
+        float y = prefs.getFloat(PREF_FAB_TRANSLATION_Y, 0.0f);
+        float scale = prefs.getFloat(PREF_FAB_SCALE, 1.0f);
+        mFabScaleFactor = scale;
+        mScrollToBottomFab.setTranslationX(x);
+        mScrollToBottomFab.setTranslationY(y);
+        mScrollToBottomFab.setScaleX(scale);
+        mScrollToBottomFab.setScaleY(scale);
+    }
+
+    private void saveFabPositionAndScale(float x, float y, float scale) {
+        SharedPreferences prefs = SettingsHelper.getPreferences();
+        if (prefs == null)
+            return;
+        prefs.edit()
+                .putFloat(PREF_FAB_TRANSLATION_X, x)
+                .putFloat(PREF_FAB_TRANSLATION_Y, y)
+                .putFloat(PREF_FAB_SCALE, scale)
+                .apply();
+    }
+
+    public void resetFabPositionAndScale() {
+        SharedPreferences prefs = SettingsHelper.getPreferences();
+        if (prefs != null) {
+            prefs.edit()
+                    .remove(PREF_FAB_TRANSLATION_X)
+                    .remove(PREF_FAB_TRANSLATION_Y)
+                    .remove(PREF_FAB_SCALE)
+                    .apply();
+        }
+        if (mScrollToBottomFab != null) {
+            mFabScaleFactor = 1.0f;
+            mScrollToBottomFab.setTranslationX(0.0f);
+            mScrollToBottomFab.setTranslationY(0.0f);
+            mScrollToBottomFab.setScaleX(1.0f);
+            mScrollToBottomFab.setScaleY(1.0f);
+        }
+    }
+
+    private void showFabResetDialog() {
+        if (getContext() == null)
+            return;
+        new AlertDialog.Builder(getContext())
+                .setTitle(R.string.pref_title_scroll_to_bottom_button)
+                .setMessage(R.string.fab_drag_resize_hint)
+                .setPositiveButton(R.string.action_ok, null)
+                .setNeutralButton(R.string.pref_title_scroll_to_bottom_reset, (dialog, which) -> {
+                    resetFabPositionAndScale();
+                    Toast.makeText(getContext(), R.string.fab_reset_success, Toast.LENGTH_SHORT).show();
+                })
+                .show();
     }
 
     @Override

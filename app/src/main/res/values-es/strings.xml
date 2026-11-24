@@ -352,6 +352,10 @@
     <string name="pref_summary_chat_multi_scroll_mode">Activar siempre el antiguo modo de selección de mensajes por lotes</string>
     <string name="pref_title_scroll_to_bottom_button">Botón "Ir abajo"</string>
     <string name="pref_summary_scroll_to_bottom_button">Mostrar un botón para ir al último mensaje al desplazarse hacia arriba.</string>
+    <string name="pref_title_scroll_to_bottom_reset">Restablecer posición del botón "Ir abajo"</string>
+    <string name="pref_summary_scroll_to_bottom_reset">Restablecer la posición y el tamaño del botón a los valores predeterminados</string>
+    <string name="fab_drag_resize_hint">Arrastra para mover, usa 2 dedos para cambiar tamaño</string>
+    <string name="fab_reset_success">Posición y tamaño del botón restablecidos</string>
 
     <string name="pref_header_misc">Miscelánea</string>
     <string name="pref_title_drawer_always_show_server">Mostrar servidor en el menú</string>
