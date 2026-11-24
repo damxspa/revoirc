@@ -353,9 +353,9 @@
     <string name="pref_title_scroll_to_bottom_button">Botón "Ir abajo"</string>
     <string name="pref_summary_scroll_to_bottom_button">Mostrar un botón para ir al último mensaje al desplazarse hacia arriba.</string>
     <string name="pref_title_scroll_to_bottom_reset">Restablecer posición del botón "Ir abajo"</string>
-    <string name="pref_summary_scroll_to_bottom_reset">Restablecer la posición y el tamaño del botón a los valores predeterminados</string>
-    <string name="fab_drag_resize_hint">Arrastra para mover, usa 2 dedos para cambiar tamaño</string>
-    <string name="fab_reset_success">Posición y tamaño del botón restablecidos</string>
+    <string name="pref_summary_scroll_to_bottom_reset">Restablecer la posición del botón a los valores predeterminados</string>
+    <string name="fab_drag_hint">Arrastra para mover el botón</string>
+    <string name="fab_reset_success">Posición del botón restablecida</string>
 
     <string name="pref_header_misc">Miscelánea</string>
     <string name="pref_title_drawer_always_show_server">Mostrar servidor en el menú</string>

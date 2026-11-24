@@ -200,7 +200,6 @@ public class InterfaceSettingsFragment extends SettingsListFragment
                     prefs.edit()
                             .remove(ChatMessagesFragment.PREF_FAB_TRANSLATION_X)
                             .remove(ChatMessagesFragment.PREF_FAB_TRANSLATION_Y)
-                            .remove(ChatMessagesFragment.PREF_FAB_SCALE)
                             .apply();
                     Toast.makeText(getContext(), R.string.fab_reset_success, Toast.LENGTH_SHORT).show();
                 }));
