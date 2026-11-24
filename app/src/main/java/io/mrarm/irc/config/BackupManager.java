@@ -141,15 +141,16 @@ public class BackupManager {
      * Checks file existence, JSON parseability, and basic structure validation.
      */
     public static boolean verifyBackupFile(File file) {
-        VerificationResult result = verifyBackupDetailed(file);
+        VerificationResult result = verifyBackupDetailed(null, file);
         return result.isValid;
     }
 
     /**
      * Detailed backup verification returning validation results.
      * Validates ALL backup components: preferences, servers, certificates, themes, notification DB, etc.
+     * @param context Optional context for cache directory (can be null for basic verification)
      */
-    public static VerificationResult verifyBackupDetailed(File file) {
+    public static VerificationResult verifyBackupDetailed(Context context, File file) {
         VerificationResult result = new VerificationResult();
         final List<File> tempDirsToCleanup = new ArrayList<>();
         try {
@@ -259,9 +260,15 @@ public class BackupManager {
                 }
             }
             
-            File baseDir = (file.getParentFile() != null && file.getParentFile().canWrite())
-                    ? file.getParentFile()
-                    : new File("/tmp");
+            File baseDir;
+            if (context != null) {
+                baseDir = context.getCacheDir();
+            } else if (file.getParentFile() != null && file.getParentFile().canWrite()) {
+                baseDir = file.getParentFile();
+            } else {
+                String tmpDir = System.getProperty("java.io.tmpdir");
+                baseDir = tmpDir != null ? new File(tmpDir) : new File("/data/local/tmp");
+            }
 
             // Validate themes
             for (FileHeader themeHeader : themeHeaders) {
@@ -714,6 +721,20 @@ public class BackupManager {
                 writer.write(SettingsHelper.getGson().toJson(configManager.getServers()));
             }
             
+            // Backup SSL certificates
+            File originalCertsBackup = new File(backupDir, "certs_backup");
+            if (!originalCertsBackup.mkdirs()) {
+                Log.w("BackupManager", "Failed to create certs backup directory");
+            } else {
+                for (ServerConfigData server : configManager.getServers()) {
+                    File certFile = configManager.getServerSSLCertsFile(server.uuid);
+                    if (certFile.exists()) {
+                        File destFile = new File(originalCertsBackup, "server-certs-" + server.uuid + ".jks");
+                        copyFile(certFile, destFile);
+                    }
+                }
+            }
+            
             Log.d("BackupManager", "Original data backed up successfully");
             
             // ========== PHASE 2: APPLY RESTORE ==========
@@ -722,7 +743,7 @@ public class BackupManager {
             File prefsFile = new File(stagingDir, BACKUP_PREFERENCES_PATH);
             if (prefsFile.exists()) {
                 try (BufferedReader reader = new BufferedReader(new FileReader(prefsFile))) {
-                    importPreferencesFromJsonSync(context, reader);
+                    importPreferencesFromJson(context, reader);
                 }
             }
             
@@ -906,7 +927,7 @@ public class BackupManager {
     /**
      * Performs full rollback from the backup directory created before restore.
      * Restores ALL original data: preferences, notification rules, aliases, templates,
-     * themes, notification DB, custom files, and servers list.
+     * themes, notification DB, custom files, servers list, and SSL certificates.
      */
     private static void rollbackFromBackup(Context context, File backupDir,
                                           ServerConfigManager configManager,
@@ -933,11 +954,33 @@ public class BackupManager {
                 }
             }
             
+            // Rollback SSL certificates
+            File originalCertsBackup = new File(backupDir, "certs_backup");
+            if (originalCertsBackup.exists() && originalCertsBackup.isDirectory()) {
+                File[] certFiles = originalCertsBackup.listFiles((dir, name) -> name.startsWith("server-certs-") && name.endsWith(".jks"));
+                if (certFiles != null) {
+                    for (File certFile : certFiles) {
+                        String uuidStr = certFile.getName().substring("server-certs-".length(), certFile.getName().length() - ".jks".length());
+                        try {
+                            UUID uuid = UUID.fromString(uuidStr);
+                            ServerCertificateManager helper = ServerCertificateManager.get(context, uuid);
+                            try (java.io.FileInputStream fis = new java.io.FileInputStream(certFile)) {
+                                helper.loadKeyStore(fis);
+                                helper.saveKeyStore();
+                                Log.d("BackupManager", "Rollback: Restored SSL certificates for: " + uuid);
+                            }
+                        } catch (Exception e) {
+                            Log.e("BackupManager", "Rollback: Failed to restore certificate for " + uuidStr, e);
+                        }
+                    }
+                }
+            }
+            
             // Rollback preferences
             File originalPrefsBackup = new File(backupDir, "prefs_backup.json");
             if (originalPrefsBackup.exists()) {
                 try (BufferedReader reader = new BufferedReader(new FileReader(originalPrefsBackup))) {
-                    importPreferencesFromJsonSync(context, reader);
+                    importPreferencesFromJson(context, reader);
                 }
             }
             
@@ -1044,10 +1087,10 @@ public class BackupManager {
     }
 
     /**
-     * Imports preferences from JSON using synchronous commit() instead of async apply().
-     * This ensures preferences are fully persisted before restore continues.
+     * Imports preferences from JSON using async apply() for non-blocking persistence.
+     * Uses apply() to avoid ANR risk on main thread with large preference sets.
      */
-    private static void importPreferencesFromJsonSync(Context context, Reader reader) {
+    private static void importPreferencesFromJson(Context context, Reader reader) {
         SharedPreferences.Editor prefs = PreferenceManager.getDefaultSharedPreferences(context).edit();
         SettingsHelper.getInstance(context).clear();
         JsonObject obj = SettingsHelper.getGson().fromJson(reader, JsonObject.class);
@@ -1081,11 +1124,8 @@ public class BackupManager {
                 }
             }
         }
-        // Use commit() instead of apply() for synchronous persistence during restore
-        boolean committed = prefs.commit();
-        if (!committed) {
-            Log.w("BackupManager", "Preferences commit() returned false during restore");
-        }
+        // Use apply() for async persistence - avoids ANR on main thread
+        prefs.apply();
     }
 
     /**

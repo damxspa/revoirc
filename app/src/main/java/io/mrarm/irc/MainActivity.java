@@ -295,6 +295,11 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
         super.onResume();
         WarningHelper.setActivity(this);
         mDCCDialogHandler.onResume();
+        // Invalidate block size cache in case storage path changed (e.g., adoptable storage)
+        ChatLogStorageManager storageManager = ChatLogStorageManager.getInstance(this);
+        if (!storageManager.isDestroyed()) {
+            storageManager.invalidateBlockSizeCache();
+        }
         Fragment currentFragment = getCurrentFragment();
         if (currentFragment instanceof ChatFragment) {
             ChatFragment chatFragment = (ChatFragment) currentFragment;

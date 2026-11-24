@@ -106,7 +106,7 @@ public class BackupProgressActivity extends SetupProgressActivity {
     public void onBackupCopyDone(boolean success) {
         if (success) {
             if (mRestoreMode) {
-                if (!BackupManager.verifyBackupFile(mBackupFile)) {
+                if (!BackupManager.verifyBackupDetailed(this, mBackupFile).isValid) {
                     mBackupFile.delete();
                     setDone(R.string.backup_restore_invalid);
                 } else if (BackupManager.isBackupPasswordProtected(mBackupFile)) {

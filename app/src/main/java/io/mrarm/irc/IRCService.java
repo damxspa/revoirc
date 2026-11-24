@@ -45,9 +45,10 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     private final ConnectivityChangeReceiver mConnectivityReceiver = new ConnectivityChangeReceiver();
 
     private boolean mCreatedChannel = false;
+    private boolean mIsForeground = false;
+    private String mLastNotificationContent = "";
 
     private PowerManager.WakeLock mWakeLock;
-    private boolean mWakeLockHeld = false;
 
     private final Map<ServerConnectionInfo, MessageListener> messageListeners = new ConcurrentHashMap<>();
     private final Map<ServerConnectionInfo, ServerConnectionInfo.StorageChangeListener> storageChangeListeners = new ConcurrentHashMap<>();
@@ -132,8 +133,10 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) {
             mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "revolution-irc:IRCServiceWakeLock");
-            mWakeLock.acquire();
-            mWakeLockHeld = true;
+            // Check if already held to prevent double-acquire on rapid restart
+            if (!mWakeLock.isHeld()) {
+                mWakeLock.acquire();
+            }
         }
 
         // Register lifecycle observer to release wake lock when app goes to background
@@ -158,10 +161,11 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
     }
 
     private void releaseWakeLock() {
-        if (mWakeLock != null && mWakeLockHeld) {
+        if (mWakeLock != null) {
             try {
-                mWakeLock.release();
-                mWakeLockHeld = false;
+                if (mWakeLock.isHeld()) {
+                    mWakeLock.release();
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Failed to release wake lock", e);
             }
@@ -209,8 +213,8 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         if (action == null || ACTION_START_FOREGROUND.equals(action)) {
             StringBuilder b = new StringBuilder();
             int connectedCount = 0;
-        int connectingCount = 0;
-        int disconnectedCount = 0;
+            int connectingCount = 0;
+            int disconnectedCount = 0;
             for (ServerConnectionInfo connectionInfo :
                     ServerConnectionManager.getInstance(this).getConnections()) {
                 if (connectionInfo.isConnected())
@@ -229,23 +233,30 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
                 b.append(getResources().getString(R.string.text_comma));
                 b.append(getResources().getQuantityString(R.plurals.service_status_disconnected, disconnectedCount, disconnectedCount));
             }
-
-            Intent mainIntent = MainActivity.getLaunchIntent(this, null, null);
-            PendingIntent exitIntent = PendingIntent.getBroadcast(this, EXIT_ACTION_ID,
-                    ExitActionReceiver.getIntent(this),
-                    PendingIntent.FLAG_CANCEL_CURRENT | getPendingIntentFlagsMutable());
-            NotificationCompat.Builder notification = new NotificationCompat.Builder(this, IDLE_NOTIFICATION_CHANNEL)
-                    .setContentTitle(getString(R.string.service_title))
-                    .setContentText(b.toString())
-                    .setPriority(NotificationCompat.PRIORITY_MIN)
-                    .setOnlyAlertOnce(true)
-                    .setContentIntent(PendingIntent.getActivity(this, IDLE_NOTIFICATION_ID, mainIntent, PendingIntent.FLAG_CANCEL_CURRENT | getPendingIntentFlagsMutable()))
-                    .addAction(R.drawable.ic_close, getString(R.string.action_exit), exitIntent)
-                    .setSmallIcon(R.drawable.ic_server_connected);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(IDLE_NOTIFICATION_ID, notification.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
-            } else {
-                startForeground(IDLE_NOTIFICATION_ID, notification.build());
+            
+            String notificationContent = b.toString();
+            
+            // Only update notification if content actually changed
+            if (!mIsForeground || !notificationContent.equals(mLastNotificationContent)) {
+                Intent mainIntent = MainActivity.getLaunchIntent(this, null, null);
+                PendingIntent exitIntent = PendingIntent.getBroadcast(this, EXIT_ACTION_ID,
+                        ExitActionReceiver.getIntent(this),
+                        PendingIntent.FLAG_CANCEL_CURRENT | getPendingIntentFlagsMutable());
+                NotificationCompat.Builder notification = new NotificationCompat.Builder(this, IDLE_NOTIFICATION_CHANNEL)
+                        .setContentTitle(getString(R.string.service_title))
+                        .setContentText(notificationContent)
+                        .setPriority(NotificationCompat.PRIORITY_MIN)
+                        .setOnlyAlertOnce(true)
+                        .setContentIntent(PendingIntent.getActivity(this, IDLE_NOTIFICATION_ID, mainIntent, PendingIntent.FLAG_CANCEL_CURRENT | getPendingIntentFlagsMutable()))
+                        .addAction(R.drawable.ic_close, getString(R.string.action_exit), exitIntent)
+                        .setSmallIcon(R.drawable.ic_server_connected);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    startForeground(IDLE_NOTIFICATION_ID, notification.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
+                } else {
+                    startForeground(IDLE_NOTIFICATION_ID, notification.build());
+                }
+                mIsForeground = true;
+                mLastNotificationContent = notificationContent;
             }
         }
         return START_STICKY;
@@ -275,6 +286,62 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         MessageListener listener = (channel, info, id) -> onMessage(connection, channel, info, id);
         messageListeners.put(connection, listener);
         connection.getApiInstance().getMessageStorageApi().subscribeChannelMessages(null, listener, null, null);
+        // Trigger notification update
+        updateNotification();
+    }
+    
+    /**
+     * Updates the foreground notification with current connection status.
+     * Only updates if content has actually changed.
+     */
+    private void updateNotification() {
+        StringBuilder b = new StringBuilder();
+        int connectedCount = 0;
+        int connectingCount = 0;
+        int disconnectedCount = 0;
+        for (ServerConnectionInfo connectionInfo :
+                ServerConnectionManager.getInstance(this).getConnections()) {
+            if (connectionInfo.isConnected())
+                connectedCount++;
+            else if (connectionInfo.isConnecting())
+                connectingCount++;
+            else
+                disconnectedCount++;
+        }
+        b.append(getResources().getQuantityString(R.plurals.service_status_connected, connectedCount, connectedCount));
+        if (connectingCount > 0) {
+            b.append(getResources().getString(R.string.text_comma));
+            b.append(getResources().getQuantityString(R.plurals.service_status_connecting, connectingCount, connectingCount));
+        }
+        if (disconnectedCount > 0) {
+            b.append(getResources().getString(R.string.text_comma));
+            b.append(getResources().getQuantityString(R.plurals.service_status_disconnected, disconnectedCount, disconnectedCount));
+        }
+        
+        String notificationContent = b.toString();
+        
+        // Only update notification if content actually changed
+        if (!mIsForeground || !notificationContent.equals(mLastNotificationContent)) {
+            Intent mainIntent = MainActivity.getLaunchIntent(this, null, null);
+            PendingIntent exitIntent = PendingIntent.getBroadcast(this, EXIT_ACTION_ID,
+                    ExitActionReceiver.getIntent(this),
+                    PendingIntent.FLAG_CANCEL_CURRENT | getPendingIntentFlagsMutable());
+            NotificationCompat.Builder notification = new NotificationCompat.Builder(this, IDLE_NOTIFICATION_CHANNEL)
+                    .setContentTitle(getString(R.string.service_title))
+                    .setContentText(notificationContent)
+                    .setPriority(NotificationCompat.PRIORITY_MIN)
+                    .setOnlyAlertOnce(true)
+                    .setContentIntent(PendingIntent.getActivity(this, IDLE_NOTIFICATION_ID, mainIntent, PendingIntent.FLAG_CANCEL_CURRENT | getPendingIntentFlagsMutable()))
+                    .addAction(R.drawable.ic_close, getString(R.string.action_exit), exitIntent)
+                    .setSmallIcon(R.drawable.ic_server_connected);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(IDLE_NOTIFICATION_ID, notification.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
+            } else {
+                startForeground(IDLE_NOTIFICATION_ID, notification.build());
+            }
+            mIsForeground = true;
+            mLastNotificationContent = notificationContent;
+        }
     }
 
     @Override
@@ -288,6 +355,8 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         if (listener != null && connection.getApiInstance() != null && connection.getApiInstance().getMessageStorageApi() != null) {
             connection.getApiInstance().getMessageStorageApi().unsubscribeChannelMessages(null, listener, null, null);
         }
+        // Trigger notification update
+        updateNotification();
     }
 
     @Nullable

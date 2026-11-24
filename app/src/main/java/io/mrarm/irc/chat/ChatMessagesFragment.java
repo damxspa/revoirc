@@ -375,6 +375,14 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
     public void onDestroyView() {
         super.onDestroyView();
 
+        // Clean up ActionMode to prevent memory leak
+        if (mMessagesActionModeCallback != null) {
+            if (mMessagesActionModeCallback.mActionMode != null) {
+                mMessagesActionModeCallback.mActionMode.finish();
+            }
+            mMessagesActionModeCallback = null;
+        }
+
         synchronized (this) {
             mRecyclerView = null;
         }

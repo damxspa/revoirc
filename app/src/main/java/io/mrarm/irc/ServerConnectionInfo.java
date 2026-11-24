@@ -1,6 +1,11 @@
 package io.mrarm.irc;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -457,6 +462,13 @@ public class ServerConnectionInfo {
 
         if (!hasAnyConnectivity || !AppSettings.isReconnectEnabled())
             return;
+        
+        // Check if network is metered - avoid reconnecting on metered networks by default
+        if (isNetworkMetered(mManager.getContext())) {
+            Log.d("ServerConnectionInfo", "Network is metered, skipping reconnect");
+            return;
+        }
+        
         if (AppSettings.isReconnectOnConnectivityChangeEnabled()) {
             connect(); // this will be ignored if we are already connected
         } else if (mReconnectQueueTime != -1L) {
@@ -470,6 +482,25 @@ public class ServerConnectionInfo {
                 connect();
             else
                 mReconnectHandler.postDelayed(mReconnectRunnable, remainingDelay);
+        }
+    }
+    
+    /**
+     * Checks if the current network is metered.
+     * @param context Application context
+     * @return true if network is metered, false otherwise
+     */
+    private static boolean isNetworkMetered(Context context) {
+        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Network activeNetwork = cm.getActiveNetwork();
+            if (activeNetwork == null) return false;
+            NetworkCapabilities caps = cm.getNetworkCapabilities(activeNetwork);
+            return caps != null && !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+        } else {
+            NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+            return activeNetwork != null && activeNetwork.isConnected() && activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE;
         }
     }
 

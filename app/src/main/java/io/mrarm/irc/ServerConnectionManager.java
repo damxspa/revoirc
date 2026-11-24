@@ -57,8 +57,9 @@ public class ServerConnectionManager implements AutoCloseable {
     private boolean mDestroying = false;
     private boolean mExecutorShutdown = false;
     // Timer for periodic cleanup of disconnected connections
-    private final java.util.Timer mCleanupTimer = new java.util.Timer("ServerConnectionManager-Cleanup", true);
+    private final java.util.Timer mCleanupTimer = new java.util.Timer("ServerConnectionManager-Cleanup");
     private java.util.TimerTask mCleanupTask = null;
+    private final Object mCleanupLock = new Object();
 
     public static boolean hasInstance() {
         return instance != null;
@@ -74,8 +75,14 @@ public class ServerConnectionManager implements AutoCloseable {
         if (instance == null)
             return;
         instance.mDestroying = true;
-        // Cleanup timer
+        // Cleanup timer - cancel and wait for any running task
         instance.mCleanupTimer.cancel();
+        instance.mCleanupTimer.purge();
+        // Wait for any running cleanup task to complete
+        synchronized (instance.mCleanupLock) {
+            // Task will acquire this lock, so waiting here ensures it's done
+            // (empty block is intentional - we just need to acquire the lock)
+        }
         instance.cleanupDisconnectingConnections();
         while (!instance.mConnections.isEmpty()) {
             ServerConnectionInfo connection = instance.mConnections.get(instance.mConnections.size() - 1);
@@ -113,6 +120,11 @@ public class ServerConnectionManager implements AutoCloseable {
         shutdownExecutor();
         if (mCleanupTimer != null) {
             mCleanupTimer.cancel();
+            mCleanupTimer.purge();
+        }
+        // Wait for any running cleanup task
+        synchronized (mCleanupLock) {
+            // Task will acquire this lock
         }
         if (mCleanupTask != null) {
             mCleanupTask.cancel();
@@ -342,19 +354,21 @@ public class ServerConnectionManager implements AutoCloseable {
     }
 
     private void cleanupDisconnectingConnections() {
-        synchronized (mDisconnectingConnections) {
-            if (!mDisconnectingConnections.isEmpty()) {
-                Log.w("ServerConnectionManager", "Cleaning up " + mDisconnectingConnections.size() + " stuck disconnecting connections");
-                for (ServerConnectionInfo connection : mDisconnectingConnections.values()) {
-                    try {
-                        connection.close();
-                    } catch (Exception e) {
-                        Log.e("ServerConnectionManager", "Error closing disconnecting connection", e);
+        synchronized (mCleanupLock) {
+            synchronized (mDisconnectingConnections) {
+                if (!mDisconnectingConnections.isEmpty()) {
+                    Log.w("ServerConnectionManager", "Cleaning up " + mDisconnectingConnections.size() + " stuck disconnecting connections");
+                    for (ServerConnectionInfo connection : mDisconnectingConnections.values()) {
+                        try {
+                            connection.close();
+                        } catch (Exception e) {
+                            Log.e("ServerConnectionManager", "Error closing disconnecting connection", e);
+                        }
                     }
+                    mDisconnectingConnections.clear();
                 }
-                mDisconnectingConnections.clear();
+                mCleanupTask = null;
             }
-            mCleanupTask = null;
         }
     }
 
@@ -488,6 +502,12 @@ public class ServerConnectionManager implements AutoCloseable {
         }
     }
 
+    /**
+     * Checks if the current network is suitable for direct DCC connections.
+     * Returns true for Wi-Fi and Ethernet connections, false for mobile data.
+     * @param context Application context
+     * @return true if network is Wi-Fi or Ethernet
+     */
     public static boolean isWifiConnected(Context context) {
         ConnectivityManager mgr = (ConnectivityManager) context.getSystemService(
                 Context.CONNECTIVITY_SERVICE);
@@ -496,10 +516,15 @@ public class ServerConnectionManager implements AutoCloseable {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Network activeNetwork = mgr.getActiveNetwork();
             NetworkCapabilities caps = mgr.getNetworkCapabilities(activeNetwork);
-            return caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+            if (caps == null) return false;
+            return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) 
+                    || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
         }
+        // Legacy API - check both Wi-Fi and Ethernet
         NetworkInfo wifiInfo = mgr.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
-        return wifiInfo != null && wifiInfo.isConnected();
+        NetworkInfo ethernetInfo = mgr.getNetworkInfo(ConnectivityManager.TYPE_ETHERNET);
+        return (wifiInfo != null && wifiInfo.isConnected()) 
+                || (ethernetInfo != null && ethernetInfo.isConnected());
     }
 
     public interface ConnectionsListener {

@@ -95,6 +95,8 @@ public class ServerCertificateManager {
                 }
             }
         }
+        // Also clean up any stale references
+        cleanupStaleReferences();
     }
 
     /**
@@ -102,6 +104,8 @@ public class ServerCertificateManager {
      * Should be called on application shutdown.
      */
     public static void shutdownAll() {
+        // Clean up any remaining phantom references first
+        cleanupStaleReferences();
         for (ServerCertificateManager instance : sInstances.values()) {
             instance.close();
         }
@@ -117,6 +121,7 @@ public class ServerCertificateManager {
     /**
      * Cleans up stale references from the cache.
      * Call periodically or before get() to prevent memory leaks.
+     * Also called from release() to ensure timely cleanup.
      */
     @SuppressWarnings("unchecked")
     private static void cleanupStaleReferences() {
@@ -132,6 +137,25 @@ public class ServerCertificateManager {
             }
             phantomRef.clear();
         }
+    }
+
+    /**
+     * Schedules periodic cleanup of stale phantom references.
+     * Should be called once during app initialization.
+     */
+    @SuppressWarnings({"unused", "BusyWait"})
+    public static void schedulePeriodicCleanup() {
+        new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Thread.sleep(5 * 60 * 1000); // 5 minutes
+                    cleanupStaleReferences();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, "CertificateManager-Cleanup").start();
     }
 
     private final File mKeyStoreFile;

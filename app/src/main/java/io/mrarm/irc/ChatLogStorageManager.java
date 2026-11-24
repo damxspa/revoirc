@@ -239,32 +239,34 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     }
 
     private void performGlobalDeletion(long size) {
-        while (true) {
-            boolean deletedAnyFile = false;
-            for (Iterator<DeletionCandidate> iterator = mGlobalDeletionCandidates.iterator(); iterator.hasNext(); ) {
-                DeletionCandidate candidate = iterator.next();
-                mGlobalTotalSize -= candidate.size;
-                if (mGlobalTotalSize < 0L) mGlobalTotalSize = 0L;
-                File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
-                size -= getFileSize(file);
-                SettingsHelper.deleteSQLiteDatabase(file);
-                deletedAnyFile = true;
-                iterator.remove();
-                if (size <= 0L) {
-                    if (mGlobalDeletionCandidates.isEmpty()) {
-                        // If there are no deletion candidates left, refresh the list so they are
-                        // available during the next performGlobalDeletion call.
-                        for (ServerManager manager : mServerManagers.values())
-                            manager.reload();
+        synchronized (mGlobalDeletionCandidates) {
+            while (true) {
+                boolean deletedAnyFile = false;
+                for (Iterator<DeletionCandidate> iterator = mGlobalDeletionCandidates.iterator(); iterator.hasNext(); ) {
+                    DeletionCandidate candidate = iterator.next();
+                    mGlobalTotalSize -= candidate.size;
+                    if (mGlobalTotalSize < 0L) mGlobalTotalSize = 0L;
+                    File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
+                    size -= getFileSize(file);
+                    SettingsHelper.deleteSQLiteDatabase(file);
+                    deletedAnyFile = true;
+                    iterator.remove();
+                    if (size <= 0L) {
+                        if (mGlobalDeletionCandidates.isEmpty()) {
+                            // If there are no deletion candidates left, refresh the list so they are
+                            // available during the next performGlobalDeletion call.
+                            for (ServerManager manager : mServerManagers.values())
+                                manager.reload();
+                        }
+                        return;
                     }
-                    return;
                 }
+                if (!deletedAnyFile)
+                    return;
+                // Refresh deletion candidates
+                for (ServerManager manager : mServerManagers.values())
+                    manager.reload();
             }
-            if (!deletedAnyFile)
-                return;
-            // Refresh deletion candidates
-            for (ServerManager manager : mServerManagers.values())
-                manager.reload();
         }
     }
 
@@ -409,12 +411,13 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         public void remove() {
             synchronized (mGlobalDeletionCandidates) {
                 mGlobalTotalSize -= mTotalSize;
-                mDeletionCandidates.clear();
+                // Remove this server's candidates from global set
                 for (Iterator<DeletionCandidate> iterator = mGlobalDeletionCandidates.iterator(); iterator.hasNext(); ) {
                     DeletionCandidate candidate = iterator.next();
                     if (candidate.server == this)
                         iterator.remove();
                 }
+                mDeletionCandidates.clear();
                 mTotalSize = 0L;
                 mCurrentLogFile = null;
                 mCurrentLogSize = 0L;
@@ -454,29 +457,31 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         }
 
         private void performDeletion(long size) {
-            while (true) {
-                boolean deletedAnyFile = false;
-                for (Iterator<DeletionCandidate> iterator = mDeletionCandidates.iterator(); iterator.hasNext(); ) {
-                    DeletionCandidate candidate = iterator.next();
-                    mGlobalTotalSize -= candidate.size;
-                    if (mGlobalTotalSize < 0L) mGlobalTotalSize = 0L;
-                    mTotalSize -= candidate.size;
-                    if (mTotalSize < 0L) mTotalSize = 0L;
-                    File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
-                    size -= getFileSize(file);
-                    SettingsHelper.deleteSQLiteDatabase(file);
-                    deletedAnyFile = true;
-                    iterator.remove();
-                    mGlobalDeletionCandidates.remove(candidate);
-                    if (size <= 0L) {
-                        if (mGlobalDeletionCandidates.isEmpty())
-                            reload();
-                        return;
+            synchronized (mGlobalDeletionCandidates) {
+                while (true) {
+                    boolean deletedAnyFile = false;
+                    for (Iterator<DeletionCandidate> iterator = mDeletionCandidates.iterator(); iterator.hasNext(); ) {
+                        DeletionCandidate candidate = iterator.next();
+                        mGlobalTotalSize -= candidate.size;
+                        if (mGlobalTotalSize < 0L) mGlobalTotalSize = 0L;
+                        mTotalSize -= candidate.size;
+                        if (mTotalSize < 0L) mTotalSize = 0L;
+                        File file = new File(candidate.server.mLogsDir, formatFileName(candidate.dateMs));
+                        size -= getFileSize(file);
+                        SettingsHelper.deleteSQLiteDatabase(file);
+                        deletedAnyFile = true;
+                        iterator.remove();
+                        mGlobalDeletionCandidates.remove(candidate);
+                        if (size <= 0L) {
+                            if (mGlobalDeletionCandidates.isEmpty())
+                                reload();
+                            return;
+                        }
                     }
+                    if (!deletedAnyFile)
+                        return;
+                    reload();
                 }
-                if (!deletedAnyFile)
-                    return;
-                reload();
             }
         }
 

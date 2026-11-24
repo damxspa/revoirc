@@ -124,9 +124,12 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
      */
     @Override
     public void close() {
+        // First, cancel all active DCC transfers to unblock socket I/O
+        cancelAllActiveTransfers();
+        
         mExecutor.shutdown();
         try {
-            if (!mExecutor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+            if (!mExecutor.awaitTermination(3, java.util.concurrent.TimeUnit.SECONDS)) {
                 mExecutor.shutdownNow();
             }
         } catch (InterruptedException e) {
@@ -134,6 +137,35 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             Thread.currentThread().interrupt();
         }
         mHistory.close();
+    }
+    
+    /**
+     * Cancels all active DCC downloads and uploads to unblock socket I/O.
+     * Called before executor shutdown to ensure threads can terminate.
+     */
+    private void cancelAllActiveTransfers() {
+        // Cancel all downloads
+        synchronized (mDownloads) {
+            for (DownloadInfo download : mDownloads) {
+                download.cancel();
+            }
+            mDownloads.clear();
+        }
+        
+        // Cancel all uploads
+        synchronized (mUploads) {
+            for (DCCServerManager.UploadEntry upload : mUploads.values()) {
+                mServer.cancelUpload(upload);
+            }
+            mUploads.clear();
+            mUploadServers.clear();
+            mUploadPortMappings.clear();
+        }
+        
+        // Clear sessions
+        synchronized (mSessions) {
+            mSessions.clear();
+        }
     }
 
     public DCCManager(Context context) {
@@ -467,8 +499,13 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                     mServer.setUploadPortForwarded(upload, mapping.getExternalPort());
                     uploadIP = mapping.getExternalIP();
                     port = mapping.getExternalPort();
-                    if (uploadIP == null)
-                        throw new IOException("Local IP unknown");
+                    if (uploadIP == null) {
+                        // Fallback to getLocalIP
+                        uploadIP = getLocalIP();
+                        if (uploadIP == null) {
+                            throw new IOException("Cannot determine local IP address for DCC. Please check network connection.");
+                        }
+                    }
                     server.getApiInstance().sendMessage(channel, DCCUtils.buildSendMessage(
                             uploadIP, fileName, port, fileSize),
                             null, null);
@@ -689,7 +726,11 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
                     }
                     mReverseClient.setStateListener(DCCManager.this);
                     int port = mReverseClient.createServerSocket();
-                    String message = DCCUtils.buildSendMessage(getLocalIP(), mFileName, port,
+                    String localIP = getLocalIP();
+                    if (localIP == null) {
+                        throw new IOException("Cannot determine local IP address for DCC. Please check network connection.");
+                    }
+                    String message = DCCUtils.buildSendMessage(localIP, mFileName, port,
                             mFileSize, mReverseUploadId);
                     connection.getApiInstance().sendMessage(mSender.getNick(), message, null, null);
                 } else {
@@ -1051,6 +1092,20 @@ public class DCCManager implements DCCServerManager.UploadListener, DCCClient.Cl
             }
         } catch (SocketException ignored) {
         }
+        // Fallback: try to get local host address
+        try {
+            InetAddress localHost = InetAddress.getLocalHost();
+            if (!localHost.isLoopbackAddress()) {
+                String hostAddr = localHost.getHostAddress();
+                if (hostAddr != null && hostAddr.indexOf(':') == -1 && !isNonRoutableAddress(hostAddr)) {
+                    Log.d("DCCManager", "Using fallback local IP: " + hostAddr);
+                    return hostAddr;
+                }
+            }
+        } catch (Exception e) {
+            Log.w("DCCManager", "Failed to get fallback local IP", e);
+        }
+        Log.w("DCCManager", "No suitable local IP found for DCC");
         return null;
     }
 

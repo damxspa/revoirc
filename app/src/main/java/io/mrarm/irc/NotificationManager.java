@@ -172,6 +172,11 @@ public class NotificationManager {
             NotificationManagerCompat.from(context).cancel(CHAT_SUMMARY_NOTIFICATION_ID);
             return;
         }
+        // Additional null check for connection and channel
+        if (first.getConnection() == null || first.getChannel() == null) {
+            NotificationManagerCompat.from(context).cancel(CHAT_SUMMARY_NOTIFICATION_ID);
+            return;
+        }
         if (channel != null)
             mLastSummaryChannel = channel;
         if (mLastSummaryChannel == null)
