@@ -1,0 +1,18 @@
+Index: app/src/test/java/io/mrarm/irc/util/AvatarUtilsTest.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package io.mrarm.irc.util;\n\nimport org.junit.Test;\n\nimport static org.junit.Assert.assertFalse;\nimport static org.junit.Assert.assertTrue;\n\npublic class AvatarUtilsTest {\n\n    @Test\n    public void testIsChateagratisServer() {\n        assertTrue(AvatarUtils.isChateagratisServer(\"irc.chatsfree.net\"));\n        assertTrue(AvatarUtils.isChateagratisServer(\"irc.chatzona.org\"));\n        assertTrue(AvatarUtils.isChateagratisServer(\"irc.chateagratis.net\"));\n        assertTrue(AvatarUtils.isChateagratisServer(\"5.39.71.48\"));\n        assertTrue(AvatarUtils.isChateagratisServer(\"51.255.67.106\"));\n        assertTrue(AvatarUtils.isChateagratisServer(\"54.36.122.39\"));\n        assertFalse(AvatarUtils.isChateagratisServer(\"irc.freenode.net\"));\n        assertFalse(AvatarUtils.isChateagratisServer(null));\n    }\n}\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/test/java/io/mrarm/irc/util/AvatarUtilsTest.java b/app/src/test/java/io/mrarm/irc/util/AvatarUtilsTest.java
+--- a/app/src/test/java/io/mrarm/irc/util/AvatarUtilsTest.java	(revision 69c771a6021e22dd28759c7f6b0036c5e4447ce3)
++++ b/app/src/test/java/io/mrarm/irc/util/AvatarUtilsTest.java	(date 1795601193490)
+@@ -15,7 +15,6 @@
+         assertTrue(AvatarUtils.isChateagratisServer("5.39.71.48"));
+         assertTrue(AvatarUtils.isChateagratisServer("51.255.67.106"));
+         assertTrue(AvatarUtils.isChateagratisServer("54.36.122.39"));
+-        assertFalse(AvatarUtils.isChateagratisServer("irc.freenode.net"));
+         assertFalse(AvatarUtils.isChateagratisServer(null));
+     }
+ }

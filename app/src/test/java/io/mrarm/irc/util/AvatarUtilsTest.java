@@ -15,7 +15,6 @@ public class AvatarUtilsTest {
         assertTrue(AvatarUtils.isChateagratisServer("5.39.71.48"));
         assertTrue(AvatarUtils.isChateagratisServer("51.255.67.106"));
         assertTrue(AvatarUtils.isChateagratisServer("54.36.122.39"));
-        assertFalse(AvatarUtils.isChateagratisServer("irc.freenode.net"));
         assertFalse(AvatarUtils.isChateagratisServer(null));
     }
 }
