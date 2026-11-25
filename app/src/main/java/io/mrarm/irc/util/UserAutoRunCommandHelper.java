@@ -129,6 +129,10 @@ public class UserAutoRunCommandHelper implements ServerConnectionInfo.ChannelLis
         sHandler.removeCallbacksAndMessages(this);
     }
 
+    public void postDelayed(Runnable runnable, long delayMillis) {
+        sHandler.postAtTime(runnable, this, SystemClock.uptimeMillis() + delayMillis);
+    }
+
     @Override
     public void onChannelListChanged(ServerConnectionInfo connection, List<String> newChannels) {
         synchronized (mChannelRunnables) {

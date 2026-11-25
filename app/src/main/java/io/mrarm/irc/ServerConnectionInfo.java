@@ -268,7 +268,21 @@ public class ServerConnectionInfo {
             if (rejoinChannels != null && mServerConfig.rejoinChannels)
                 joinChannels.addAll(rejoinChannels);
             if (joinChannels.size() > 0) {
-                fConnection.joinChannels(joinChannels, null, null);
+                if (IRCUtils.isAntibotServer(mServerConfig.address)) {
+                    synchronized (mLock) {
+                        if (mAutoRunHelper == null)
+                            mAutoRunHelper = new UserAutoRunCommandHelper(this);
+                    }
+                    mAutoRunHelper.postDelayed(() -> {
+                        synchronized (mLock) {
+                            if (!isConnected())
+                                return;
+                        }
+                        fConnection.joinChannels(joinChannels, null, null);
+                    }, 6000);
+                } else {
+                    fConnection.joinChannels(joinChannels, null, null);
+                }
             }
 
         }, (Exception e) -> {
