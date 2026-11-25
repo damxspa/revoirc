@@ -14,7 +14,6 @@ import coil.ImageLoader;
 import okhttp3.OkHttpClient;
 
 import io.mrarm.irc.config.SettingsHelper;
-import io.mrarm.irc.util.AvatarUtils;
 
 public class IRCApplication extends Application implements Application.ActivityLifecycleCallbacks {
 
@@ -26,7 +25,7 @@ public class IRCApplication extends Application implements Application.ActivityL
     @Override
     public void onCreate() {
         super.onCreate();
-        // Use standard SSL validation for HTTPS (images, avatars)
+        // Use standard SSL validation for HTTPS (images)
         // IRC SSL connections use UserOverrideTrustManager separately in ServerConnectionInfo
         OkHttpClient client = new OkHttpClient.Builder()
                 .build();
@@ -137,8 +136,7 @@ public class IRCApplication extends Application implements Application.ActivityL
         ChatLogStorageManager storageManager = ChatLogStorageManager.getInstance(this);
         storageManager.destroy();
         IRCService.stop(this);
-        // Shutdown AvatarUtils executor
-        AvatarUtils.shutdown();
+        shutdownAllCloseables();
         shutdownAllCloseables();
         return true;
     }

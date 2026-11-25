@@ -132,7 +132,6 @@
     <string name="action_export_logs_html">Export logs (HTML)</string>
     <string name="action_export_logs_txt">Export logs (TXT)</string>
     <string name="action_mark_as_read">Mark as read</string>
-    <string name="action_view_avatar">View avatar</string>
 
     <string name="action_delete_confirm_title">Are you sure?</string>
     <string name="action_delete_confirm_body">Are you sure you want to delete %s? This cannot be undone.</string>
@@ -239,7 +238,6 @@
         <item>Username with password (SASL)</item>
         <item>Client certificate (CertFP)</item>
     </string-array>
-    <string name="server_avatar_url">Avatar URL</string>
     <string name="server_password">Server password</string>
 
     <!-- Certificate manager -->
@@ -751,7 +749,6 @@
 
     <string name="user_connected">Connected</string>
     <string name="user_disconnected">Disconnected</string>
-    <string name="user_no_avatar">User has no account or avatar</string>
 
     <string name="user_info_copied">Copied %s to clipboard.</string>
 

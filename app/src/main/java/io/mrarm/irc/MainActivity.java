@@ -526,9 +526,6 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
             if (menu.findItem(R.id.action_check_connection) != null) {
                 menu.findItem(R.id.action_check_connection).setVisible(connected && inDirectChat);
             }
-            if (menu.findItem(R.id.action_view_avatar) != null) {
-                menu.findItem(R.id.action_view_avatar).setVisible(false);
-            }
             MenuItem dccSendItem = menu.findItem(R.id.action_dcc_send);
             if (dccSendItem != null) {
                 boolean wasDccSendVisible = dccSendItem.isVisible();

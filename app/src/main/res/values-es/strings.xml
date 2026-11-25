@@ -226,7 +226,6 @@
     <string name="server_channels">Canales de unión automática</string>
     <string name="server_rejoin_channels">Volver a unirse a los canales abiertos</string>
     <string name="server_commands">Comandos de ejecución automática</string>
-    <string name="server_avatar_url">URL de Avatar</string>
     <string name="server_encoding">Codificación</string>
     <string name="server_nicks">Nicks</string>
     <string name="server_user">Usuario</string>
@@ -823,8 +822,6 @@
     <string name="export_completed">Exportación completada: %s</string>
     <string name="export_failed">Exportación fallida: %s</string>
     <string name="action_check_connection">Info usuario</string>
-    <string name="action_view_avatar">Ver avatar</string>
     <string name="user_connected">Conectado</string>
     <string name="user_disconnected">Desconectado</string>
-    <string name="user_no_avatar">El usuario no tiene cuenta o avatar</string>
 </resources>

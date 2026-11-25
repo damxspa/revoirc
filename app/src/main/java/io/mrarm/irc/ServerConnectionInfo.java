@@ -48,7 +48,6 @@ import io.mrarm.irc.chat.ChatUIData;
 import io.mrarm.irc.config.AppSettings;
 import io.mrarm.irc.config.ServerConfigData;
 import io.mrarm.irc.config.ServerConfigManager;
-import io.mrarm.irc.util.AvatarUtils;
 import io.mrarm.irc.util.IRCUtils;
 import io.mrarm.irc.util.IgnoreListMessageFilter;
 import io.mrarm.irc.util.StubMessageStorageApi;
@@ -250,8 +249,6 @@ public class ServerConnectionInfo {
 
         List<String> rejoinChannels = getChannels();
 
-        boolean isChateagratis = AvatarUtils.isChateagratisServer(getHost()) || (mServerConfig != null && AvatarUtils.isChateagratisServer(mServerConfig.address));
-
         fConnection.connect(mConnectionRequest, (Void v) -> {
             synchronized (mLock) {
                 mConnecting = false;
@@ -271,17 +268,7 @@ public class ServerConnectionInfo {
             if (rejoinChannels != null && mServerConfig.rejoinChannels)
                 joinChannels.addAll(rejoinChannels);
             if (joinChannels.size() > 0) {
-                if (isChateagratis) {
-                    mReconnectHandler.postDelayed(() -> {
-                        synchronized (mLock) {
-                            if (!isConnected())
-                                return;
-                        }
-                        fConnection.joinChannels(joinChannels, null, null);
-                    }, 6000);
-                } else {
-                    fConnection.joinChannels(joinChannels, null, null);
-                }
+                fConnection.joinChannels(joinChannels, null, null);
             }
 
         }, (Exception e) -> {

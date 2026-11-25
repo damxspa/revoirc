@@ -92,7 +92,6 @@
     <string name="action_join_channel">Kanal beitreten</string>
     <string name="action_message_user">Benutzer anschreiben</string>
     <string name="action_check_connection">Verbindung prüfen</string>
-    <string name="action_view_avatar">Avatar anzeigen</string>
     <string name="action_part_channel">Kanal verlassen</string>
     <string name="action_close_direct">Konversation schließen</string>
     <string name="action_clear_all">Alles löschen</string>

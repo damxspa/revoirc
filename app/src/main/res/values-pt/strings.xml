@@ -92,7 +92,6 @@
     <string name="action_join_channel">Entrar no canal</string>
     <string name="action_message_user">Enviar mensagem ao usuário</string>
     <string name="action_check_connection">Verificar conexão</string>
-    <string name="action_view_avatar">Ver avatar</string>
     <string name="action_part_channel">Sair do canal</string>
     <string name="action_close_direct">Fechar conversa</string>
     <string name="action_clear_all">Limpar tudo</string>

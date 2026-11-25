@@ -56,9 +56,4 @@
         android:title="@string/action_check_connection"
         android:visible="false"
         app:showAsAction="never" />
-    <item
-        android:id="@+id/action_view_avatar"
-        android:title="@string/action_view_avatar"
-        android:visible="false"
-        app:showAsAction="never" />
 </menu>

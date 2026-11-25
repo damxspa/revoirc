@@ -89,7 +89,6 @@
     <string name="action_join_channel">加入頻道</string>
     <string name="action_message_user">發送訊息給使用者</string>
     <string name="action_check_connection">檢查連線</string>
-    <string name="action_view_avatar">查看頭像</string>
     <string name="action_part_channel">離開頻道</string>
     <string name="action_close_direct">關閉對話</string>
     <string name="action_clear_all">全部清除</string>
