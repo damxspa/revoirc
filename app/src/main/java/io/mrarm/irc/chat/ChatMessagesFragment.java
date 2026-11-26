@@ -292,6 +292,9 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             mScrollToBottomFab.setOnLongClickListener((v) -> {
                 v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                 mIsFabDragging = true;
+                if (v.getParent() != null) {
+                    v.getParent().requestDisallowInterceptTouchEvent(true);
+                }
                 Toast.makeText(getContext(), R.string.fab_drag_hint, Toast.LENGTH_SHORT).show();
                 return true;
             });
@@ -318,17 +321,24 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                                 float newTransY = v.getTranslationY() + dy;
 
                                 View parent = (View) v.getParent();
-                                if (parent != null) {
+                                if (parent != null && parent.getWidth() > 0 && parent.getHeight() > 0) {
                                     float parentWidth = parent.getWidth();
                                     float parentHeight = parent.getHeight();
-                                    float fabWidth = v.getWidth() * v.getScaleX();
-                                    float fabHeight = v.getHeight() * v.getScaleY();
+                                    float scaleX = v.getScaleX();
+                                    float scaleY = v.getScaleY();
+                                    float scaledHalfW = (v.getWidth() * scaleX) / 2f;
+                                    float scaledHalfH = (v.getHeight() * scaleY) / 2f;
+                                    float unscaledW = v.getWidth();
+                                    float unscaledH = v.getHeight();
                                     float margin = 16f * v.getResources().getDisplayMetrics().density;
 
-                                    float minTransX = -(parentWidth - fabWidth - margin * 2);
+                                    float minTransX = -(parentWidth - 2 * margin - (unscaledW / 2f + scaledHalfW));
                                     float maxTransX = 0f;
-                                    float minTransY = -(parentHeight - fabHeight - margin * 2);
+                                    float minTransY = -(parentHeight - 2 * margin - (unscaledH / 2f + scaledHalfH));
                                     float maxTransY = 0f;
+
+                                    if (minTransX > maxTransX) minTransX = maxTransX;
+                                    if (minTransY > maxTransY) minTransY = maxTransY;
 
                                     newTransX = Math.max(minTransX, Math.min(maxTransX, newTransX));
                                     newTransY = Math.max(minTransY, Math.min(maxTransY, newTransY));
@@ -336,6 +346,10 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
 
                                 v.setTranslationX(newTransX);
                                 v.setTranslationY(newTransY);
+                                lastRawX = event.getRawX();
+                                lastRawY = event.getRawY();
+                                return true;
+                            } else {
                                 lastRawX = event.getRawX();
                                 lastRawY = event.getRawY();
                             }
@@ -347,14 +361,15 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
                                 mIsFabDragging = false;
                                 saveFabPosition(v.getTranslationX(), v.getTranslationY());
                                 float totalMove = Math.abs(v.getTranslationX() - startTransX) + Math.abs(v.getTranslationY() - startTransY);
-                                if (totalMove < 10) {
+                                float threshold = 10f * v.getResources().getDisplayMetrics().density;
+                                if (totalMove < threshold) {
                                     showFabResetDialog();
                                 }
                                 return true;
                             }
                             break;
                     }
-                    return false;
+                    return mIsFabDragging;
                 }
             });
 
@@ -747,17 +762,31 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
         boolean canScrollDown = mRecyclerView.canScrollVertically(1) || mLoadNewerIdentifier != null;
         if (canScrollDown) {
-            applySavedFabPosition();
-            if (mScrollToBottomFab.getVisibility() != View.VISIBLE)
-                mScrollToBottomFab.show();
+            if (!mIsFabDragging) {
+                applySavedFabPosition();
+            }
+            if (mScrollToBottomFab.getVisibility() != View.VISIBLE) {
+                mScrollToBottomFab.show(new FloatingActionButton.OnVisibilityChangedListener() {
+                    @Override
+                    public void onShown(FloatingActionButton fab) {
+                        if (fab != null) {
+                            fab.setScaleX(FAB_SCALE_FACTOR);
+                            fab.setScaleY(FAB_SCALE_FACTOR);
+                        }
+                    }
+                });
+                mScrollToBottomFab.setScaleX(FAB_SCALE_FACTOR);
+                mScrollToBottomFab.setScaleY(FAB_SCALE_FACTOR);
+            }
         } else {
-            if (mScrollToBottomFab.getVisibility() == View.VISIBLE)
+            if (mScrollToBottomFab.getVisibility() == View.VISIBLE) {
                 mScrollToBottomFab.hide();
+            }
         }
     }
 
     private void applySavedFabPosition() {
-        if (mScrollToBottomFab == null)
+        if (mScrollToBottomFab == null || mIsFabDragging)
             return;
         SharedPreferences prefs = SettingsHelper.getPreferences();
         if (prefs == null)
@@ -769,7 +798,7 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         mScrollToBottomFab.setScaleY(FAB_SCALE_FACTOR);
 
         mScrollToBottomFab.post(() -> {
-            if (mScrollToBottomFab == null)
+            if (mScrollToBottomFab == null || mIsFabDragging)
                 return;
             View parent = (View) mScrollToBottomFab.getParent();
             float x = finalX;
@@ -777,14 +806,21 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
             if (parent != null && parent.getWidth() > 0 && parent.getHeight() > 0) {
                 float parentWidth = parent.getWidth();
                 float parentHeight = parent.getHeight();
-                float fabWidth = mScrollToBottomFab.getWidth() * mScrollToBottomFab.getScaleX();
-                float fabHeight = mScrollToBottomFab.getHeight() * mScrollToBottomFab.getScaleY();
+                float scaleX = mScrollToBottomFab.getScaleX();
+                float scaleY = mScrollToBottomFab.getScaleY();
+                float scaledHalfW = (mScrollToBottomFab.getWidth() * scaleX) / 2f;
+                float scaledHalfH = (mScrollToBottomFab.getHeight() * scaleY) / 2f;
+                float unscaledW = mScrollToBottomFab.getWidth();
+                float unscaledH = mScrollToBottomFab.getHeight();
                 float margin = 16f * mScrollToBottomFab.getResources().getDisplayMetrics().density;
 
-                float minTransX = -(parentWidth - fabWidth - margin * 2);
+                float minTransX = -(parentWidth - 2 * margin - (unscaledW / 2f + scaledHalfW));
                 float maxTransX = 0f;
-                float minTransY = -(parentHeight - fabHeight - margin * 2);
+                float minTransY = -(parentHeight - 2 * margin - (unscaledH / 2f + scaledHalfH));
                 float maxTransY = 0f;
+
+                if (minTransX > maxTransX) minTransX = maxTransX;
+                if (minTransY > maxTransY) minTransY = maxTransY;
 
                 x = Math.max(minTransX, Math.min(maxTransX, x));
                 y = Math.max(minTransY, Math.min(maxTransY, y));
