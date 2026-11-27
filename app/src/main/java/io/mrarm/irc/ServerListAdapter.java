@@ -379,7 +379,12 @@ public class ServerListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             } else {
                 DrawableCompat.setTint(d, adapter.mColorDisconnected);
                 mIcon.setImageResource(R.drawable.ic_close);
-                mDesc.setText(R.string.server_list_disconnected);
+                String reason = connectionInfo.getLastErrorReason();
+                if (reason != null && !reason.isEmpty()) {
+                    mDesc.setText(mDesc.getContext().getString(R.string.server_list_disconnected) + " (" + reason + ")");
+                } else {
+                    mDesc.setText(R.string.server_list_disconnected);
+                }
             }
             mIconBg.setBackground(d);
             mName.setText(connectionInfo.getName());

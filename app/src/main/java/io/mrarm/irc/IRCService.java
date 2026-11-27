@@ -8,6 +8,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
@@ -50,15 +53,11 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
     private PowerManager.WakeLock mWakeLock;
 
+    private ConnectivityManager.NetworkCallback mNetworkCallback;
+
     private final Map<ServerConnectionInfo, MessageListener> messageListeners = new ConcurrentHashMap<>();
     private final Map<ServerConnectionInfo, ServerConnectionInfo.StorageChangeListener> storageChangeListeners = new ConcurrentHashMap<>();
     private final DefaultLifecycleObserver mLifecycleObserver = new DefaultLifecycleObserver() {
-        @Override
-        public void onStop(LifecycleOwner owner) {
-            // App moved to background - release wake lock
-            releaseWakeLock();
-        }
-
         @Override
         public void onDestroy(LifecycleOwner owner) {
             // Process terminating - release wake lock
@@ -130,16 +129,9 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
 
         sInstance = this;
 
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        if (pm != null) {
-            mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "revolution-irc:IRCServiceWakeLock");
-            // Check if already held to prevent double-acquire on rapid restart
-            if (!mWakeLock.isHeld()) {
-                mWakeLock.acquire();
-            }
-        }
+        updateWakeLock();
 
-        // Register lifecycle observer to release wake lock when app goes to background
+        // Register lifecycle observer to release wake lock when process terminates
         ProcessLifecycleOwner.get().getLifecycle().addObserver(mLifecycleObserver);
 
         WarningHelper.setAppContext(getApplicationContext());
@@ -150,22 +142,150 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
             onConnectionAdded(connection);
         ServerConnectionManager.getInstance(this).addListener(this);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(mConnectivityReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION),
-                    Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(mConnectivityReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-        }
+        registerNetworkCallback();
 
         ServerPingScheduler.getInstance(this).startIfEnabled();
     }
 
-    private void releaseWakeLock() {
-        if (mWakeLock != null) {
-            try {
-                if (mWakeLock.isHeld()) {
-                    mWakeLock.release();
+    private void registerNetworkCallback() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            mNetworkCallback = new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(Network network) {
+                    Log.i(TAG, "NetworkCallback: onAvailable");
+                    checkAndNotifyConnectivity(cm, network);
                 }
+
+                @Override
+                public void onCapabilitiesChanged(Network network, NetworkCapabilities networkCapabilities) {
+                    Log.i(TAG, "NetworkCallback: onCapabilitiesChanged");
+                    boolean hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        hasInternet = hasInternet && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+                    }
+                    ServerConnectionManager.getInstance(IRCService.this).notifyConnectivityChanged(hasInternet);
+                    ServerPingScheduler.getInstance(IRCService.this).onSettingChanged();
+                }
+
+                @Override
+                public void onLost(Network network) {
+                    Log.i(TAG, "NetworkCallback: onLost");
+                    ServerConnectionManager.getInstance(IRCService.this).notifyConnectivityChanged(false);
+                    ServerPingScheduler.getInstance(IRCService.this).onSettingChanged();
+                }
+            };
+            cm.registerDefaultNetworkCallback(mNetworkCallback);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            NetworkRequest request = new NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build();
+            mNetworkCallback = new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(Network network) {
+                    Log.i(TAG, "NetworkCallback: onAvailable");
+                    checkAndNotifyConnectivity(cm, network);
+                }
+
+                @Override
+                public void onCapabilitiesChanged(Network network, NetworkCapabilities networkCapabilities) {
+                    Log.i(TAG, "NetworkCallback: onCapabilitiesChanged");
+                    boolean hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        hasInternet = hasInternet && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+                    }
+                    ServerConnectionManager.getInstance(IRCService.this).notifyConnectivityChanged(hasInternet);
+                    ServerPingScheduler.getInstance(IRCService.this).onSettingChanged();
+                }
+
+                @Override
+                public void onLost(Network network) {
+                    Log.i(TAG, "NetworkCallback: onLost");
+                    ServerConnectionManager.getInstance(IRCService.this).notifyConnectivityChanged(false);
+                    ServerPingScheduler.getInstance(IRCService.this).onSettingChanged();
+                }
+            };
+            cm.registerNetworkCallback(request, mNetworkCallback);
+        } else {
+            IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(mConnectivityReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(mConnectivityReceiver, filter);
+            }
+        }
+    }
+
+    private void checkAndNotifyConnectivity(ConnectivityManager cm, Network network) {
+        boolean hasInternet = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+            hasInternet = caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        }
+        ServerConnectionManager.getInstance(IRCService.this).notifyConnectivityChanged(hasInternet);
+        ServerPingScheduler.getInstance(IRCService.this).onSettingChanged();
+    }
+
+    private void unregisterNetworkCallback() {
+        if (mNetworkCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                try {
+                    cm.unregisterNetworkCallback(mNetworkCallback);
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to unregister NetworkCallback", e);
+                }
+            }
+            mNetworkCallback = null;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            try {
+                unregisterReceiver(mConnectivityReceiver);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private synchronized void updateWakeLock() {
+        boolean hasConnections = false;
+        if (ServerConnectionManager.hasInstance()) {
+            for (ServerConnectionInfo conn : ServerConnectionManager.getInstance(this).getConnections()) {
+                if (conn.isConnected() || conn.isConnecting() || !conn.hasUserDisconnectRequest()) {
+                    hasConnections = true;
+                    break;
+                }
+            }
+        }
+        if (hasConnections) {
+            acquireWakeLock();
+        } else {
+            releaseWakeLock();
+        }
+    }
+
+    private synchronized void acquireWakeLock() {
+        if (mWakeLock == null) {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "revolution-irc:IRCServiceWakeLock");
+            }
+        }
+        if (mWakeLock != null && !mWakeLock.isHeld()) {
+            try {
+                mWakeLock.acquire();
+                Log.i(TAG, "WakeLock acquired for IRCService");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to acquire wake lock", e);
+            }
+        }
+    }
+
+    private synchronized void releaseWakeLock() {
+        if (mWakeLock != null && mWakeLock.isHeld()) {
+            try {
+                mWakeLock.release();
+                Log.i(TAG, "WakeLock released for IRCService");
             } catch (Exception e) {
                 Log.e(TAG, "Failed to release wake lock", e);
             }
@@ -191,7 +311,7 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
             ServerConnectionManager.getInstance(this).removeListener(this);
         }
 
-        unregisterReceiver(mConnectivityReceiver);
+        unregisterNetworkCallback();
 
         ServerPingScheduler.getInstance(this).stop();
     }

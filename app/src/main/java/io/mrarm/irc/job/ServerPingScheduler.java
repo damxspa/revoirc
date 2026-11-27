@@ -92,15 +92,17 @@ public class ServerPingScheduler {
     }
 
     private void startUsingJobService() {
+        long effectiveInterval = Math.max(interval, 15 * 60 * 1000L);
         JobInfo jobInfo = new JobInfo.Builder(JOB_ID,
                 new ComponentName(context, ServerPingJobService.class))
-                .setPeriodic(interval)
+                .setPeriodic(effectiveInterval)
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .build();
         JobScheduler scheduler = (JobScheduler)
                 context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-        assert scheduler != null;
-        scheduler.schedule(jobInfo);
+        if (scheduler != null) {
+            scheduler.schedule(jobInfo);
+        }
     }
 
     private void stopUsingJobService() {

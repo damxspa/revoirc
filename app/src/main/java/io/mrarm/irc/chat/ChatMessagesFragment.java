@@ -785,14 +785,26 @@ public class ChatMessagesFragment extends Fragment implements StatusMessageListe
         }
     }
 
+    private float getSafeFloatPref(SharedPreferences prefs, String key, float defaultValue) {
+        try {
+            return prefs.getFloat(key, defaultValue);
+        } catch (Exception e) {
+            try {
+                return (float) prefs.getInt(key, (int) defaultValue);
+            } catch (Exception ex) {
+                return defaultValue;
+            }
+        }
+    }
+
     private void applySavedFabPosition() {
         if (mScrollToBottomFab == null || mIsFabDragging)
             return;
         SharedPreferences prefs = SettingsHelper.getPreferences();
         if (prefs == null)
             return;
-        final float finalX = prefs.getFloat(PREF_FAB_TRANSLATION_X, 0.0f);
-        final float finalY = prefs.getFloat(PREF_FAB_TRANSLATION_Y, 0.0f);
+        final float finalX = getSafeFloatPref(prefs, PREF_FAB_TRANSLATION_X, 0.0f);
+        final float finalY = getSafeFloatPref(prefs, PREF_FAB_TRANSLATION_Y, 0.0f);
 
         mScrollToBottomFab.setScaleX(FAB_SCALE_FACTOR);
         mScrollToBottomFab.setScaleY(FAB_SCALE_FACTOR);

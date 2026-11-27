@@ -179,10 +179,10 @@ public class MainActivity extends ThemedActivity implements IRCApplication.ExitC
             return;
         }
 
-        handleIntent(intent);
-
-        // Request notification permission for Android 13+
+        // Request notification permission for Android 13+ before initiating connection flows
         checkAndRequestNotificationPermission();
+
+        handleIntent(intent);
     }
 
     private void handleIntent(Intent intent) {

@@ -84,6 +84,37 @@ public class ServerConnectionInfo {
     private final ChatUIData mChatUIData = new ChatUIData();
     private ChannelListListener mChannelListListener;
     private boolean mIsClosed = false;
+    private String mLastErrorReason;
+
+    public String getLastErrorReason() {
+        synchronized (mLock) {
+            return mLastErrorReason;
+        }
+    }
+
+    public static String classifyException(Throwable e) {
+        if (e == null) return "Unknown error";
+        Throwable cause = e;
+        while (cause != null) {
+            if (cause instanceof UserOverrideTrustManager.UserRejectedCertificateException) {
+                return "UserRejectedCertificateException";
+            }
+            if (cause instanceof java.net.UnknownHostException) {
+                return "UnknownHostException";
+            }
+            if (cause instanceof java.net.ConnectException) {
+                return "ConnectException";
+            }
+            if (cause instanceof java.net.SocketTimeoutException) {
+                return "SocketTimeoutException";
+            }
+            if (cause instanceof javax.net.ssl.SSLException) {
+                return "SSLException";
+            }
+            cause = cause.getCause();
+        }
+        return e.getClass().getSimpleName();
+    }
 
     public ServerConnectionInfo(ServerConnectionManager manager, ServerConfigData config,
                                 IRCConnectionRequest connectionRequest, SASLOptions saslOptions,
@@ -143,6 +174,8 @@ public class ServerConnectionInfo {
         return mServerConfig;
     }
 
+    private static final ExecutorService sDnsExecutor = Executors.newCachedThreadPool();
+
     public void connect() {
         synchronized (mLock) {
             if (mDisconnecting)
@@ -152,14 +185,14 @@ public class ServerConnectionInfo {
             mConnecting = true;
             mUserDisconnectRequest = false;
             mReconnectQueueTime = -1L;
+            mLastErrorReason = null;
         }
-        Log.i("ServerConnectionInfo", "Connecting...");
+        Log.i("ServerConnectionInfo", "Connecting to " + getHost() + ":" + mServerConfig.port + "...");
 
         IRCConnection connection;
-        boolean createdNewConnection;
-        boolean connectionSetupComplete = false;
         if (mApi == null || !(mApi instanceof IRCConnection)) {
             connection = new IRCConnection();
+            boolean connectionSetupComplete = false;
             try {
                 ServerConfigManager configManager = ServerConfigManager.getInstance(mManager.getContext());
                 connection.getServerConnectionData().setMessageStorageApi(new SQLiteMessageStorageApi(configManager.getServerChatLogDir(getUUID())));
@@ -210,10 +243,10 @@ public class ServerConnectionInfo {
                                                 (Exception e) -> {
                                                     Log.e("ServerConnectionInfo", "Failed to get user info for QUIT message", e);
                                                 });
+                                    }
+                                } catch (NoSuchChannelException e) {
+                                    // No PM channel with this user, nothing to do
                                 }
-                            } catch (NoSuchChannelException e) {
-                                // No PM channel with this user, nothing to do
-                            }
                             }
                             
                             if (mManager.getContext().getSharedPreferences(mManager.getContext().getPackageName() + "_preferences", Context.MODE_PRIVATE).getBoolean(AppSettings.PREF_CLOSE_PRIVATE_QUIT, false)) {
@@ -231,7 +264,6 @@ public class ServerConnectionInfo {
                 connectionSetupComplete = true;
             } finally {
                 if (!connectionSetupComplete) {
-                    // Clean up the connection if setup failed
                     try {
                         connection.disconnect(true);
                     } catch (Exception e) {
@@ -239,13 +271,60 @@ public class ServerConnectionInfo {
                     }
                 }
             }
-            createdNewConnection = true;
+            setApi(connection);
         } else {
             connection = (IRCConnection) mApi;
-            createdNewConnection = false;
         }
 
-        IRCConnection fConnection = connection;
+        final IRCConnection fConnection = connection;
+
+        sDnsExecutor.execute(() -> {
+            String host = mServerConfig.address;
+            long dnsStart = System.currentTimeMillis();
+            try {
+                java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName(host);
+                long dnsDuration = System.currentTimeMillis() - dnsStart;
+                StringBuilder sb = new StringBuilder();
+                for (java.net.InetAddress addr : addresses) {
+                    if (sb.length() > 0) sb.append(", ");
+                    sb.append(addr.getHostAddress());
+                }
+                Log.i("ServerConnectionInfo", "DNS resolution for " + host + " took " + dnsDuration + " ms: [" + sb.toString() + "]");
+            } catch (java.net.UnknownHostException e) {
+                long dnsDuration = System.currentTimeMillis() - dnsStart;
+                String fullReason = "UnknownHostException: " + e.getMessage();
+                Log.e("ServerConnectionInfo", "DNS resolution failed for " + host + " after " + dnsDuration + " ms: " + e.getMessage(), e);
+                synchronized (mLock) {
+                    mLastErrorReason = fullReason;
+                    mConnecting = false;
+                }
+                try {
+                    if (fConnection.getServerConnectionData() != null &&
+                            fConnection.getServerConnectionData().getServerStatusData() != null) {
+                        fConnection.getServerConnectionData().getServerStatusData().addMessage(
+                                new io.mrarm.chatlib.dto.StatusMessageInfo("RevoIRC", new java.util.Date(),
+                                        io.mrarm.chatlib.dto.StatusMessageInfo.MessageType.NOTICE,
+                                        "Connection failed: " + fullReason)
+                        );
+                    }
+                } catch (Exception ex) {
+                    Log.w("ServerConnectionInfo", "Failed to add DNS error status message", ex);
+                }
+                mReconnectHandler.post(this::notifyDisconnected);
+                return;
+            } catch (Exception e) {
+                Log.e("ServerConnectionInfo", "DNS resolution error for " + host, e);
+            }
+
+            mReconnectHandler.post(() -> startConnectionInternal(fConnection));
+        });
+    }
+
+    private void startConnectionInternal(IRCConnection fConnection) {
+        synchronized (mLock) {
+            if (mIsClosed || mDisconnecting)
+                return;
+        }
 
         List<String> rejoinChannels = getChannels();
 
@@ -286,6 +365,30 @@ public class ServerConnectionInfo {
             }
 
         }, (Exception e) -> {
+            String classified = classifyException(e);
+            String detail = e.getLocalizedMessage();
+            if (detail == null || detail.isEmpty()) {
+                detail = e.getClass().getSimpleName();
+            }
+            String fullReason = classified + ": " + detail;
+            Log.e("ServerConnectionInfo", "Connection failed for " + getHost() + " (" + classified + "): " + detail, e);
+            synchronized (mLock) {
+                mLastErrorReason = fullReason;
+            }
+
+            try {
+                if (fConnection.getServerConnectionData() != null &&
+                        fConnection.getServerConnectionData().getServerStatusData() != null) {
+                    fConnection.getServerConnectionData().getServerStatusData().addMessage(
+                            new io.mrarm.chatlib.dto.StatusMessageInfo("RevoIRC", new java.util.Date(),
+                                    io.mrarm.chatlib.dto.StatusMessageInfo.MessageType.NOTICE,
+                                    "Connection failed: " + fullReason)
+                    );
+                }
+            } catch (Exception ex) {
+                Log.w("ServerConnectionInfo", "Failed to add disconnect status message", ex);
+            }
+
             if (e instanceof UserOverrideTrustManager.UserRejectedCertificateException ||
                     (e.getCause() != null && e.getCause() instanceof
                             UserOverrideTrustManager.UserRejectedCertificateException)) {
@@ -296,10 +399,6 @@ public class ServerConnectionInfo {
             }
             notifyDisconnected();
         });
-
-        if (createdNewConnection) {
-            setApi(connection);
-        }
     }
 
     private void disconnect(boolean userExecutedQuit) {
@@ -461,16 +560,23 @@ public class ServerConnectionInfo {
     public void notifyConnectivityChanged(boolean hasAnyConnectivity) {
         mReconnectHandler.removeCallbacks(mReconnectRunnable);
 
-        if (!hasAnyConnectivity || !AppSettings.isReconnectEnabled())
-            return;
-        
-        // Check if network is metered - avoid reconnecting on metered networks by default
-        if (isNetworkMetered(mManager.getContext())) {
-            Log.d("ServerConnectionInfo", "Network is metered, skipping reconnect");
+        Log.i("ServerConnectionInfo", "notifyConnectivityChanged(hasAnyConnectivity=" + hasAnyConnectivity + ") for server " + getName());
+
+        if (!hasAnyConnectivity) {
+            Log.i("ServerConnectionInfo", "Skipping reconnect because hasAnyConnectivity is false");
             return;
         }
-        
+        if (!AppSettings.isReconnectEnabled()) {
+            Log.i("ServerConnectionInfo", "Skipping reconnect because AppSettings.isReconnectEnabled() is false");
+            return;
+        }
+
+        if (isNetworkMetered(mManager.getContext())) {
+            Log.i("ServerConnectionInfo", "Network is metered mobile data, checking reconnect policy");
+        }
+
         if (AppSettings.isReconnectOnConnectivityChangeEnabled()) {
+            Log.i("ServerConnectionInfo", "Attempting connect() on connectivity change for " + getName());
             connect(); // this will be ignored if we are already connected
         } else if (mReconnectQueueTime != -1L) {
             long reconnectDelay = mManager.getReconnectDelay(mCurrentReconnectAttempt);
@@ -479,6 +585,7 @@ public class ServerConnectionInfo {
             // Only increment counter if we are actually going to reconnect
             mCurrentReconnectAttempt++;
             long remainingDelay = reconnectDelay - (System.nanoTime() - mReconnectQueueTime) / 1000000L;
+            Log.i("ServerConnectionInfo", "Scheduling reconnect for " + getName() + " in " + remainingDelay + " ms");
             if (remainingDelay <= 0L)
                 connect();
             else
@@ -488,20 +595,35 @@ public class ServerConnectionInfo {
     
     /**
      * Checks if the current network is metered.
+     * Note: WiFi and Ethernet are never treated as metered to prevent blocking reconnects on MIUI.
+     * null activeNetwork is treated as unknown (returns false) so reconnect is not blocked.
      * @param context Application context
-     * @return true if network is metered, false otherwise
+     * @return true if network is metered mobile data, false otherwise
      */
     private static boolean isNetworkMetered(Context context) {
         ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         if (cm == null) return false;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Network activeNetwork = cm.getActiveNetwork();
-            if (activeNetwork == null) return false;
+            if (activeNetwork == null) {
+                Log.d("ServerConnectionInfo", "isNetworkMetered: activeNetwork is null (treating as unknown/unmetered)");
+                return false;
+            }
             NetworkCapabilities caps = cm.getNetworkCapabilities(activeNetwork);
-            return caps != null && !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+            if (caps == null) {
+                Log.d("ServerConnectionInfo", "isNetworkMetered: NetworkCapabilities is null (treating as unknown/unmetered)");
+                return false;
+            }
+            boolean isWifiOrEthernet = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                    || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+            if (isWifiOrEthernet) {
+                return false; // Never block WiFi/Ethernet
+            }
+            return !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
         } else {
             NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-            return activeNetwork != null && activeNetwork.isConnected() && activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE;
+            if (activeNetwork == null) return false;
+            return activeNetwork.isConnected() && activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE;
         }
     }
 

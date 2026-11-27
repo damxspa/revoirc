@@ -269,7 +269,9 @@ public class ServerConnectionManager implements AutoCloseable {
                 if (userKeyManager != null)
                     keyManagers = new KeyManager[] { userKeyManager };
                 sslContext.init(keyManagers, new TrustManager[] { sslHelper }, null);
-                request.enableSSL(sslContext.getSocketFactory(), sslHelper);
+                javax.net.ssl.SSLSocketFactory baseFactory = sslContext.getSocketFactory();
+                io.mrarm.irc.util.TimeoutSSLSocketFactory timeoutFactory = new io.mrarm.irc.util.TimeoutSSLSocketFactory(baseFactory, 15000);
+                request.enableSSL(timeoutFactory, sslHelper);
             } catch (GeneralSecurityException e) {
                 throw new RuntimeException(e);
             }

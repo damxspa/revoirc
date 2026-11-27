@@ -125,7 +125,7 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
                         result = askUser(cert, R.string.certificate_bad_cert).get(60, TimeUnit.SECONDS);
                     } catch (java.util.concurrent.TimeoutException e4) {
                         Log.w(TAG, "User did not respond to certificate prompt in time");
-                        result = false;
+                        throw new CertificateException("Certificate validation prompt timed out after 60 seconds");
                     }
                     if (result == null || !result)
                         throw new UserRejectedCertificateException();
