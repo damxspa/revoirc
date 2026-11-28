@@ -25,6 +25,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -64,6 +66,12 @@ public class ChatExportManager {
         void onProgressUpdate(int progress, int total);
     }
 
+    private static final ExecutorService sExportExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "IRC-Chat-Exporter");
+        t.setDaemon(true);
+        return t;
+    });
+
     public static void exportChatLogs(Context context, ExportCallback callback) {
         exportChatLogs(context, null, ExportFormat.TXT, callback);
     }
@@ -74,10 +82,7 @@ public class ChatExportManager {
 
     public static void exportChatLogs(Context context, UUID serverUUID, ExportFormat format, boolean channelsOnly, ExportCallback callback) {
         Handler mainHandler = new Handler(Looper.getMainLooper());
-        new Thread(() -> {
-            if (Looper.myLooper() == null) {
-                Looper.prepare();
-            }
+        sExportExecutor.execute(() -> {
             try {
                 File exportDir = new File(context.getCacheDir(), "chat_export_" + FILE_DATE_FORMAT.format(new Date()));
                 if (exportDir.exists()) {
@@ -175,7 +180,7 @@ public class ChatExportManager {
                     mainHandler.post(() -> callback.onExportFailed(e));
                 }
             }
-        }).start();
+        });
     }
 
     private static List<String> discoverChannels(File logDir) {
@@ -362,11 +367,11 @@ public class ChatExportManager {
 
     private static String escapeHtml(String str) {
         if (str == null) return "";
-        return str.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
+        return str.replace("&", "&")
+                .replace("<", "<")
+                .replace(">", ">")
+                .replace("\"", "\"")
+                .replace("'", "'");
     }
 
     private static void zipDirectory(File inputDir, File outputZip) throws ZipException {
@@ -389,10 +394,7 @@ public class ChatExportManager {
     public static void exportSingleChannel(Context context, UUID serverUUID, String channelName,
                                             ExportFormat format, ExportCallback callback) {
         Handler mainHandler = new Handler(Looper.getMainLooper());
-        new Thread(() -> {
-            if (Looper.myLooper() == null) {
-                Looper.prepare();
-            }
+        sExportExecutor.execute(() -> {
             try {
                 ServerConfigManager serverConfigManager = ServerConfigManager.getInstance(context);
                 ServerConfigData server = serverConfigManager.findServer(serverUUID);
@@ -430,7 +432,7 @@ public class ChatExportManager {
                 if (callback != null)
                     mainHandler.post(() -> callback.onExportFailed(e));
             }
-        }).start();
+        });
     }
 
     private static SQLiteMessageStorageApi createStorageApi(File logDir) {

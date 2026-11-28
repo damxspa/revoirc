@@ -175,8 +175,12 @@ public class PortMapper {
     }
 
     private static String resolveLocalIP(URL targetUrl) throws IOException {
+        String host = targetUrl.getHost();
+        if (host == null || host.isEmpty()) {
+            throw new IOException("Target URL has no host: " + targetUrl);
+        }
         try (DatagramSocket socket = new DatagramSocket()) {
-            socket.connect(new InetSocketAddress(targetUrl.getHost(), targetUrl.getPort() != -1 ? targetUrl.getPort() : 80));
+            socket.connect(new InetSocketAddress(host, targetUrl.getPort() != -1 ? targetUrl.getPort() : 80));
             return socket.getLocalAddress().getHostAddress();
         }
     }

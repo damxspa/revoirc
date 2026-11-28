@@ -17,6 +17,11 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.mrarm.chatlib.ChannelListListener;
 import io.mrarm.chatlib.ChatApi;
@@ -174,7 +179,35 @@ public class ServerConnectionInfo {
         return mServerConfig;
     }
 
-    private static final ExecutorService sDnsExecutor = Executors.newCachedThreadPool();
+    private static final ExecutorService sDnsExecutor = new ThreadPoolExecutor(
+            2, 4, 60L, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(),
+            new ThreadFactory() {
+                private final AtomicInteger mCount = new AtomicInteger(1);
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r, "IRC-DNS-Resolver-" + mCount.getAndIncrement());
+                    t.setDaemon(true);
+                    return t;
+                }
+            },
+            new ThreadPoolExecutor.AbortPolicy()
+    );
+
+    /**
+     * Shuts down the DNS executor. Should be called on app exit.
+     */
+    public static void shutdownDnsExecutor() {
+        sDnsExecutor.shutdown();
+        try {
+            if (!sDnsExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                sDnsExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            sDnsExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
 
     public void connect() {
         synchronized (mLock) {
@@ -410,11 +443,13 @@ public class ServerConnectionInfo {
                 mDisconnecting = true;
                 ChatApi api = getApiInstance();
                 if (api instanceof IRCConnection) {
-                    Thread disconnectThread = new Thread(() -> {
-                        ((IRCConnection) api).disconnect(true);
+                    sDnsExecutor.execute(() -> {
+                        try {
+                            ((IRCConnection) api).disconnect(true);
+                        } catch (Exception e) {
+                            Log.e("ServerConnectionInfo", "Error during disconnect", e);
+                        }
                     });
-                    disconnectThread.setName("Disconnect Thread");
-                    disconnectThread.start();
                 } else {
                     notifyFullyDisconnected();
                 }
@@ -446,7 +481,7 @@ public class ServerConnectionInfo {
             mConnecting = false;
             mDisconnecting = true;
             if (api instanceof IRCConnection) {
-                new Thread(() -> {
+                sDnsExecutor.execute(() -> {
                     synchronized (mLock) {
                         if (mIsClosed)
                             return;
@@ -465,7 +500,7 @@ public class ServerConnectionInfo {
                         }
                         connect();
                     });
-                }, "Reconnect Disconnect Thread").start();
+                });
                 return;
             }
             setConnected(false);
@@ -486,14 +521,16 @@ public class ServerConnectionInfo {
                 mAutoRunHelper.cancelUserCommandExecution();
         }
         if (isDisconnecting()) {
-            notifyFullyDisconnected();
+            // Defer to avoid holding lock during manager callback
+            mReconnectHandler.post(this::notifyFullyDisconnected);
             return;
         }
         synchronized (mLock) {
             setConnected(false);
             mConnecting = false;
             if (mDisconnecting) {
-                notifyFullyDisconnected();
+                // Defer to avoid holding lock during manager callback
+                mReconnectHandler.post(this::notifyFullyDisconnected);
                 return;
             }
             if (mUserDisconnectRequest)
@@ -515,6 +552,7 @@ public class ServerConnectionInfo {
             mConnecting = false;
             mDisconnecting = false;
         }
+        // Called without holding mLock - safe to call manager
         mManager.notifyConnectionFullyDisconnected(this);
     }
 
@@ -555,6 +593,8 @@ public class ServerConnectionInfo {
             if (mSQLiteMiscStorage != null)
                 mSQLiteMiscStorage.close();
         }
+        // Clear temporary trusted certificates for this server
+        UserOverrideTrustManager.clearTempTrustedCertificates(mServerConfig.uuid);
     }
 
     public void notifyConnectivityChanged(boolean hasAnyConnectivity) {

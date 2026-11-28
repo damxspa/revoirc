@@ -23,6 +23,8 @@ import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.KeyManager;
@@ -56,9 +58,13 @@ public class ServerConnectionManager implements AutoCloseable {
     private final Executor mSaveExecutor = Executors.newSingleThreadExecutor();
     private boolean mDestroying = false;
     private boolean mExecutorShutdown = false;
-    // Timer for periodic cleanup of disconnected connections
-    private final java.util.Timer mCleanupTimer = new java.util.Timer("ServerConnectionManager-Cleanup");
-    private java.util.TimerTask mCleanupTask = null;
+    // Scheduled executor for periodic cleanup of disconnected connections
+    private final ScheduledExecutorService mCleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "IRC-Cleanup-Scheduler");
+        t.setDaemon(true);
+        return t;
+    });
+    private ScheduledFuture<?> mCleanupFuture = null;
     private final Object mCleanupLock = new Object();
 
     public static boolean hasInstance() {
@@ -75,13 +81,15 @@ public class ServerConnectionManager implements AutoCloseable {
         if (instance == null)
             return;
         instance.mDestroying = true;
-        // Cleanup timer - cancel and wait for any running task
-        instance.mCleanupTimer.cancel();
-        instance.mCleanupTimer.purge();
-        // Wait for any running cleanup task to complete
-        synchronized (instance.mCleanupLock) {
-            // Task will acquire this lock, so waiting here ensures it's done
-            // (empty block is intentional - we just need to acquire the lock)
+        // Cleanup executor - cancel and wait for any running task
+        instance.mCleanupExecutor.shutdown();
+        try {
+            if (!instance.mCleanupExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                instance.mCleanupExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            instance.mCleanupExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
         instance.cleanupDisconnectingConnections();
         while (!instance.mConnections.isEmpty()) {
@@ -118,17 +126,16 @@ public class ServerConnectionManager implements AutoCloseable {
     @Override
     public void close() {
         shutdownExecutor();
-        if (mCleanupTimer != null) {
-            mCleanupTimer.cancel();
-            mCleanupTimer.purge();
-        }
-        // Wait for any running cleanup task
-        synchronized (mCleanupLock) {
-            // Task will acquire this lock
-        }
-        if (mCleanupTask != null) {
-            mCleanupTask.cancel();
-            mCleanupTask = null;
+        if (mCleanupExecutor != null) {
+            mCleanupExecutor.shutdown();
+            try {
+                if (!mCleanupExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    mCleanupExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                mCleanupExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -344,38 +351,25 @@ public class ServerConnectionManager implements AutoCloseable {
     private void scheduleCleanupCheck() {
         synchronized (mCleanupLock) {
             // Cancel any existing cleanup task
-            if (mCleanupTask != null) {
-                mCleanupTask.cancel();
+            if (mCleanupFuture != null) {
+                mCleanupFuture.cancel(false);
             }
-            mCleanupTask = new java.util.TimerTask() {
-                @Override
-                public void run() {
-                    cleanupDisconnectingConnections();
-                }
-            };
-            try {
-                mCleanupTimer.schedule(mCleanupTask, 30000); // Check after 30 seconds
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to schedule cleanup task", e);
-            }
+            mCleanupFuture = mCleanupExecutor.schedule(this::cleanupDisconnectingConnections, 30, TimeUnit.SECONDS);
         }
     }
 
     private void cleanupDisconnectingConnections() {
-        synchronized (mCleanupLock) {
-            synchronized (mDisconnectingConnections) {
-                if (!mDisconnectingConnections.isEmpty()) {
-                    Log.w("ServerConnectionManager", "Cleaning up " + mDisconnectingConnections.size() + " stuck disconnecting connections");
-                    for (ServerConnectionInfo connection : mDisconnectingConnections.values()) {
-                        try {
-                            connection.close();
-                        } catch (Exception e) {
-                            Log.e("ServerConnectionManager", "Error closing disconnecting connection", e);
-                        }
+        synchronized (mDisconnectingConnections) {
+            if (!mDisconnectingConnections.isEmpty()) {
+                Log.w("ServerConnectionManager", "Cleaning up " + mDisconnectingConnections.size() + " stuck disconnecting connections");
+                for (ServerConnectionInfo connection : mDisconnectingConnections.values()) {
+                    try {
+                        connection.close();
+                    } catch (Exception e) {
+                        Log.e("ServerConnectionManager", "Error closing disconnecting connection", e);
                     }
-                    mDisconnectingConnections.clear();
                 }
-                mCleanupTask = null;
+                mDisconnectingConnections.clear();
             }
         }
     }

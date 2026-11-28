@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.mrarm.chatlib.dto.ChannelModeMessageInfo;
 import io.mrarm.chatlib.dto.HostInfoMessageInfo;
@@ -44,7 +45,7 @@ import io.mrarm.irc.config.SettingsHelper;
 
 public class MessageBuilder {
 
-    private static MessageBuilder sInstance;
+    private static final AtomicReference<MessageBuilder> sInstance = new AtomicReference<>();
 
     public static final int FORMAT_SPAN_FLAGS = Spanned.SPAN_EXCLUSIVE_EXCLUSIVE | Spanned.SPAN_PRIORITY;
 
@@ -53,10 +54,30 @@ public class MessageBuilder {
 
     private static final String DEFAULT_TIME_FORMAT = "[HH:mm]";
 
+    /**
+     * Gets the singleton instance, initializing if necessary.
+     * Thread-safe: uses AtomicReference for lock-free initialization.
+     *
+     * @param context Application context (must not be null on first call)
+     * @return The MessageBuilder instance
+     * @throws IllegalStateException if called with null context before initialization
+     */
     public static MessageBuilder getInstance(Context context) {
-        if (sInstance == null)
-            sInstance = new MessageBuilder(context.getApplicationContext());
-        return sInstance;
+        MessageBuilder instance = sInstance.get();
+        if (instance != null) {
+            return instance;
+        }
+        
+        if (context == null) {
+            throw new IllegalStateException("MessageBuilder not initialized: getInstance(null) called before initialization");
+        }
+        
+        MessageBuilder newInstance = new MessageBuilder(context.getApplicationContext());
+        if (sInstance.compareAndSet(null, newInstance)) {
+            return newInstance;
+        } else {
+            return sInstance.get();
+        }
     }
 
     private final Context mContext;

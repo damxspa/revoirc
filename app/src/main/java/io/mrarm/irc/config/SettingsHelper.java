@@ -20,6 +20,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -306,6 +309,16 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
     private static final Handler sUiHandler = new Handler(Looper.getMainLooper());
     private static final AtomicInteger sRegistrationCounter = new AtomicInteger(0);
     private static final int CLEANUP_INTERVAL = 100; // Run cleanup every 100 registrations
+    // Scheduled executor for periodic cleanup of stale entries
+    private static final ScheduledExecutorService sCleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "IRC-Settings-Cleanup");
+        t.setDaemon(true);
+        return t;
+    });
+    static {
+        // Schedule periodic cleanup every 5 minutes using fixed delay to avoid burst execution
+        sCleanupExecutor.scheduleWithFixedDelay(SettingsHelper::cleanupStaleEntries, 5, 5, TimeUnit.MINUTES);
+    }
 
     private static synchronized ClassCallbackInfo resolveCallbacks(Class<?> c) {
         ClassCallbackInfo i = sCallbacks.get(c);
@@ -343,6 +356,8 @@ public class SettingsHelper implements SharedPreferences.OnSharedPreferenceChang
                 handle.listen(k, cb);
         }
         sRegisteredListeners.put(o, new WeakReference<>(handle, sReferenceQueue));
+        // Also clean up any stale entries immediately
+        cleanupStaleEntries();
     }
 
     public static synchronized void unregisterCallbacks(Object o) {

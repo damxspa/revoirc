@@ -30,6 +30,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import io.mrarm.chatlib.dto.MessageInfo;
 import io.mrarm.chatlib.dto.MessageSenderInfo;
@@ -61,6 +63,12 @@ import io.mrarm.irc.util.BatteryOptimizationHelper;
 public class InterfaceSettingsFragment extends SettingsListFragment
         implements NamedSettingsFragment {
 
+    private static final ExecutorService sExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "IRC-Interface-Settings");
+        t.setDaemon(true);
+        return t;
+    });
+
     private ClickableSetting mMessageFormatItem;
     private MessageInfo mSampleMessage;
     private ClickableSetting mAutocompleteItem;
@@ -82,7 +90,7 @@ public class InterfaceSettingsFragment extends SettingsListFragment
                 Activity activity = getActivity();
                 if (activity == null)
                     return;
-                new Thread(() -> {
+                sExecutor.execute(() -> {
                     try (ParcelFileDescriptor desc = activity.getContentResolver().openFileDescriptor(uri, "r")) {
                         if (desc != null) {
                             try (BufferedReader re = new BufferedReader(new FileReader(desc.getFileDescriptor()))) {
@@ -95,7 +103,7 @@ public class InterfaceSettingsFragment extends SettingsListFragment
                         activity.runOnUiThread(() ->
                                 Toast.makeText(activity, R.string.error_generic, Toast.LENGTH_SHORT).show());
                     }
-                }).start();
+                });
             }
     );
 
@@ -357,7 +365,7 @@ public class InterfaceSettingsFragment extends SettingsListFragment
 
     private void initNewTheme(ThemeInfo newTheme) {
         Context context = requireContext().getApplicationContext();
-        new Thread(() -> {
+        sExecutor.execute(() -> {
             try {
                 // Create a deep copy of the theme to avoid modifying the original
                 // which might be in use as the current theme
@@ -376,7 +384,7 @@ public class InterfaceSettingsFragment extends SettingsListFragment
             } catch (NullPointerException e) {
                 Log.w("InterfaceSettings", "Failed to save new theme due to null context", e);
             }
-        }).start();
+        });
     }
 
     @Override

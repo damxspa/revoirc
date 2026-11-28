@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -50,6 +52,11 @@ public class ServerCertificateManager {
     private static final ReferenceQueue<ServerCertificateManager> sReferenceQueue = new ReferenceQueue<>();
     // PhantomReferences to track GC'd instances
     private static final Map<PhantomReference<ServerCertificateManager>, String> sPhantomRefs = new ConcurrentHashMap<>();
+    private static final ExecutorService sCleanupExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "IRC-Cert-Cleanup");
+        t.setDaemon(true);
+        return t;
+    });
 
     public static ServerCertificateManager get(File file) {
         // Clean up any GC'd instances first
@@ -145,7 +152,7 @@ public class ServerCertificateManager {
      */
     @SuppressWarnings({"unused", "BusyWait"})
     public static void schedulePeriodicCleanup() {
-        new Thread(() -> {
+        sCleanupExecutor.execute(() -> {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(5 * 60 * 1000); // 5 minutes
@@ -155,7 +162,7 @@ public class ServerCertificateManager {
                     break;
                 }
             }
-        }, "CertificateManager-Cleanup").start();
+        });
     }
 
     private final File mKeyStoreFile;

@@ -75,6 +75,17 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
         }
     }
 
+    /**
+     * Clears all temporarily trusted certificates for a server.
+     * Should be called when the connection is permanently closed.
+     */
+    public static void clearTempTrustedCertificates(UUID serverUUID) {
+        if (serverUUID == null) return;
+        synchronized (sTempTrustedCertificates) {
+            sTempTrustedCertificates.remove(serverUUID);
+        }
+    }
+
     private String getServerName() {
         ServerConfigData server = ServerConfigManager.getInstance(mContext).findServer(mServerUUID);
         if (server != null)
@@ -126,10 +137,11 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
                     X509Certificate cert = chain[0];
                     Boolean result;
                     try {
-                        result = askUser(cert, R.string.certificate_bad_cert).get(60, TimeUnit.SECONDS);
+                        // Reduced timeout to 30 seconds with cleaner cancellation
+                        result = askUser(cert, R.string.certificate_bad_cert).get(30, TimeUnit.SECONDS);
                     } catch (java.util.concurrent.TimeoutException e4) {
                         Log.w(TAG, "User did not respond to certificate prompt in time");
-                        throw new CertificateException("Certificate validation prompt timed out after 60 seconds");
+                        throw new CertificateException("Certificate validation prompt timed out");
                     }
                     if (result == null || !result)
                         throw new UserRejectedCertificateException();
@@ -183,7 +195,8 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
         }
         Log.i(TAG, "Failed to verify hostname, asking user");
         try {
-            return askUser(cert, R.string.certificate_bad_hostname, ServerCertificateManager.buildCertAppliesToString(cert), hostname).get(60, TimeUnit.SECONDS);
+            // Reduced timeout to 30 seconds
+            return askUser(cert, R.string.certificate_bad_hostname, ServerCertificateManager.buildCertAppliesToString(cert), hostname).get(30, TimeUnit.SECONDS);
         } catch (java.util.concurrent.TimeoutException e) {
             Log.w(TAG, "User did not respond to hostname verification prompt in time");
             return false;

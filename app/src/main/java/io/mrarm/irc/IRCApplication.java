@@ -136,6 +136,7 @@ public class IRCApplication extends Application implements Application.ActivityL
         ChatLogStorageManager storageManager = ChatLogStorageManager.getInstance(this);
         storageManager.destroy();
         IRCService.stop(this);
+        ServerConnectionInfo.shutdownDnsExecutor();
         shutdownAllCloseables();
         return true;
     }

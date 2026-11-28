@@ -5,6 +5,7 @@ import android.util.Log;
 import java.io.ByteArrayInputStream;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -83,8 +84,25 @@ public class ServerConfigData {
         } catch (GeneralSecurityException e) {
             Log.w("ServerConfigData", "Failed to load private key");
             e.printStackTrace();
+            return null;
         }
-        return null;
+    }
+
+    /**
+     * Validates that the private key algorithm is supported.
+     * @return true if algorithm is valid, false otherwise
+     */
+    public boolean isAuthPrivateKeyAlgorithmValid() {
+        if (authCertPrivKeyType == null || authCertPrivKeyType.isEmpty()) {
+            return false;
+        }
+        try {
+            KeyFactory.getInstance(authCertPrivKeyType);
+            return true;
+        } catch (NoSuchAlgorithmException e) {
+            Log.w("ServerConfigData", "Unsupported private key algorithm: " + authCertPrivKeyType);
+            return false;
+        }
     }
 
     public static class IgnoreEntry {

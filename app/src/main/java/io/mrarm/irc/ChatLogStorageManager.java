@@ -1,7 +1,12 @@
 package io.mrarm.irc;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.StatFs;
+import android.os.storage.StorageEventListener;
+import android.os.storage.StorageManager;
 import androidx.annotation.NonNull;
 
 import java.io.File;
@@ -86,6 +91,23 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
     private final Executor mExecutor;
     private volatile boolean mDestroyed = false;
 
+    private final BroadcastReceiver mStorageReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && (Intent.ACTION_MEDIA_MOUNTED.equals(intent.getAction())
+                    || Intent.ACTION_MEDIA_EJECT.equals(intent.getAction())
+                    || Intent.ACTION_MEDIA_UNMOUNTED.equals(intent.getAction()))) {
+                invalidateBlockSizeCache();
+            }
+        }
+    };
+    private final StorageEventListener mStorageEventListener = new StorageEventListener() {
+        @Override
+        public void onStorageStateChanged(String path, String oldState, String newState) {
+            invalidateBlockSizeCache();
+        }
+    };
+
     public ChatLogStorageManager(Context context) {
         mConnectionManager = ServerConnectionManager.getInstance(context);
         mServerConfigManager = ServerConfigManager.getInstance(context);
@@ -105,6 +127,38 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         // Register for shutdown on app exit
         if (context instanceof IRCApplication) {
             ((IRCApplication) context).registerCloseable(this);
+        }
+        
+        // Register storage change listeners
+        registerStorageListeners(context);
+    }
+
+    private void registerStorageListeners(Context context) {
+        // Register for media mount/unmount events
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_MEDIA_MOUNTED);
+        filter.addAction(Intent.ACTION_MEDIA_EJECT);
+        filter.addAction(Intent.ACTION_MEDIA_UNMOUNTED);
+        filter.addDataScheme("file");
+        context.registerReceiver(mStorageReceiver, filter);
+        
+        // Register for storage volume state changes (API 28+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            try {
+                StorageManager storageManager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
+                if (storageManager != null) {
+                    // Use reflection to avoid compile-time dependency on API 28+
+                    try {
+                        java.lang.reflect.Method method = storageManager.getClass().getMethod(
+                                "registerStorageEventListener", StorageEventListener.class);
+                        method.invoke(storageManager, mStorageEventListener);
+                    } catch (NoSuchMethodException | IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
+                        // Method not available, ignore
+                    }
+                }
+            } catch (Exception e) {
+                // Ignore if not supported
+            }
         }
     }
 
@@ -134,6 +188,29 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
         }
         mServerManagers.clear();
         mGlobalDeletionCandidates.clear();
+        
+        // Unregister storage listeners
+        try {
+            mConnectionManager.getContext().unregisterReceiver(mStorageReceiver);
+        } catch (Exception e) {
+            // Ignore if not registered
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            try {
+                StorageManager storageManager = (StorageManager) mConnectionManager.getContext().getSystemService(Context.STORAGE_SERVICE);
+                if (storageManager != null) {
+                    try {
+                        java.lang.reflect.Method method = storageManager.getClass().getMethod(
+                                "unregisterStorageEventListener", StorageEventListener.class);
+                        method.invoke(storageManager, mStorageEventListener);
+                    } catch (NoSuchMethodException | IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
+                        // Method not available, ignore
+                    }
+                }
+            } catch (Exception e) {
+                // Ignore
+            }
+        }
     }
 
     /**
@@ -179,6 +256,15 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
             // Get the server's log directory
             File logDir = mServerConfigManager.getServerChatLogDir(uuid);
             
+            // First, close any existing storage API for this server to release file locks
+            ServerManager manager = mServerManagers.get(uuid);
+            if (manager != null) {
+                // The manager's storage will be closed when we remove it
+                synchronized (mGlobalDeletionCandidates) {
+                    manager.remove();
+                }
+            }
+            
             // Delete all message database files in the directory
             if (logDir != null && logDir.exists()) {
                 File[] files = logDir.listFiles();
@@ -195,18 +281,12 @@ public class ChatLogStorageManager implements ServerConfigManager.ConnectionsLis
                 }
             }
             
-            // Remove from server managers and reload if server config exists
-            ServerManager manager = mServerManagers.get(uuid);
-            if (manager != null) {
-                synchronized (mGlobalDeletionCandidates) {
-                    manager.remove();
-                }
-                ServerConfigData serverConfig = mServerConfigManager.findServer(uuid);
-                if (serverConfig != null) {
-                    mServerManagers.put(uuid, new ServerManager(serverConfig));
-                } else {
-                    mServerManagers.remove(uuid);
-                }
+            // Reload if server config exists
+            ServerConfigData serverConfig = mServerConfigManager.findServer(uuid);
+            if (serverConfig != null) {
+                mServerManagers.put(uuid, new ServerManager(serverConfig));
+            } else {
+                mServerManagers.remove(uuid);
             }
             
             // Post callback to main thread to create newStorageApi (which instantiates a Handler) and execute callback
