@@ -37,6 +37,9 @@ AppSettings:
     - spec: boolean closePrivateQuit = false
     - spec: boolean notifyPrivateQuit = false
       getter: isNotifyPrivateQuitEnabled
+    - spec: boolean disableSslCertVerification = false
+      pref: disable_ssl_cert_verification
+      getter: isDisableSslCertVerification
     
     - spec: String privateMessageDelay = "0"
       pref: private_message_delay

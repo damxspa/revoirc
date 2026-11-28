@@ -56,6 +56,8 @@
     </string-array>
 
     <string name="pref_title_close_private_quit">Stäng PM automatiskt när användaren lämnar</string>
+    <string name="pref_title_disable_ssl_cert_verification">Inaktivera SSL-certifikatverifiering</string>
+    <string name="pref_summary_disable_ssl_cert_verification">Tillåt anslutning till servrar med opålitliga eller självsignerade SSL-certifikat utan verifiering</string>
     <string name="action_mark_as_read">Markera som läst</string>
 
 </resources>

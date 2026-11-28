@@ -49,6 +49,8 @@
     <string name="message_ctcp_version">Vastaanotettiin CTCP-versio</string>
 
     <string name="pref_title_close_private_quit">Sulje yksityisviestit automaattisesti kun käyttäjä poistuu</string>
+    <string name="pref_title_disable_ssl_cert_verification">Poista SSL-sertifikaattien tarkistus käytöstä</string>
+    <string name="pref_summary_disable_ssl_cert_verification">Salli yhdistäminen palvelimiin, joissa on ei-luotettavia tai itse allekirjoitettuja SSL-sertifikaatteja ilman tarkistusta</string>
 
     <string name="pref_title_night_mode">Tumma tila</string>
     <string-array name="pref_entries_night_mode">

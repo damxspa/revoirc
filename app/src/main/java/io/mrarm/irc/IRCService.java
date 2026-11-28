@@ -77,11 +77,18 @@ public class IRCService extends Service implements ServerConnectionManager.Conne
         context.stopService(new Intent(context, IRCService.class));
     }
 
-    /** Returns PendingIntent flags compatible with the current API level (FLAG_IMMUTABLE requires API 23+). */
-    public static int getPendingIntentFlagsMutable() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+    /** Returns PendingIntent flags compatible with the current API level. */
+    public static int getPendingIntentFlags(boolean mutable) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return mutable ? PendingIntent.FLAG_MUTABLE : PendingIntent.FLAG_IMMUTABLE;
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             return PendingIntent.FLAG_IMMUTABLE;
+        }
         return 0;
+    }
+
+    public static int getPendingIntentFlagsMutable() {
+        return getPendingIntentFlags(false);
     }
 
     public static void createNotificationChannel(Context ctx) {

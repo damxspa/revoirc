@@ -342,17 +342,23 @@ public class ServerConnectionManager implements AutoCloseable {
     }
 
     private void scheduleCleanupCheck() {
-        // Cancel any existing cleanup task
-        if (mCleanupTask != null) {
-            mCleanupTask.cancel();
-        }
-        mCleanupTask = new java.util.TimerTask() {
-            @Override
-            public void run() {
-                cleanupDisconnectingConnections();
+        synchronized (mCleanupLock) {
+            // Cancel any existing cleanup task
+            if (mCleanupTask != null) {
+                mCleanupTask.cancel();
             }
-        };
-        mCleanupTimer.schedule(mCleanupTask, 30000); // Check after 30 seconds
+            mCleanupTask = new java.util.TimerTask() {
+                @Override
+                public void run() {
+                    cleanupDisconnectingConnections();
+                }
+            };
+            try {
+                mCleanupTimer.schedule(mCleanupTask, 30000); // Check after 30 seconds
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to schedule cleanup task", e);
+            }
+        }
     }
 
     private void cleanupDisconnectingConnections() {

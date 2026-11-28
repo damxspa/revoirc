@@ -105,6 +105,10 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
     @Override
     public void checkServerTrusted(X509Certificate[] chain, String authType)
             throws CertificateException {
+        if (io.mrarm.irc.config.AppSettings.isDisableSslCertVerification()) {
+            Log.w(TAG, "SSL certificate verification is disabled via settings - trusting server");
+            return;
+        }
         try {
             if (sDefaultTrustManager == null)
                 throw new CertificateException("No default trust manager");
@@ -148,6 +152,10 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
 
     @Override
     public boolean verify(String hostname, SSLSession session) {
+        if (io.mrarm.irc.config.AppSettings.isDisableSslCertVerification()) {
+            Log.w(TAG, "SSL certificate verification is disabled via settings - trusting hostname");
+            return true;
+        }
         if (HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session))
             return true;
         X509Certificate cert;
@@ -166,11 +174,8 @@ public class UserOverrideTrustManager implements X509TrustManager, HostnameVerif
                 Log.i(TAG, "Accepting hostname as a custom cert is being used");
                 return true;
             }
-            ServerConfigData serverConfig = ServerConfigManager.getInstance(mContext).findServer(mServerUUID);
-            boolean isServerTargetHost = serverConfig != null && serverConfig.address != null
-                    && serverConfig.address.equalsIgnoreCase(hostname);
             boolean appliesToCert = ServerCertificateManager.certAppliesToHostname(cert, hostname);
-            if (appliesToCert || isServerTargetHost) {
+            if (appliesToCert) {
                 return true;
             }
         } catch (Exception e) {

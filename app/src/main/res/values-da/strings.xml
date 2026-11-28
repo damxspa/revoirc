@@ -49,6 +49,8 @@
     <string name="message_ctcp_version">Modtog en CTCP-version</string>
 
     <string name="pref_title_close_private_quit">Luk PM\’er automatisk ved brugerudgang</string>
+    <string name="pref_title_disable_ssl_cert_verification">Deaktiver SSL-certifikatverificering</string>
+    <string name="pref_summary_disable_ssl_cert_verification">Tillad tilslutning til servere med utroværdige eller selvsignerede SSL-certifikater uden verifikation</string>
 
     <string name="pref_title_night_mode">Mørk tilstand</string>
     <string-array name="pref_entries_night_mode">

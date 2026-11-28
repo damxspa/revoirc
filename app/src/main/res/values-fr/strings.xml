@@ -276,6 +276,8 @@
     <string name="pref_header_misc">Divers</string>
     <string name="pref_title_drawer_always_show_server">Afficher le serveur dans le tiroir</string>
     <string name="pref_summary_drawer_always_show_server">Toujours afficher l\'onglet serveur dans le tiroir</string>
+    <string name="pref_title_disable_ssl_cert_verification">Désactiver la vérification des certificats SSL</string>
+    <string name="pref_summary_disable_ssl_cert_verification">Autoriser la connexion aux serveurs avec des certificats SSL non approuvés ou auto-signés sans vérification</string>
     <string name="pref_title_close_private_quit">Fermer automatiquement les MP à la déconnexion de l\'utilisateur</string>
     <string name="pref_title_chat_show_dcc_send">Afficher le bouton d\'envoi DCC</string>
     <string name="pref_summary_chat_show_dcc_send">Afficher le bouton pour envoyer des fichiers via DCC dans les discussions privées</string>

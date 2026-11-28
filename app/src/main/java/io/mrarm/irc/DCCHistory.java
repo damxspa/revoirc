@@ -95,15 +95,19 @@ public class DCCHistory {
         }
     }
 
-    public synchronized void addListener(HistoryListener listener) {
-        mListeners.add(listener);
+    public void addListener(HistoryListener listener) {
+        synchronized (mListeners) {
+            mListeners.add(listener);
+        }
     }
 
-    public synchronized void removeListener(HistoryListener listener) {
-        mListeners.remove(listener);
+    public void removeListener(HistoryListener listener) {
+        synchronized (mListeners) {
+            mListeners.remove(listener);
+        }
     }
 
-    public synchronized void addEntry(Entry entry) {
+    public void addEntry(Entry entry) {
         synchronized (mLock) {
             ContentValues values = new ContentValues();
             values.put(COLUMN_ENTRY_TYPE, entry.entryType);
@@ -119,16 +123,24 @@ public class DCCHistory {
                 values.put(COLUMN_FILE_URI, entry.fileUri);
             entry.entryId = mDatabase.insert(TABLE_DCC_HISTORY, null, values);
         }
-        for (HistoryListener listener : mListeners)
+        List<HistoryListener> listenersCopy;
+        synchronized (mListeners) {
+            listenersCopy = new ArrayList<>(mListeners);
+        }
+        for (HistoryListener listener : listenersCopy)
             listener.onHistoryEntryCreated(entry);
     }
 
-    public synchronized void removeEntry(long id) {
+    public void removeEntry(long id) {
         synchronized (mLock) {
             mDatabase.delete(TABLE_DCC_HISTORY, COLUMN_ID + "=?",
                     new String[] { String.valueOf(id) });
         }
-        for (HistoryListener listener : mListeners)
+        List<HistoryListener> listenersCopy;
+        synchronized (mListeners) {
+            listenersCopy = new ArrayList<>(mListeners);
+        }
+        for (HistoryListener listener : listenersCopy)
             listener.onHistoryEntryRemoved(id);
     }
 

@@ -268,6 +268,8 @@
     <string name="pref_header_misc">その他</string>
     <string name="pref_title_drawer_always_show_server">ドロワーにサーバーを表示</string>
     <string name="pref_summary_drawer_always_show_server">ドロワーにサーバータブを常に表示します</string>
+    <string name="pref_title_disable_ssl_cert_verification">SSL証明書の検証を無効にする</string>
+    <string name="pref_summary_disable_ssl_cert_verification">信頼されていない証明書や自己署名SSL証明書を使用するサーバーへの検証なし接続を許可します</string>
     <string name="pref_title_close_private_quit">ユーザーが退出時にプライベートメッセージを自動的に閉じる</string>
     <string name="pref_title_chat_show_dcc_send">DCC送信ボタンを表示</string>
     <string name="pref_summary_chat_show_dcc_send">プライベートチャットでDCC送信ボタンを表示します</string>

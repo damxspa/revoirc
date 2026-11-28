@@ -137,7 +137,6 @@ public class IRCApplication extends Application implements Application.ActivityL
         storageManager.destroy();
         IRCService.stop(this);
         shutdownAllCloseables();
-        shutdownAllCloseables();
         return true;
     }
 

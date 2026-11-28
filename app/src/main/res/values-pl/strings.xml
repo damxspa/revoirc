@@ -59,4 +59,6 @@
 
     <string name="action_mark_as_read">Oznacz jako przeczytane</string>
     <string name="pref_title_close_private_quit">Automatycznie zamykaj prywatne wiadomości przy wyjściu użytkownika</string>
+    <string name="pref_title_disable_ssl_cert_verification">Wyłącz weryfikację certyfikatów SSL</string>
+    <string name="pref_summary_disable_ssl_cert_verification">Zezwalaj na łączenie z serwerami z niezaufanymi lub samopodpisanymi certyfikatami SSL bez weryfikacji</string>
 </resources>

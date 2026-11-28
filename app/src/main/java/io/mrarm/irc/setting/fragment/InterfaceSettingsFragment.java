@@ -208,6 +208,9 @@ public class InterfaceSettingsFragment extends SettingsListFragment
         a.add(new CheckBoxSetting(getString(R.string.pref_title_drawer_always_show_server),
                 getString(R.string.pref_summary_drawer_always_show_server))
                 .linkSetting(prefs, AppSettings.PREF_DRAWER_ALWAYS_SHOW_SERVER));
+        a.add(new CheckBoxSetting(getString(R.string.pref_title_disable_ssl_cert_verification),
+                getString(R.string.pref_summary_disable_ssl_cert_verification))
+                .linkSetting(prefs, AppSettings.PREF_DISABLE_SSL_CERT_VERIFICATION));
         a.add(new CheckBoxSetting(getString(R.string.pref_title_close_private_quit),
                 getString(R.string.pref_summary_close_private_quit))
                 .linkSetting(prefs, AppSettings.PREF_CLOSE_PRIVATE_QUIT));

@@ -273,6 +273,8 @@
     <string name="pref_header_misc">其他</string>
     <string name="pref_title_drawer_always_show_server">在導航欄中顯示伺服器</string>
     <string name="pref_summary_drawer_always_show_server">始終在導航欄中顯示伺服器標籤</string>
+    <string name="pref_title_disable_ssl_cert_verification">停用 SSL 憑證驗證</string>
+    <string name="pref_summary_disable_ssl_cert_verification">允許在未經驗證的情況下連接至使用不受信任或自簽名 SSL 憑證的伺服器</string>
     <string name="pref_title_chat_show_dcc_send">顯示 DCC 發送按鈕</string>
     <string name="pref_summary_chat_show_dcc_send">在私人聊天中顯示使用 DCC 發送檔案的按鈕</string>
     <string name="pref_title_nick_autocomplete_show_button">顯示按鈕</string>

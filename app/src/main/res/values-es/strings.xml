@@ -359,6 +359,8 @@
     <string name="pref_header_misc">Miscelánea</string>
     <string name="pref_title_drawer_always_show_server">Mostrar servidor en el menú</string>
     <string name="pref_summary_drawer_always_show_server">Mostrar siempre la pestaña Servidor en el menú</string>
+    <string name="pref_title_disable_ssl_cert_verification">Deshabilitar verificación de certificados SSL</string>
+    <string name="pref_summary_disable_ssl_cert_verification">Permite conectar a servidores con certificados SSL no confiables o autofirmados sin comprobación</string>
     <string name="pref_title_chat_show_dcc_send">Mostrar botón de envío DCC</string>
     <string name="pref_summary_chat_show_dcc_send">Mostrar un botón para enviar un archivo usando DCC en chats privados</string>
 

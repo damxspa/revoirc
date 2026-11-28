@@ -57,4 +57,6 @@
 
     <string name="action_mark_as_read">Marker som lest</string>
     <string name="pref_title_close_private_quit">Lukk PM-er automatisk ved brukerutgang</string>
+    <string name="pref_title_disable_ssl_cert_verification">Deaktiver SSL-sertifikatverifisering</string>
+    <string name="pref_summary_disable_ssl_cert_verification">Tillat tilkobling til servere med uverifiserte eller selvsignerte SSL-sertifikater uten verifisering</string>
 </resources>

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Revo IRC</string>
 
     <!-- Chat -->
@@ -374,6 +374,8 @@
     <string name="pref_summary_close_private_quit">Automatically close private message tabs when the user quits the network</string>
     <string name="pref_title_notify_private_quit">Notify on PM disconnects</string>
     <string name="pref_summary_notify_private_quit">Show notifications when a user in a private message conversation disconnects</string>
+    <string name="pref_title_disable_ssl_cert_verification" tools:ignore="MissingTranslation">Disable SSL certificate verification</string>
+    <string name="pref_summary_disable_ssl_cert_verification" tools:ignore="MissingTranslation">Allow connecting to servers with untrusted or self-signed SSL certificates without verification</string>
 
     <string name="pref_title_private_message_delay">Private message delay</string>
     <string name="pref_value_delay_disabled">0 seconds (disabled)</string>
